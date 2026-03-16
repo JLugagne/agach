@@ -30,3 +30,24 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Frontend build output
+ux/dist/
+ux/node_modules/
+
+# Built binary
+server
+
+/agach-server
+
+CLAUDE.md
+
+/data
+
+/.gemini
+/.claude
+/.agach-mcp
+/agach-mcp
+/agach-server
+
+*.pen

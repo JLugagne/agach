@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0F0F0F;
+  --bg-secondary: #0D0D0D;
+  --bg-tertiary: #111111;
+  --bg-elevated: #1A1A1A;
+  
+  --border-primary: #1E1E1E;
+  --border-secondary: #2A2A2A;
+  --border-subtle: #252525;
+  
+  --text-primary: #F0F0F0;
+  --text-secondary: #999999;
+  --text-muted: #555555;
+  --text-dim: #444444;
+  
+  --primary: #00C896;
+  --primary-hover: #00B886;
+  --primary-text: #0F0F0F;
+  
+  --nav-bg-active: #1A1A1A;
+  --nav-text-active: #00C896;
+  
+  --card-bg: #111111;
+  --card-border: #1E1E1E;
+
+  --status-todo: #555555;
+  --status-todo-bg: #1E1E1E;
+  --status-progress: #F09060;
+  --status-progress-bg: #2A1A10;
+  --status-done: #00C896;
+  --status-done-bg: #0A2A20;
+  --status-blocked: #F06060;
+  --status-blocked-bg: #2A0A0A;
+
+  --priority-critical: #F06060;
+  --priority-critical-bg: #2A0A0A;
+  --priority-high: #F09060;
+  --priority-high-bg: #2A1A10;
+  --priority-medium: #FFD060;
+  --priority-medium-bg: #2A2A10;
+  --priority-low: #555555;
+  --priority-low-bg: #1E1E1E;
+}
+
+[data-theme='light'] {
+  --bg-primary: #FAFAFA;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #F0F0F0;
+  --bg-elevated: #FFFFFF;
+  
+  --border-primary: #E5E5E5;
+  --border-secondary: #F0F0F0;
+  --border-subtle: #F0F0F0;
+  
+  --text-primary: #1A1A1A;
+  --text-secondary: #888888;
+  --text-muted: #AAAAAA;
+  --text-dim: #CCCCCC;
+  
+  --primary: #0D6E6E;
+  --primary-hover: #0A5A5A;
+  --primary-text: #FFFFFF;
+  
+  --nav-bg-active: #0D6E6E;
+  --nav-text-active: #FFFFFF;
+  
+  --card-bg: #FFFFFF;
+  --card-border: #E5E5E5;
+
+  --status-todo: #888888;
+  --status-todo-bg: #F0F0F0;
+  --status-progress: #E07B54;
+  --status-progress-bg: #FFF3EE;
+  --status-done: #0D6E6E;
+  --status-done-bg: #E6F2F2;
+  --status-blocked: #D94040;
+  --status-blocked-bg: #FFF5F5;
+
+  --priority-critical: #D94040;
+  --priority-critical-bg: #FFF5F5;
+  --priority-high: #E07B54;
+  --priority-high-bg: #FFF3EE;
+  --priority-medium: #B8860B;
+  --priority-medium-bg: #FFFBEB;
+  --priority-low: #888888;
+  --priority-low-bg: #F0F0F0;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.font-heading {
+  font-family: 'Newsreader', Georgia, serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-primary); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-secondary); }
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.animate-slide-in {
+  animation: slide-in-right 0.2s ease-out;
+}
+
+@keyframes task-highlight {
+  0%, 100% { box-shadow: 0 0 0 0 var(--primary); }
+  50% { box-shadow: 0 0 0 3px var(--primary); }
+}
+
+.animate-task-highlight {
+  animation: task-highlight 0.6s ease-in-out 3;
+}

@@ -1,0 +1,251 @@
+// JSend response wrapper
+export interface JSendResponse<T> {
+  status: 'success' | 'fail' | 'error';
+  data?: T;
+  error?: { code: string; message: string };
+}
+
+// Projects
+export interface ProjectResponse {
+  id: string;
+  parent_id: string | null;
+  name: string;
+  description: string;
+  work_dir: string;
+  created_by_role: string;
+  created_by_agent: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectSummaryResponse {
+  todo_count: number;
+  in_progress_count: number;
+  done_count: number;
+  blocked_count: number;
+}
+
+export interface ProjectWithSummary extends ProjectResponse {
+  summary: ProjectSummaryResponse;
+  // Domain model fields (from direct domain serialization)
+  children_count?: number;
+  task_summary?: ProjectSummaryResponse;
+}
+
+export interface CreateProjectRequest {
+  name: string;
+  description?: string;
+  work_dir?: string;
+  parent_id?: string;
+  created_by_role?: string;
+  created_by_agent?: string;
+}
+
+export interface UpdateProjectRequest {
+  name?: string;
+  description?: string;
+}
+
+// Roles
+export interface RoleResponse {
+  id: string;
+  slug: string;
+  name: string;
+  icon: string;
+  color: string;
+  description: string;
+  tech_stack: string[];
+  prompt_hint: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface CreateRoleRequest {
+  slug: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  description?: string;
+  tech_stack?: string[];
+  prompt_hint?: string;
+  sort_order?: number;
+}
+
+export interface UpdateRoleRequest {
+  name?: string;
+  icon?: string;
+  color?: string;
+  description?: string;
+  tech_stack?: string[];
+  prompt_hint?: string;
+  sort_order?: number;
+}
+
+// Tasks
+export interface TaskResponse {
+  id: string;
+  column_id: string;
+  title: string;
+  summary: string;
+  description: string;
+  priority: string;
+  priority_score: number;
+  position: number;
+  created_by_role: string;
+  created_by_agent: string;
+  assigned_role: string;
+  is_blocked: boolean;
+  blocked_reason: string;
+  blocked_at: string | null;
+  blocked_by_agent: string;
+  wont_do_requested: boolean;
+  wont_do_reason: string;
+  wont_do_requested_by: string;
+  wont_do_requested_at: string | null;
+  completion_summary: string;
+  completed_by_agent: string;
+  completed_at: string | null;
+  files_modified: string[];
+  resolution: string;
+  context_files: string[];
+  tags: string[];
+  estimated_effort: string;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  model: string;
+  seen_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskWithDetailsResponse extends TaskResponse {
+  has_unresolved_deps: boolean;
+  comment_count: number;
+  project_id?: string;
+  project_name?: string;
+}
+
+export interface CreateTaskRequest {
+  title: string;
+  summary: string;
+  description?: string;
+  priority?: string;
+  created_by_role?: string;
+  created_by_agent?: string;
+  assigned_role?: string;
+  context_files?: string[];
+  tags?: string[];
+  estimated_effort?: string;
+  depends_on?: string[];
+}
+
+export interface UpdateTaskRequest {
+  title?: string;
+  description?: string;
+  priority?: string;
+  assigned_role?: string;
+  context_files?: string[];
+  tags?: string[];
+  estimated_effort?: string;
+  resolution?: string;
+}
+
+export interface MoveTaskRequest {
+  target_column: string;
+  reason?: string;
+}
+
+export interface CompleteTaskRequest {
+  completion_summary: string;
+  files_modified?: string[];
+  completed_by_agent: string;
+}
+
+export interface BlockTaskRequest {
+  blocked_reason: string;
+  blocked_by_agent: string;
+}
+
+export interface RequestWontDoRequest {
+  wont_do_reason: string;
+  wont_do_requested_by: string;
+}
+
+export interface RejectWontDoRequest {
+  reason: string;
+}
+
+// Comments
+export interface CommentResponse {
+  id: string;
+  task_id: string;
+  author_role: string;
+  author_name: string;
+  author_type: string;
+  content: string;
+  edited_at: string | null;
+  created_at: string;
+}
+
+export interface CreateCommentRequest {
+  author_role: string;
+  author_name?: string;
+  content: string;
+  mark_as_wont_do?: boolean;
+}
+
+export interface UpdateCommentRequest {
+  content: string;
+}
+
+// Columns & Board
+export interface ColumnResponse {
+  id: string;
+  slug: string;
+  name: string;
+  position: number;
+  wip_limit: number;
+  created_at: string;
+}
+
+export interface ColumnWithTasksResponse extends ColumnResponse {
+  tasks: TaskWithDetailsResponse[];
+}
+
+export interface BoardResponse {
+  columns: ColumnWithTasksResponse[];
+}
+
+// Dependencies
+export interface AddDependencyRequest {
+  depends_on_task_id: string;
+}
+
+export interface DependencyContextResponse {
+  task_id: string;
+  title: string;
+  completion_summary: string;
+  files_modified: string[];
+}
+
+export interface TaskDependentResponse {
+  task_id: string;
+  title: string;
+  column_slug: string;
+}
+
+// Tool Usage / Statistics
+export interface ToolUsageStatResponse {
+  tool_name: string;
+  execution_count: number;
+  last_executed_at: string | null;
+}
+
+// WebSocket
+export interface WSEvent {
+  type: string;
+  project_id?: string;
+  data: unknown;
+}

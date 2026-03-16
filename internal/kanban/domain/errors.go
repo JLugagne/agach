@@ -1,0 +1,197 @@
+package domain
+
+import "errors"
+
+// Error represents a domain error with a code and message
+type Error struct {
+	Code    string
+	Message string
+	Err     error
+}
+
+func (e *Error) Error() string {
+	return e.Message
+}
+
+func (e *Error) Unwrap() error {
+	return e.Err
+}
+
+// IsDomainError checks if an error is a domain error
+func IsDomainError(err error) bool {
+	var domainErr *Error
+	return errors.As(err, &domainErr)
+}
+
+// Common domain errors
+var (
+	// Project errors
+	ErrProjectNotFound = &Error{
+		Code:    "PROJECT_NOT_FOUND",
+		Message: "project not found",
+	}
+	ErrProjectAlreadyExists = &Error{
+		Code:    "PROJECT_ALREADY_EXISTS",
+		Message: "project already exists",
+	}
+	ErrInvalidProjectData = &Error{
+		Code:    "INVALID_PROJECT_DATA",
+		Message: "invalid project data",
+	}
+	ErrProjectNameRequired = &Error{
+		Code:    "PROJECT_NAME_REQUIRED",
+		Message: "project name is required",
+	}
+
+	// Role errors
+	ErrRoleNotFound = &Error{
+		Code:    "ROLE_NOT_FOUND",
+		Message: "role not found",
+	}
+	ErrRoleAlreadyExists = &Error{
+		Code:    "ROLE_ALREADY_EXISTS",
+		Message: "role already exists with this slug",
+	}
+	ErrRoleInUse = &Error{
+		Code:    "ROLE_IN_USE",
+		Message: "role is still in use by tasks",
+	}
+	ErrInvalidRoleData = &Error{
+		Code:    "INVALID_ROLE_DATA",
+		Message: "invalid role data",
+	}
+	ErrRoleSlugRequired = &Error{
+		Code:    "ROLE_SLUG_REQUIRED",
+		Message: "role slug is required",
+	}
+	ErrRoleNameRequired = &Error{
+		Code:    "ROLE_NAME_REQUIRED",
+		Message: "role name is required",
+	}
+
+	// Task errors
+	ErrTaskNotFound = &Error{
+		Code:    "TASK_NOT_FOUND",
+		Message: "task not found",
+	}
+	ErrTaskAlreadyExists = &Error{
+		Code:    "TASK_ALREADY_EXISTS",
+		Message: "task already exists",
+	}
+	ErrInvalidTaskData = &Error{
+		Code:    "INVALID_TASK_DATA",
+		Message: "invalid task data",
+	}
+	ErrTaskTitleRequired = &Error{
+		Code:    "TASK_TITLE_REQUIRED",
+		Message: "task title is required",
+	}
+	ErrUnresolvedDependencies = &Error{
+		Code:    "UNRESOLVED_DEPENDENCIES",
+		Message: "task has unresolved dependencies",
+	}
+	ErrCircularDependency = &Error{
+		Code:    "CIRCULAR_DEPENDENCY",
+		Message: "circular dependency detected",
+	}
+	ErrTaskBlocked = &Error{
+		Code:    "TASK_BLOCKED",
+		Message: "task is blocked",
+	}
+	ErrTaskNotBlocked = &Error{
+		Code:    "TASK_NOT_BLOCKED",
+		Message: "task is not blocked",
+	}
+	ErrWIPLimitReached = &Error{
+		Code:    "WIP_LIMIT_REACHED",
+		Message: "WIP limit reached for column",
+	}
+	ErrInvalidColumn = &Error{
+		Code:    "INVALID_COLUMN",
+		Message: "invalid column",
+	}
+	ErrCompletionSummaryRequired = &Error{
+		Code:    "COMPLETION_SUMMARY_REQUIRED",
+		Message: "completion summary is required (minimum 100 characters)",
+	}
+	ErrBlockedReasonRequired = &Error{
+		Code:    "BLOCKED_REASON_REQUIRED",
+		Message: "blocked reason is required (minimum 50 characters)",
+	}
+	ErrWontDoReasonRequired = &Error{
+		Code:    "WONT_DO_REASON_REQUIRED",
+		Message: "won't do reason is required (minimum 50 characters)",
+	}
+	ErrWontDoNotRequested = &Error{
+		Code:    "WONT_DO_NOT_REQUESTED",
+		Message: "won't do was not requested for this task",
+	}
+	ErrTaskNotInTodo = &Error{
+		Code:    "TASK_NOT_IN_TODO",
+		Message: "task is not in todo column",
+	}
+	ErrSummaryRequired = &Error{
+		Code:    "SUMMARY_REQUIRED",
+		Message: "summary is required",
+	}
+	ErrTaskNotInBlocked = &Error{
+		Code:    "TASK_NOT_IN_BLOCKED",
+		Message: "task is not in blocked column",
+	}
+
+	// Comment errors
+	ErrCommentNotFound = &Error{
+		Code:    "COMMENT_NOT_FOUND",
+		Message: "comment not found",
+	}
+	ErrCommentNotEditable = &Error{
+		Code:    "COMMENT_NOT_EDITABLE",
+		Message: "comment cannot be edited",
+	}
+	ErrInvalidCommentData = &Error{
+		Code:    "INVALID_COMMENT_DATA",
+		Message: "invalid comment data",
+	}
+	ErrCommentContentRequired = &Error{
+		Code:    "COMMENT_CONTENT_REQUIRED",
+		Message: "comment content is required",
+	}
+
+	// Column errors
+	ErrColumnNotFound = &Error{
+		Code:    "COLUMN_NOT_FOUND",
+		Message: "column not found",
+	}
+
+	// Dependency errors
+	ErrDependencyNotFound = &Error{
+		Code:    "DEPENDENCY_NOT_FOUND",
+		Message: "dependency not found",
+	}
+	ErrDependencyAlreadyExists = &Error{
+		Code:    "DEPENDENCY_ALREADY_EXISTS",
+		Message: "dependency already exists",
+	}
+	ErrTaskHasDependents = &Error{
+		Code:    "TASK_HAS_DEPENDENTS",
+		Message: "task has dependent tasks that are not completed",
+	}
+	ErrCannotDependOnSelf = &Error{
+		Code:    "CANNOT_DEPEND_ON_SELF",
+		Message: "task cannot depend on itself",
+	}
+	ErrNoTasksAvailable = &Error{
+		Code:    "NO_TASKS_AVAILABLE",
+		Message: "no tasks available matching criteria",
+	}
+
+	ErrProjectsNotRelated = &Error{
+		Code:    "PROJECTS_NOT_RELATED",
+		Message: "source and target projects must share the same parent (be siblings) or have a direct parent-child relationship",
+	}
+
+	// Aliases for backward compatibility
+	ErrDependencyCycle  = ErrCircularDependency
+	ErrWIPLimitExceeded = ErrWIPLimitReached
+	ErrNoAvailableTasks = ErrNoTasksAvailable
+)

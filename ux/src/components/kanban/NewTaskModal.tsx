@@ -1,0 +1,387 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { X, Plus, XCircle, Paperclip, Loader2 } from 'lucide-react';
+import { createTask, listRoles } from '../../lib/api';
+import type { RoleResponse } from '../../lib/types';
+import { useImageUpload } from '../../hooks/useImageUpload';
+
+interface NewTaskModalProps {
+  projectId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskModalProps) {
+  const [title, setTitle] = useState('');
+  const [summary, setSummary] = useState('');
+  const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState('medium');
+  const [assignedRole, setAssignedRole] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [contextFiles, setContextFiles] = useState<string[]>([]);
+  const [fileInput, setFileInput] = useState('');
+  const [roles, setRoles] = useState<RoleResponse[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [descDragOver, setDescDragOver] = useState(false);
+  const descTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const descFileInputRef = useRef<HTMLInputElement>(null);
+  const { upload: uploadImg, uploading: imgUploading, error: imgError } = useImageUpload(projectId);
+
+  useEffect(() => {
+    listRoles()
+      .then((data) => setRoles(data || []))
+      .catch(() => {});
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    },
+    [onClose],
+  );
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  const addTag = () => {
+    const t = tagInput.trim();
+    if (t && !tags.includes(t)) {
+      setTags([...tags, t]);
+    }
+    setTagInput('');
+  };
+
+  const removeTag = (tag: string) => {
+    setTags(tags.filter((t) => t !== tag));
+  };
+
+  const addFile = () => {
+    const f = fileInput.trim();
+    if (f && !contextFiles.includes(f)) {
+      setContextFiles([...contextFiles, f]);
+    }
+    setFileInput('');
+  };
+
+  const removeFile = (file: string) => {
+    setContextFiles(contextFiles.filter((f) => f !== file));
+  };
+
+  const insertImageMarkdown = useCallback(
+    async (file: File) => {
+      const url = await uploadImg(file);
+      if (!url) return;
+      const markdown = `![](${url})`;
+      const textarea = descTextareaRef.current;
+      if (textarea) {
+        const start = textarea.selectionStart ?? description.length;
+        const end = textarea.selectionEnd ?? description.length;
+        const newDesc = description.slice(0, start) + markdown + description.slice(end);
+        setDescription(newDesc);
+      } else {
+        setDescription((prev) => prev + markdown);
+      }
+    },
+    [uploadImg, description],
+  );
+
+  const handleDescDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    setDescDragOver(true);
+  };
+
+  const handleDescDragLeave = () => {
+    setDescDragOver(false);
+  };
+
+  const handleDescDrop = async (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    setDescDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      await insertImageMarkdown(file);
+    }
+  };
+
+  const handleDescFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await insertImageMarkdown(file);
+    }
+    e.target.value = '';
+  };
+
+  const handleSubmit = async () => {
+    if (!title.trim()) {
+      setError('Title is required.');
+      return;
+    }
+    if (!summary.trim()) {
+      setError('Summary is required.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      await createTask(projectId, {
+        title: title.trim(),
+        summary: summary.trim(),
+        description: description.trim() || undefined,
+        priority,
+        assigned_role: assignedRole || undefined,
+        tags: tags.length > 0 ? tags : undefined,
+        context_files: contextFiles.length > 0 ? contextFiles : undefined,
+      });
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create task');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="absolute inset-0 bg-[#00000060]" />
+      <div className="relative w-[520px] max-h-[90vh] rounded-xl bg-[#1A1A1A] border border-[#2A2A2A] shadow-2xl flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A] flex-shrink-0">
+          <h2 className="text-[#F0F0F0] text-lg font-semibold font-['Newsreader']">
+            New Task
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-[#555555] hover:text-[#888888] transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
+          {/* Title */}
+          <div>
+            <label className="block text-[#E0E0E0] text-sm font-['Inter'] font-medium mb-1.5">
+              Title <span className="text-[#F06060]">*</span>
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Task title"
+              className="w-full bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-2 text-[#F0F0F0] text-sm font-['Inter'] placeholder-[#333333] focus:outline-none focus:border-[#00C896] transition-colors"
+            />
+          </div>
+
+          {/* Summary */}
+          <div>
+            <label className="block text-[#E0E0E0] text-sm font-['Inter'] font-medium mb-1.5">
+              Summary <span className="text-[#F06060]">*</span>
+            </label>
+            <textarea
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              placeholder="Brief description of what needs to be done"
+              rows={2}
+              className="w-full bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-2 text-[#F0F0F0] text-sm font-['Inter'] placeholder-[#333333] resize-y focus:outline-none focus:border-[#00C896] transition-colors"
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[#E0E0E0] text-sm font-['Inter'] font-medium">
+                Description
+              </label>
+              <div className="flex items-center gap-1.5">
+                {imgUploading && (
+                  <Loader2 size={13} className="text-[#00C896] animate-spin" />
+                )}
+                <button
+                  type="button"
+                  onClick={() => descFileInputRef.current?.click()}
+                  title="Attach image"
+                  className="text-[#555555] hover:text-[#888888] transition-colors"
+                >
+                  <Paperclip size={14} />
+                </button>
+                <input
+                  ref={descFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleDescFileSelect}
+                />
+              </div>
+            </div>
+            <textarea
+              ref={descTextareaRef}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              onDragOver={handleDescDragOver}
+              onDragLeave={handleDescDragLeave}
+              onDrop={handleDescDrop}
+              placeholder="Detailed description (optional)"
+              rows={4}
+              className={`w-full bg-[#0D0D0D] border rounded-md px-3 py-2 text-[#F0F0F0] text-sm font-['Inter'] placeholder-[#333333] resize-y focus:outline-none transition-colors ${descDragOver ? 'border-[#00C896]' : 'border-[#1E1E1E] focus:border-[#00C896]'}`}
+            />
+            {imgError && (
+              <p className="text-[#F06060] text-xs font-['Inter'] mt-1">{imgError}</p>
+            )}
+          </div>
+
+          {/* Priority & Assigned Role row */}
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="block text-[#E0E0E0] text-sm font-['Inter'] font-medium mb-1.5">
+                Priority
+              </label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+                className="w-full bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-2 text-[#F0F0F0] text-sm font-['Inter'] focus:outline-none focus:border-[#00C896] transition-colors"
+              >
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-[#E0E0E0] text-sm font-['Inter'] font-medium mb-1.5">
+                Assigned Role
+              </label>
+              <select
+                value={assignedRole}
+                onChange={(e) => setAssignedRole(e.target.value)}
+                className="w-full bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-2 text-[#F0F0F0] text-sm font-['Inter'] focus:outline-none focus:border-[#00C896] transition-colors"
+              >
+                <option value="">Unassigned</option>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.slug}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div>
+            <label className="block text-[#E0E0E0] text-sm font-['Inter'] font-medium mb-1.5">
+              Tags
+            </label>
+            <div className="flex gap-2 mb-2 flex-wrap">
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#1E1E1E] text-[#888888] text-xs font-['JetBrains_Mono']"
+                >
+                  {tag}
+                  <button onClick={() => removeTag(tag)} className="text-[#555555] hover:text-[#F06060]">
+                    <XCircle size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addTag();
+                  }
+                }}
+                placeholder="Add tag..."
+                className="flex-1 bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-1.5 text-[#F0F0F0] text-xs font-['Inter'] placeholder-[#333333] focus:outline-none focus:border-[#00C896] transition-colors"
+              />
+              <button
+                onClick={addTag}
+                disabled={!tagInput.trim()}
+                className="px-2 py-1.5 bg-[#1E1E1E] hover:bg-[#252525] disabled:opacity-30 rounded-md transition-colors"
+              >
+                <Plus size={14} className="text-[#888888]" />
+              </button>
+            </div>
+          </div>
+
+          {/* Context Files */}
+          <div>
+            <label className="block text-[#E0E0E0] text-sm font-['Inter'] font-medium mb-1.5">
+              Context Files
+            </label>
+            <div className="flex flex-col gap-1 mb-2">
+              {contextFiles.map((f) => (
+                <div
+                  key={f}
+                  className="flex items-center gap-2 px-2 py-1 rounded bg-[#0D0D0D] border border-[#1E1E1E]"
+                >
+                  <span className="text-[#AAAAAA] text-xs font-['JetBrains_Mono'] truncate flex-1">
+                    {f}
+                  </span>
+                  <button onClick={() => removeFile(f)} className="text-[#555555] hover:text-[#F06060]">
+                    <XCircle size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={fileInput}
+                onChange={(e) => setFileInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addFile();
+                  }
+                }}
+                placeholder="path/to/file.go"
+                className="flex-1 bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-1.5 text-[#F0F0F0] text-xs font-['JetBrains_Mono'] placeholder-[#333333] focus:outline-none focus:border-[#00C896] transition-colors"
+              />
+              <button
+                onClick={addFile}
+                disabled={!fileInput.trim()}
+                className="px-2 py-1.5 bg-[#1E1E1E] hover:bg-[#252525] disabled:opacity-30 rounded-md transition-colors"
+              >
+                <Plus size={14} className="text-[#888888]" />
+              </button>
+            </div>
+          </div>
+
+          {error && <p className="text-[#F06060] text-sm font-['Inter']">{error}</p>}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#2A2A2A] flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-['Inter'] text-[#888888] hover:text-[#E0E0E0] transition-colors rounded-md"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading || !title.trim() || !summary.trim()}
+            className="px-4 py-2 text-sm font-['Inter'] font-medium text-[#0F0F0F] bg-[#00C896] hover:bg-[#00B886] disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
+          >
+            {loading ? 'Creating...' : 'Create Task'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
