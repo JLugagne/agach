@@ -97,19 +97,20 @@ type CreateTaskRequest struct {
 
 // UpdateTaskRequest represents a request to update a task
 type UpdateTaskRequest struct {
-	Title           *string   `json:"title" validate:"omitempty,min=1,max=500"`
-	Description     *string   `json:"description" validate:"omitempty,max=10000"`
-	Priority        *string   `json:"priority" validate:"omitempty,oneof=critical high medium low"`
-	AssignedRole    *string   `json:"assigned_role" validate:"omitempty,max=100"`
-	ContextFiles    *[]string `json:"context_files" validate:"omitempty,dive,max=500"`
-	Tags            *[]string `json:"tags" validate:"omitempty,dive,max=50"`
-	EstimatedEffort  *string `json:"estimated_effort" validate:"omitempty,oneof=XS S M L XL"`
-	Resolution       *string `json:"resolution" validate:"omitempty,max=10000"`
-	InputTokens      *int    `json:"input_tokens,omitempty"`
-	OutputTokens     *int    `json:"output_tokens,omitempty"`
-	CacheReadTokens  *int    `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens *int    `json:"cache_write_tokens,omitempty"`
-	Model            *string `json:"model,omitempty"`
+	Title                *string   `json:"title" validate:"omitempty,min=1,max=500"`
+	Description          *string   `json:"description" validate:"omitempty,max=10000"`
+	Priority             *string   `json:"priority" validate:"omitempty,oneof=critical high medium low"`
+	AssignedRole         *string   `json:"assigned_role" validate:"omitempty,max=100"`
+	ContextFiles         *[]string `json:"context_files" validate:"omitempty,dive,max=500"`
+	Tags                 *[]string `json:"tags" validate:"omitempty,dive,max=50"`
+	EstimatedEffort      *string   `json:"estimated_effort" validate:"omitempty,oneof=XS S M L XL"`
+	Resolution           *string   `json:"resolution" validate:"omitempty,max=10000"`
+	InputTokens          *int      `json:"input_tokens,omitempty"`
+	OutputTokens         *int      `json:"output_tokens,omitempty"`
+	CacheReadTokens      *int      `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens     *int      `json:"cache_write_tokens,omitempty"`
+	Model                *string   `json:"model,omitempty"`
+	HumanEstimateSeconds *int      `json:"human_estimate_seconds,omitempty"`
 }
 
 // MoveTaskRequest represents a request to move a task
@@ -120,14 +121,15 @@ type MoveTaskRequest struct {
 
 // CompleteTaskRequest represents a request to complete a task
 type CompleteTaskRequest struct {
-	CompletionSummary string   `json:"completion_summary" validate:"required,min=100,max=10000"`
-	FilesModified     []string `json:"files_modified" validate:"dive,max=500"`
-	CompletedByAgent  string   `json:"completed_by_agent" validate:"required,max=100"`
-	InputTokens       int      `json:"input_tokens,omitempty"`
-	OutputTokens      int      `json:"output_tokens,omitempty"`
-	CacheReadTokens   int      `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens  int      `json:"cache_write_tokens,omitempty"`
-	Model             string   `json:"model,omitempty"`
+	CompletionSummary    string   `json:"completion_summary" validate:"required,min=100,max=10000"`
+	FilesModified        []string `json:"files_modified" validate:"dive,max=500"`
+	CompletedByAgent     string   `json:"completed_by_agent" validate:"required,max=100"`
+	InputTokens          int      `json:"input_tokens,omitempty"`
+	OutputTokens         int      `json:"output_tokens,omitempty"`
+	CacheReadTokens      int      `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens     int      `json:"cache_write_tokens,omitempty"`
+	Model                string   `json:"model,omitempty"`
+	HumanEstimateSeconds int      `json:"human_estimate_seconds,omitempty"`
 }
 
 // BlockTaskRequest represents a request to block a task
@@ -150,6 +152,11 @@ type RejectWontDoRequest struct {
 // MoveTaskToProjectRequest represents a request to move a task to another project
 type MoveTaskToProjectRequest struct {
 	TargetProjectID string `json:"target_project_id" validate:"required,entity_id"`
+}
+
+// ReorderTaskRequest represents a request to reorder a task within its column
+type ReorderTaskRequest struct {
+	Position int `json:"position" validate:"min=0"`
 }
 
 // TaskResponse represents a task in API responses
@@ -186,9 +193,12 @@ type TaskResponse struct {
 	CacheReadTokens   int        `json:"cache_read_tokens"`
 	CacheWriteTokens  int        `json:"cache_write_tokens"`
 	Model             string     `json:"model"`
-	SeenAt            *time.Time `json:"seen_at"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
+	SeenAt               *time.Time `json:"seen_at"`
+	StartedAt            *time.Time `json:"started_at"`
+	DurationSeconds      int        `json:"duration_seconds"`
+	HumanEstimateSeconds int        `json:"human_estimate_seconds"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
 }
 
 // TaskWithDetailsResponse represents a task with additional metadata
@@ -264,6 +274,13 @@ type ToolUsageStatResponse struct {
 	ToolName       string     `json:"tool_name"`
 	ExecutionCount int        `json:"execution_count"`
 	LastExecutedAt *time.Time `json:"last_executed_at"`
+}
+
+// TimelineEntryResponse represents daily task counts in API responses
+type TimelineEntryResponse struct {
+	Date           string `json:"date"`
+	TasksCreated   int    `json:"tasks_created"`
+	TasksCompleted int    `json:"tasks_completed"`
 }
 
 // Validation errors

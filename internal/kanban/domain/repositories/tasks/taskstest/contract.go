@@ -36,6 +36,8 @@ type MockTaskRepository struct {
 	HasUnresolvedDependenciesFunc func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (bool, error)
 	GetDependentsNotDoneFunc      func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.Task, error)
 	MarkTaskSeenFunc              func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
+	ReorderTaskFunc               func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error
+	GetTimelineFunc               func(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error)
 }
 
 func (m *MockTaskRepository) Create(ctx context.Context, projectID domain.ProjectID, task domain.Task) error {
@@ -113,6 +115,20 @@ func (m *MockTaskRepository) MarkTaskSeen(ctx context.Context, projectID domain.
 		panic("called not defined MarkTaskSeenFunc")
 	}
 	return m.MarkTaskSeenFunc(ctx, projectID, taskID)
+}
+
+func (m *MockTaskRepository) ReorderTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error {
+	if m.ReorderTaskFunc == nil {
+		panic("called not defined ReorderTaskFunc")
+	}
+	return m.ReorderTaskFunc(ctx, projectID, taskID, newPosition)
+}
+
+func (m *MockTaskRepository) GetTimeline(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error) {
+	if m.GetTimelineFunc == nil {
+		panic("called not defined GetTimelineFunc")
+	}
+	return m.GetTimelineFunc(ctx, projectID, days)
 }
 
 // TasksContractTesting runs all contract tests for a TaskRepository implementation.

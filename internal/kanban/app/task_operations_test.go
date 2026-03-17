@@ -44,6 +44,10 @@ func TestApp_MoveTask_Success(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
+	mockTasks.HasUnresolvedDependenciesFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (bool, error) {
+		return false, nil
+	}
+
 	mockTasks.ListFunc = func(ctx context.Context, pid domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error) {
 		return []domain.TaskWithDetails{}, nil
 	}
@@ -321,6 +325,10 @@ func TestApp_MoveTask_WIPLimitExceeded_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
+	mockTasks.HasUnresolvedDependenciesFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (bool, error) {
+		return false, nil
+	}
+
 	// Return 1 task already in progress (at WIP limit of 1)
 	mockTasks.ListFunc = func(ctx context.Context, pid domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error) {
 		return []domain.TaskWithDetails{
@@ -333,6 +341,158 @@ func TestApp_MoveTask_WIPLimitExceeded_ReturnsError(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
 	assert.ErrorIs(t, err, domain.ErrWIPLimitExceeded)
+}
+
+// MoveTask - Dependency Checks
+
+func TestApp_MoveTask_ToInProgress_WithUnresolvedDeps_Fails(t *testing.T) {
+	ctx := context.Background()
+	a, _, _, mockTasks, mockColumns, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+	todoColID := domain.NewColumnID()
+	inProgressColID := domain.NewColumnID()
+
+	mockTasks.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (*domain.Task, error) {
+		if pid == projectID && tid == taskID {
+			return &domain.Task{ID: taskID, ColumnID: todoColID, Title: "Dependent Task", Summary: "Summary"}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	mockColumns.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, cid domain.ColumnID) (*domain.Column, error) {
+		if pid == projectID && cid == todoColID {
+			return &domain.Column{ID: todoColID, Slug: domain.ColumnTodo, Name: "To Do"}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	mockColumns.FindBySlugFunc = func(ctx context.Context, pid domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
+		if pid == projectID && slug == domain.ColumnInProgress {
+			return &domain.Column{ID: inProgressColID, Slug: domain.ColumnInProgress, Name: "In Progress", WIPLimit: 0}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	// Signal that there are unresolved dependencies
+	mockTasks.HasUnresolvedDependenciesFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (bool, error) {
+		return true, nil
+	}
+
+	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnInProgress)
+
+	assert.Error(t, err)
+	assert.True(t, domain.IsDomainError(err))
+	assert.ErrorIs(t, err, domain.ErrUnresolvedDependencies)
+}
+
+func TestApp_MoveTask_ToInProgress_WithResolvedDeps_Succeeds(t *testing.T) {
+	ctx := context.Background()
+	a, _, _, mockTasks, mockColumns, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+	todoColID := domain.NewColumnID()
+	inProgressColID := domain.NewColumnID()
+
+	mockTasks.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (*domain.Task, error) {
+		if pid == projectID && tid == taskID {
+			return &domain.Task{ID: taskID, ColumnID: todoColID, Title: "Task With Resolved Deps", Summary: "Summary"}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	mockColumns.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, cid domain.ColumnID) (*domain.Column, error) {
+		if pid == projectID && cid == todoColID {
+			return &domain.Column{ID: todoColID, Slug: domain.ColumnTodo, Name: "To Do"}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	mockColumns.FindBySlugFunc = func(ctx context.Context, pid domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
+		if pid == projectID && slug == domain.ColumnInProgress {
+			return &domain.Column{ID: inProgressColID, Slug: domain.ColumnInProgress, Name: "In Progress", WIPLimit: 0}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	// All dependencies are resolved
+	mockTasks.HasUnresolvedDependenciesFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (bool, error) {
+		return false, nil
+	}
+
+	mockTasks.ListFunc = func(ctx context.Context, pid domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error) {
+		return []domain.TaskWithDetails{}, nil
+	}
+
+	var updatedTask domain.Task
+	mockTasks.UpdateFunc = func(ctx context.Context, pid domain.ProjectID, task domain.Task) error {
+		updatedTask = task
+		return nil
+	}
+
+	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnInProgress)
+
+	require.NoError(t, err)
+	assert.Equal(t, inProgressColID, updatedTask.ColumnID)
+}
+
+func TestApp_MoveTask_ToTodo_WithUnresolvedDeps_Succeeds(t *testing.T) {
+	ctx := context.Background()
+	a, _, _, mockTasks, mockColumns, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+	inProgressColID := domain.NewColumnID()
+	todoColID := domain.NewColumnID()
+
+	mockTasks.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (*domain.Task, error) {
+		if pid == projectID && tid == taskID {
+			return &domain.Task{
+				ID:       taskID,
+				ColumnID: inProgressColID,
+				Title:    "Task Moving Back",
+				Summary:  "Summary",
+			}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	mockColumns.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, cid domain.ColumnID) (*domain.Column, error) {
+		if pid == projectID && cid == inProgressColID {
+			return &domain.Column{ID: inProgressColID, Slug: domain.ColumnInProgress, Name: "In Progress"}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	mockColumns.FindBySlugFunc = func(ctx context.Context, pid domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
+		if pid == projectID && slug == domain.ColumnTodo {
+			return &domain.Column{ID: todoColID, Slug: domain.ColumnTodo, Name: "To Do"}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	// HasUnresolvedDependencies should NOT be called when moving to todo — we verify by not setting it.
+	// If it were called with nil func, the mock would panic.
+
+	mockTasks.ListFunc = func(ctx context.Context, pid domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error) {
+		return []domain.TaskWithDetails{}, nil
+	}
+
+	var updatedTask domain.Task
+	mockTasks.UpdateFunc = func(ctx context.Context, pid domain.ProjectID, task domain.Task) error {
+		updatedTask = task
+		return nil
+	}
+
+	// Moving to todo should succeed even without setting HasUnresolvedDependenciesFunc,
+	// proving the dependency check is only performed when targeting in_progress.
+	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnTodo)
+
+	require.NoError(t, err)
+	assert.Equal(t, todoColID, updatedTask.ColumnID)
+	assert.Contains(t, updatedTask.Resolution, "Moved back to Todo by human")
 }
 
 // StartTask Tests
@@ -365,6 +525,10 @@ func TestApp_StartTask_Success(t *testing.T) {
 			return &domain.Column{ID: inProgressColID, Slug: domain.ColumnInProgress, Name: "In Progress", WIPLimit: 0}, nil
 		}
 		return nil, errors.New("not found")
+	}
+
+	mockTasks.HasUnresolvedDependenciesFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (bool, error) {
+		return false, nil
 	}
 
 	mockTasks.ListFunc = func(ctx context.Context, pid domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error) {

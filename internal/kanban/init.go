@@ -121,6 +121,7 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	commentQueries := queries.NewCommentQueriesHandler(appInstance, ctrl)
 	dependencyQueries := queries.NewDependencyQueriesHandler(appInstance, ctrl)
 	toolUsageQueries := queries.NewToolUsageQueriesHandler(appInstance, ctrl)
+	timelineQueries := queries.NewTimelineQueriesHandler(appInstance, ctrl)
 
 	// Register routes
 	projectCommands.RegisterRoutes(router)
@@ -136,6 +137,7 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	commentQueries.RegisterRoutes(router)
 	dependencyQueries.RegisterRoutes(router)
 	toolUsageQueries.RegisterRoutes(router)
+	timelineQueries.RegisterRoutes(router)
 
 	// WebSocket endpoint
 	upgrader := gorillaws.Upgrader{

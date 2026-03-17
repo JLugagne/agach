@@ -5,7 +5,7 @@ import type {
   MoveTaskRequest, CompleteTaskRequest, BlockTaskRequest, RequestWontDoRequest,
   RejectWontDoRequest, CommentResponse, CreateCommentRequest, UpdateCommentRequest,
   BoardResponse, ColumnResponse, AddDependencyRequest,
-  UpdateProjectRequest, ToolUsageStatResponse,
+  UpdateProjectRequest, ToolUsageStatResponse, TimelineEntryResponse,
 } from './types';
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -65,6 +65,10 @@ export const rejectWontDo = (projectId: string, taskId: string, data: RejectWont
 export async function markTaskSeen(projectId: string, taskId: string): Promise<void> {
   await fetch(`/api/projects/${projectId}/tasks/${taskId}/seen`, { method: 'POST' });
 }
+export const reorderTask = (projectId: string, taskId: string, position: number) =>
+  request<void>('POST', `/api/projects/${projectId}/tasks/${taskId}/reorder`, { position });
+export const moveTaskToProject = (projectId: string, taskId: string, targetProjectId: string) =>
+  request<TaskResponse>('POST', `/api/projects/${projectId}/tasks/${taskId}/move-to-project`, { target_project_id: targetProjectId });
 
 // Roles
 export const listRoles = () => request<RoleResponse[]>('GET', '/api/roles');
@@ -91,6 +95,10 @@ export async function uploadImage(projectId: string, file: File): Promise<{ url:
 
 // Statistics
 export const getToolUsage = (projectId: string) => request<ToolUsageStatResponse[]>('GET', `/api/projects/${projectId}/tool-usage`);
+export const getTimeline = (projectId: string, days?: number) => {
+  const params = days ? `?days=${days}` : '';
+  return request<TimelineEntryResponse[]>('GET', `/api/projects/${projectId}/stats/timeline${params}`);
+};
 
 // Dependencies
 export const addDependency = (projectId: string, taskId: string, data: AddDependencyRequest) => request<unknown>('POST', `/api/projects/${projectId}/tasks/${taskId}/dependencies`, data);

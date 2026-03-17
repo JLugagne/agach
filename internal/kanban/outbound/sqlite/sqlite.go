@@ -48,6 +48,9 @@ var projectIndexesMigration string
 //go:embed migrations/011_tool_usage.sql
 var toolUsageMigration string
 
+//go:embed migrations/012_task_timing.sql
+var taskTimingMigration string
+
 // baseRepository contains shared database connections
 type baseRepository struct {
 	globalDB   *sql.DB
@@ -266,6 +269,11 @@ func (r *baseRepository) getProjectDB(projectID domain.ProjectID) (*sql.DB, erro
 	}
 	// Tool usage tracking table
 	if err := runMigration(db, toolUsageMigration); err != nil {
+		db.Close()
+		return nil, err
+	}
+	// Task timing columns (started_at, duration_seconds, human_estimate_seconds)
+	if err := runMigration(db, taskTimingMigration); err != nil && !isDuplicateColumn(err) {
 		db.Close()
 		return nil, err
 	}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { Plus, ChevronRight, FolderTree, X, Search } from 'lucide-react';
-import { getBoard, getProject, listRoles, listSubProjects, moveTask as apiMoveTask, markTaskSeen } from '../lib/api';
+import { getBoard, getProject, getTask, createTask, listRoles, listSubProjects, moveTask as apiMoveTask, markTaskSeen, updateTask } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type {
   BoardResponse,
@@ -15,6 +15,7 @@ import TaskDrawer from '../components/kanban/TaskDrawer';
 import TaskContextMenu from '../components/kanban/TaskContextMenu';
 import TaskActions from '../components/kanban/TaskActions';
 import NewTaskModal from '../components/kanban/NewTaskModal';
+import BulkActionsBar from '../components/kanban/BulkActionsBar';
 
 const DONE_FILTER_OPTIONS = [
   { label: 'Last 1h', value: '1h' },
@@ -42,6 +43,13 @@ export default function KanbanPage() {
   const [includeChildren, setIncludeChildren] = useState(true);
   const [roles, setRoles] = useState<RoleResponse[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
+
+  // Role color lookup map
+  const roleColorMap = useMemo((): Record<string, string> => {
+    const map: Record<string, string> = {};
+    for (const r of roles) map[r.slug] = r.color;
+    return map;
+  }, [roles]);
   const [childProjectIds, setChildProjectIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -49,6 +57,39 @@ export default function KanbanPage() {
   // Track task column positions to detect moves and highlight
   const [highlightedTaskIds, setHighlightedTaskIds] = useState<Set<string>>(new Set());
   const prevTaskColumnsRef = useRef<Map<string, string>>(new Map());
+
+  // Search input ref for keyboard shortcut focus
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Keyboard shortcuts help overlay
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+
+  // Multi-select state
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+
+  // Build a map of taskId -> columnSlug for the current board
+  const taskColumnMap = useMemo((): Map<string, string> => {
+    const map = new Map<string, string>();
+    if (!board) return map;
+    for (const col of board.columns) {
+      for (const task of col.tasks || []) {
+        map.set(task.id, col.slug);
+      }
+    }
+    return map;
+  }, [board]);
+
+  // Build a flat list of selected TaskWithDetailsResponse objects
+  const selectedTaskObjects = useMemo((): TaskWithDetailsResponse[] => {
+    if (!board || selectedTaskIds.size === 0) return [];
+    const result: TaskWithDetailsResponse[] = [];
+    for (const col of board.columns) {
+      for (const task of col.tasks || []) {
+        if (selectedTaskIds.has(task.id)) result.push(task);
+      }
+    }
+    return result;
+  }, [board, selectedTaskIds]);
 
   // Drawer state — driven by URL ?task= param
   const selectedTaskId = searchParams.get('task');
@@ -117,6 +158,65 @@ export default function KanbanPage() {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Check if an input-like element is focused — skip shortcuts in that case,
+      // except for Escape which should always work.
+      const tag = (document.activeElement as HTMLElement)?.tagName?.toLowerCase();
+      const isInputFocused = tag === 'input' || tag === 'textarea' || tag === 'select';
+
+      if (e.key === 'Escape') {
+        // Priority: close help overlay → close drawer → clear selection → close modal
+        if (showShortcutsHelp) {
+          setShowShortcutsHelp(false);
+          return;
+        }
+        if (selectedTaskId) {
+          setSelectedTaskId(null);
+          return;
+        }
+        if (selectedTaskIds.size > 0) {
+          setSelectedTaskIds(new Set());
+          return;
+        }
+        if (actionState) {
+          setActionState(null);
+          return;
+        }
+        if (showNewTask) {
+          setShowNewTask(false);
+          return;
+        }
+        return;
+      }
+
+      // All other shortcuts are skipped when an input is focused
+      if (isInputFocused) return;
+
+      if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        setShowNewTask(true);
+        return;
+      }
+
+      if (e.key === '/') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      if (e.key === '?') {
+        e.preventDefault();
+        setShowShortcutsHelp((prev) => !prev);
+        return;
+      }
+    };
+
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [showShortcutsHelp, selectedTaskId, selectedTaskIds, actionState, showNewTask, setSelectedTaskId]);
 
   const fetchBoard = useCallback(async () => {
     if (!projectId) return;
@@ -258,6 +358,24 @@ export default function KanbanPage() {
     });
   };
 
+  // Handle task selection (ctrl+click multi-select)
+  const handleTaskSelect = useCallback((taskId: string, ctrlKey: boolean) => {
+    if (ctrlKey) {
+      setSelectedTaskIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(taskId)) {
+          next.delete(taskId);
+        } else {
+          next.add(taskId);
+        }
+        return next;
+      });
+    } else {
+      // Normal click: clear selection
+      setSelectedTaskIds(new Set());
+    }
+  }, []);
+
   const handleTaskClick = (task: TaskWithDetailsResponse) => {
     setSelectedTaskId(task.id);
     // Mark done-column tasks as seen when the drawer is opened
@@ -304,9 +422,55 @@ export default function KanbanPage() {
   const handleContextMenuAction = async (action: string) => {
     if (!contextMenu || !projectId) return;
     const { task } = contextMenu;
+    const taskProjId = task.project_id || projectId;
+
+    // Priority actions
+    if (action.startsWith('priority_')) {
+      const priority = action.replace('priority_', '');
+      try {
+        await updateTask(taskProjId, task.id, { priority });
+        fetchBoard();
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+
+    // Role assign/unassign actions
+    if (action.startsWith('role_')) {
+      const role = action === 'role_unassign' ? '' : action.replace('role_', '');
+      try {
+        await updateTask(taskProjId, task.id, { assigned_role: role });
+        fetchBoard();
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+
+    // Duplicate action
+    if (action === 'duplicate') {
+      try {
+        const fullTask = await getTask(taskProjId, task.id);
+        await createTask(taskProjId, {
+          title: `Copy of ${fullTask.title}`,
+          summary: fullTask.summary,
+          description: fullTask.description,
+          priority: fullTask.priority,
+          assigned_role: fullTask.assigned_role,
+          tags: fullTask.tags,
+          context_files: fullTask.context_files,
+          estimated_effort: fullTask.estimated_effort,
+        });
+        fetchBoard();
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
 
     // Actions that open modals
-    if (['block', 'unblock', 'wontdo', 'delete', 'complete'].includes(action)) {
+    if (['block', 'unblock', 'wontdo', 'delete', 'complete', 'move_to_project'].includes(action)) {
       setActionState({ task, action });
       return;
     }
@@ -316,9 +480,6 @@ export default function KanbanPage() {
       setSelectedTaskId(task.id);
       return;
     }
-
-    // Move actions — use task's actual project ID
-    const taskProjId = task.project_id || projectId;
 
     if (action === 'move_in_progress') {
       try {
@@ -402,6 +563,7 @@ export default function KanbanPage() {
           <div className="relative">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <input
+              ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -521,6 +683,8 @@ export default function KanbanPage() {
               <Column
                 key={col.id}
                 column={displayCol}
+                projectId={projectId}
+                roleColorMap={roleColorMap}
                 onTaskClick={handleTaskClick}
                 onTaskContextMenu={handleTaskContextMenu}
                 isTaskNew={col.slug === 'done' ? (taskId) => {
@@ -530,6 +694,9 @@ export default function KanbanPage() {
                   return task?.seen_at === null;
                 } : undefined}
                 isTaskHighlighted={(taskId) => highlightedTaskIds.has(taskId)}
+                isTaskSelected={(taskId) => selectedTaskIds.has(taskId)}
+                onTaskSelect={handleTaskSelect}
+                onRefresh={fetchBoard}
               />
             );
           })}
@@ -543,6 +710,7 @@ export default function KanbanPage() {
           column={contextMenu.column}
           position={contextMenu.position}
           projectId={projectId}
+          roles={roles.map((r) => ({ slug: r.slug, name: r.name, color: r.color }))}
           onClose={() => setContextMenu(null)}
           onAction={handleContextMenuAction}
         />
@@ -591,6 +759,54 @@ export default function KanbanPage() {
         onClose={() => setActionState(null)}
         onSuccess={handleActionSuccess}
       />
+
+      {/* Bulk actions bar */}
+      {selectedTaskIds.size > 0 && (
+        <BulkActionsBar
+          selectedTasks={selectedTaskObjects}
+          columnMap={taskColumnMap}
+          projectId={projectId}
+          onClear={() => setSelectedTaskIds(new Set())}
+          onRefresh={fetchBoard}
+        />
+      )}
+
+      {/* Keyboard shortcuts help overlay */}
+      {showShortcutsHelp && (
+        <>
+          {/* Backdrop to dismiss on click outside */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setShowShortcutsHelp(false)}
+          />
+          <div className="fixed bottom-5 right-5 z-50 bg-[var(--bg-elevated)]/95 backdrop-blur-sm border border-[var(--border-primary)] rounded-lg shadow-xl p-4 min-w-[200px]">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[var(--text-primary)] text-xs font-['Inter'] font-semibold uppercase tracking-wider">Shortcuts</span>
+              <button
+                onClick={() => setShowShortcutsHelp(false)}
+                className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+              >
+                <X size={12} />
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {[
+                { key: 'C', description: 'Create task' },
+                { key: '/', description: 'Focus search' },
+                { key: 'Esc', description: 'Close / deselect' },
+                { key: '?', description: 'Toggle this panel' },
+              ].map(({ key, description }) => (
+                <div key={key} className="flex items-center justify-between gap-6">
+                  <span className="text-[var(--text-muted)] text-xs font-['Inter']">{description}</span>
+                  <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-secondary)] rounded text-[10px] font-['JetBrains_Mono'] text-[var(--text-secondary)] min-w-[28px] text-center">
+                    {key}
+                  </kbd>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -36,6 +36,7 @@ func (h *TaskCommandsHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}", h.DeleteTask).Methods("DELETE")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/move", h.MoveTask).Methods("POST")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/move-to-project", h.MoveTaskToProject).Methods("POST")
+	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/reorder", h.ReorderTask).Methods("POST")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/complete", h.CompleteTask).Methods("POST")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/unblock", h.UnblockTask).Methods("POST")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/wont-do", h.WontDo).Methods("POST")
@@ -118,6 +119,7 @@ func (h *TaskCommandsHandler) UpdateTask(w http.ResponseWriter, r *http.Request)
 		req.ContextFiles,
 		req.Tags,
 		nil,
+		req.HumanEstimateSeconds,
 	)
 	if err != nil {
 		if domain.IsDomainError(err) {
@@ -211,6 +213,17 @@ func (h *TaskCommandsHandler) CompleteTask(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	var tokenUsage *domain.TokenUsage
+	if req.InputTokens > 0 || req.OutputTokens > 0 || req.CacheReadTokens > 0 || req.CacheWriteTokens > 0 || req.Model != "" {
+		tokenUsage = &domain.TokenUsage{
+			InputTokens:      req.InputTokens,
+			OutputTokens:     req.OutputTokens,
+			CacheReadTokens:  req.CacheReadTokens,
+			CacheWriteTokens: req.CacheWriteTokens,
+			Model:            req.Model,
+		}
+	}
+
 	err := h.commands.CompleteTask(
 		r.Context(),
 		projectID,
@@ -218,7 +231,7 @@ func (h *TaskCommandsHandler) CompleteTask(w http.ResponseWriter, r *http.Reques
 		req.CompletionSummary,
 		req.FilesModified,
 		req.CompletedByAgent,
-		nil,
+		tokenUsage,
 	)
 	if err != nil {
 		if domain.IsDomainError(err) {
@@ -227,6 +240,12 @@ func (h *TaskCommandsHandler) CompleteTask(w http.ResponseWriter, r *http.Reques
 			h.controller.SendError(w, r, err)
 		}
 		return
+	}
+
+	// If a human estimate was provided, persist it via UpdateTask
+	if req.HumanEstimateSeconds > 0 {
+		humanEst := req.HumanEstimateSeconds
+		_ = h.commands.UpdateTask(r.Context(), projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, nil, &humanEst)
 	}
 
 	// Broadcast task_completed event
@@ -380,6 +399,40 @@ func (h *TaskCommandsHandler) MoveTaskToProject(w http.ResponseWriter, r *http.R
 	})
 
 	h.controller.SendSuccess(w, r, map[string]string{"message": "task moved to project"})
+}
+
+// ReorderTask changes the position of a task within its current column
+func (h *TaskCommandsHandler) ReorderTask(w http.ResponseWriter, r *http.Request) {
+	projectID := domain.ProjectID(mux.Vars(r)["id"])
+	taskID := domain.TaskID(mux.Vars(r)["taskId"])
+
+	var req pkgkanban.ReorderTaskRequest
+	if err := h.controller.DecodeAndValidate(r, &req, pkgkanban.ErrInvalidTaskRequest); err != nil {
+		h.controller.SendFail(w, r, nil, errors.Join(pkgkanban.ErrInvalidTaskRequest, err))
+		return
+	}
+
+	err := h.commands.ReorderTask(r.Context(), projectID, taskID, req.Position)
+	if err != nil {
+		if domain.IsDomainError(err) {
+			h.controller.SendFail(w, r, nil, err)
+		} else {
+			h.controller.SendError(w, r, err)
+		}
+		return
+	}
+
+	// Broadcast task_updated event so clients refresh their board
+	h.hub.Broadcast(websocket.Event{
+		Type:      "task_updated",
+		ProjectID: string(projectID),
+		Data: map[string]interface{}{
+			"task_id":  string(taskID),
+			"position": req.Position,
+		},
+	})
+
+	h.controller.SendSuccess(w, r, map[string]string{"message": "task reordered"})
 }
 
 // RejectWontDo rejects an agent's won't do request

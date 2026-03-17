@@ -116,6 +116,9 @@ export interface TaskResponse {
   cache_write_tokens: number;
   model: string;
   seen_at: string | null;
+  started_at: string | null;
+  duration_seconds: number;
+  human_estimate_seconds: number;
   created_at: string;
   updated_at: string;
 }
@@ -143,6 +146,7 @@ export interface CreateTaskRequest {
 
 export interface UpdateTaskRequest {
   title?: string;
+  summary?: string;
   description?: string;
   priority?: string;
   assigned_role?: string;
@@ -241,6 +245,12 @@ export interface ToolUsageStatResponse {
   tool_name: string;
   execution_count: number;
   last_executed_at: string | null;
+}
+
+export interface TimelineEntryResponse {
+  date: string;
+  tasks_created: number;
+  tasks_completed: number;
 }
 
 // WebSocket

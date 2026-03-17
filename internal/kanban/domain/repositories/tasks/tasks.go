@@ -43,6 +43,13 @@ type TaskRepository interface {
 
 	// MarkTaskSeen sets seen_at = NOW() for the given task (idempotent — only sets if currently NULL)
 	MarkTaskSeen(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
+
+	// ReorderTask changes the position of a task within its current column,
+	// shifting other tasks in the same column to make room.
+	ReorderTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error
+
+	// GetTimeline returns daily task creation and completion counts for the last N days.
+	GetTimeline(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error)
 }
 
 // TaskFilters defines optional filters for listing tasks

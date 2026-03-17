@@ -50,4 +50,7 @@ type Queries interface {
 
 	// Tool usage queries
 	GetToolUsageForProject(ctx context.Context, projectID domain.ProjectID) ([]domain.ToolUsageStat, error)
+
+	// Timeline queries
+	GetTimeline(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error)
 }
