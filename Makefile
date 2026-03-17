@@ -1,4 +1,4 @@
-.PHONY: generate build run dev test clean docker
+.PHONY: generate build run dev test clean docker docker_build
 
 BINARY  := agach-server
 GO_TAGS := sqlite_fts5
@@ -26,6 +26,4 @@ docker:
 	docker build -t agach-mcp .
 
 docker_build:
-	docker build -f Dockerfile.local -t agach-local .                                                                                                                                                                                             
-#	id=$(docker create agach-local)                                                                                                                                                                                                                
-#	docker cp $id:/agach-server ./agach-server
+	docker build -f Dockerfile.local --output type=local,dest=. .

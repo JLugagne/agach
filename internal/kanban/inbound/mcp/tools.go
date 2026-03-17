@@ -344,7 +344,11 @@ func (h *ToolHandler) createProject(ctx context.Context, args map[string]any) (a
 }
 
 func (h *ToolHandler) updateProject(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
 	name, _ := args["name"].(string)
 	description, _ := args["description"].(string)
 
@@ -369,7 +373,11 @@ func (h *ToolHandler) updateProject(ctx context.Context, args map[string]any) (a
 }
 
 func (h *ToolHandler) deleteProject(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
 
 	err := h.commands.DeleteProject(ctx, projectID)
 	if err != nil {
@@ -398,7 +406,11 @@ func (h *ToolHandler) listRoles(ctx context.Context, args map[string]any) (any, 
 }
 
 func (h *ToolHandler) getRole(ctx context.Context, args map[string]any) (any, error) {
-	slug := args["slug"].(string)
+	slugVal, ok := args["slug"].(string)
+	if !ok {
+		return nil, fmt.Errorf("slug is required and must be a string")
+	}
+	slug := slugVal
 
 	role, err := h.queries.GetRoleBySlug(ctx, slug)
 	if err != nil {
@@ -408,7 +420,11 @@ func (h *ToolHandler) getRole(ctx context.Context, args map[string]any) (any, er
 }
 
 func (h *ToolHandler) updateRole(ctx context.Context, args map[string]any) (any, error) {
-	slug := args["slug"].(string)
+	slugVal, ok := args["slug"].(string)
+	if !ok {
+		return nil, fmt.Errorf("slug is required and must be a string")
+	}
+	slug := slugVal
 
 	// Look up role by slug to get the ID
 	role, err := h.queries.GetRoleBySlug(ctx, slug)
@@ -456,11 +472,27 @@ func (h *ToolHandler) updateRole(ctx context.Context, args map[string]any) (any,
 }
 
 func (h *ToolHandler) createTask(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
-	title := args["title"].(string)
-	summary := args["summary"].(string)
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	titleVal, ok := args["title"].(string)
+	if !ok {
+		return nil, fmt.Errorf("title is required and must be a string")
+	}
+	summaryVal, ok := args["summary"].(string)
+	if !ok {
+		return nil, fmt.Errorf("summary is required and must be a string")
+	}
 	description, _ := args["description"].(string)
-	createdByRole, _ := args["created_by_role"].(string)
+	createdByRoleVal, ok := args["created_by_role"].(string)
+	if !ok {
+		return nil, fmt.Errorf("created_by_role is required and must be a string")
+	}
+	title := titleVal
+	summary := summaryVal
+	createdByRole := createdByRoleVal
 	createdByAgent, _ := args["created_by_agent"].(string)
 	assignedRole, _ := args["assigned_role"].(string)
 	estimatedEffort, _ := args["estimated_effort"].(string)
@@ -500,8 +532,16 @@ func (h *ToolHandler) createTask(ctx context.Context, args map[string]any) (any,
 }
 
 func (h *ToolHandler) updateTask(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
-	taskID := domain.TaskID(args["task_id"].(string))
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
 
 	var title, description, assignedRole, estimatedEffort, resolution *string
 	var priority *domain.Priority
@@ -581,8 +621,16 @@ func (h *ToolHandler) updateTask(ctx context.Context, args map[string]any) (any,
 }
 
 func (h *ToolHandler) updateTaskFiles(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
-	taskID := domain.TaskID(args["task_id"].(string))
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
 
 	var filesModified, contextFiles *[]string
 
@@ -613,9 +661,21 @@ func (h *ToolHandler) updateTaskFiles(ctx context.Context, args map[string]any) 
 }
 
 func (h *ToolHandler) moveTask(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
-	taskID := domain.TaskID(args["task_id"].(string))
-	targetColumn := domain.ColumnSlug(args["target_column"].(string))
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
+	targetColumnVal, ok := args["target_column"].(string)
+	if !ok {
+		return nil, fmt.Errorf("target_column is required and must be a string")
+	}
+	targetColumn := domain.ColumnSlug(targetColumnVal)
 
 	err := h.commands.MoveTask(ctx, projectID, taskID, targetColumn)
 	if err != nil {
@@ -638,10 +698,26 @@ func (h *ToolHandler) moveTask(ctx context.Context, args map[string]any) (any, e
 }
 
 func (h *ToolHandler) completeTask(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
-	taskID := domain.TaskID(args["task_id"].(string))
-	completionSummary := args["completion_summary"].(string)
-	completedByAgent := args["completed_by_agent"].(string)
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
+	completionSummaryVal, ok := args["completion_summary"].(string)
+	if !ok {
+		return nil, fmt.Errorf("completion_summary is required and must be a string")
+	}
+	completedByAgentVal, ok := args["completed_by_agent"].(string)
+	if !ok {
+		return nil, fmt.Errorf("completed_by_agent is required and must be a string")
+	}
+	completionSummary := completionSummaryVal
+	completedByAgent := completedByAgentVal
 	filesModified := parseStringArray(args["files_modified"])
 
 	var tokenUsage *domain.TokenUsage
@@ -695,8 +771,16 @@ func (h *ToolHandler) completeTask(ctx context.Context, args map[string]any) (an
 }
 
 func (h *ToolHandler) getTask(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
-	taskID := domain.TaskID(args["task_id"].(string))
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
 
 	task, err := h.queries.GetTask(ctx, projectID, taskID)
 	if err != nil {
@@ -706,7 +790,11 @@ func (h *ToolHandler) getTask(ctx context.Context, args map[string]any) (any, er
 }
 
 func (h *ToolHandler) listTasks(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
 
 	filters := tasks.TaskFilters{}
 
@@ -757,7 +845,11 @@ func (h *ToolHandler) listTasks(ctx context.Context, args map[string]any) (any, 
 }
 
 func (h *ToolHandler) getNextTask(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
 
 	role := ""
 	if roleVal, ok := args["role"].(string); ok {
@@ -795,10 +887,26 @@ func (h *ToolHandler) getNextTask(ctx context.Context, args map[string]any) (any
 }
 
 func (h *ToolHandler) blockTask(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
-	taskID := domain.TaskID(args["task_id"].(string))
-	blockedReason := args["blocked_reason"].(string)
-	blockedByAgent := args["blocked_by_agent"].(string)
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
+	blockedReasonVal, ok := args["blocked_reason"].(string)
+	if !ok {
+		return nil, fmt.Errorf("blocked_reason is required and must be a string")
+	}
+	blockedByAgentVal, ok := args["blocked_by_agent"].(string)
+	if !ok {
+		return nil, fmt.Errorf("blocked_by_agent is required and must be a string")
+	}
+	blockedReason := blockedReasonVal
+	blockedByAgent := blockedByAgentVal
 
 	err := h.commands.BlockTask(ctx, projectID, taskID, blockedReason, blockedByAgent)
 	if err != nil {
@@ -822,10 +930,26 @@ func (h *ToolHandler) blockTask(ctx context.Context, args map[string]any) (any, 
 }
 
 func (h *ToolHandler) requestWontDo(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
-	taskID := domain.TaskID(args["task_id"].(string))
-	wontDoReason := args["wont_do_reason"].(string)
-	requestedBy := args["requested_by"].(string)
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
+	wontDoReasonVal, ok := args["wont_do_reason"].(string)
+	if !ok {
+		return nil, fmt.Errorf("wont_do_reason is required and must be a string")
+	}
+	requestedByVal, ok := args["requested_by"].(string)
+	if !ok {
+		return nil, fmt.Errorf("requested_by is required and must be a string")
+	}
+	wontDoReason := wontDoReasonVal
+	requestedBy := requestedByVal
 
 	err := h.commands.RequestWontDo(ctx, projectID, taskID, wontDoReason, requestedBy)
 	if err != nil {
@@ -849,9 +973,21 @@ func (h *ToolHandler) requestWontDo(ctx context.Context, args map[string]any) (a
 }
 
 func (h *ToolHandler) addDependency(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
-	taskID := domain.TaskID(args["task_id"].(string))
-	dependsOnTaskID := domain.TaskID(args["depends_on_task_id"].(string))
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
+	dependsOnTaskIDVal, ok := args["depends_on_task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("depends_on_task_id is required and must be a string")
+	}
+	dependsOnTaskID := domain.TaskID(dependsOnTaskIDVal)
 
 	err := h.commands.AddDependency(ctx, projectID, taskID, dependsOnTaskID)
 	if err != nil {
@@ -861,9 +997,21 @@ func (h *ToolHandler) addDependency(ctx context.Context, args map[string]any) (a
 }
 
 func (h *ToolHandler) removeDependency(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
-	taskID := domain.TaskID(args["task_id"].(string))
-	dependsOnTaskID := domain.TaskID(args["depends_on_task_id"].(string))
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
+	dependsOnTaskIDVal, ok := args["depends_on_task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("depends_on_task_id is required and must be a string")
+	}
+	dependsOnTaskID := domain.TaskID(dependsOnTaskIDVal)
 
 	err := h.commands.RemoveDependency(ctx, projectID, taskID, dependsOnTaskID)
 	if err != nil {
@@ -873,8 +1021,16 @@ func (h *ToolHandler) removeDependency(ctx context.Context, args map[string]any)
 }
 
 func (h *ToolHandler) listDependencies(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
-	taskID := domain.TaskID(args["task_id"].(string))
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
 
 	deps, err := h.queries.ListDependencies(ctx, projectID, taskID)
 	if err != nil {
@@ -884,11 +1040,27 @@ func (h *ToolHandler) listDependencies(ctx context.Context, args map[string]any)
 }
 
 func (h *ToolHandler) addComment(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
-	taskID := domain.TaskID(args["task_id"].(string))
-	authorRole := args["author_role"].(string)
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
+	authorRoleVal, ok := args["author_role"].(string)
+	if !ok {
+		return nil, fmt.Errorf("author_role is required and must be a string")
+	}
+	authorRole := authorRoleVal
 	authorName, _ := args["author_name"].(string)
-	content := args["content"].(string)
+	contentVal, ok := args["content"].(string)
+	if !ok {
+		return nil, fmt.Errorf("content is required and must be a string")
+	}
+	content := contentVal
 
 	comment, err := h.commands.CreateComment(ctx, projectID, taskID, authorRole, authorName, domain.AuthorTypeAgent, content)
 	if err != nil {
@@ -908,8 +1080,16 @@ func (h *ToolHandler) addComment(ctx context.Context, args map[string]any) (any,
 }
 
 func (h *ToolHandler) listComments(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
-	taskID := domain.TaskID(args["task_id"].(string))
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
 
 	limit := intArg(args, "limit", 50)
 	offset := intArg(args, "offset", 0)
@@ -922,8 +1102,16 @@ func (h *ToolHandler) listComments(ctx context.Context, args map[string]any) (an
 }
 
 func (h *ToolHandler) reorderTask(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
-	taskID := domain.TaskID(args["task_id"].(string))
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
 	newPosition := intArg(args, "position", 0)
 
 	err := h.commands.ReorderTask(ctx, projectID, taskID, newPosition)
@@ -947,9 +1135,21 @@ func (h *ToolHandler) reorderTask(ctx context.Context, args map[string]any) (any
 }
 
 func (h *ToolHandler) moveTaskToProject(ctx context.Context, args map[string]any) (any, error) {
-	sourceProjectID := domain.ProjectID(args["project_id"].(string))
-	taskID := domain.TaskID(args["task_id"].(string))
-	targetProjectID := domain.ProjectID(args["target_project_id"].(string))
+	sourceProjectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	sourceProjectID := domain.ProjectID(sourceProjectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
+	targetProjectIDVal, ok := args["target_project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("target_project_id is required and must be a string")
+	}
+	targetProjectID := domain.ProjectID(targetProjectIDVal)
 
 	err := h.commands.MoveTaskToProject(ctx, sourceProjectID, taskID, targetProjectID)
 	if err != nil {
@@ -978,7 +1178,11 @@ func (h *ToolHandler) moveTaskToProject(ctx context.Context, args map[string]any
 }
 
 func (h *ToolHandler) getBoard(ctx context.Context, args map[string]any) (any, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
 
 	// Return a lightweight board overview: column counts + sub-projects with summaries.
 	// Agents should use get_next_task or list_tasks (with filters) for actual task data.
