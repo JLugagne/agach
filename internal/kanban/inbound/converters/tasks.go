@@ -56,10 +56,13 @@ func ToPublicTask(task domain.Task) pkgkanban.TaskResponse {
 		OutputTokens:      task.OutputTokens,
 		CacheReadTokens:   task.CacheReadTokens,
 		CacheWriteTokens:  task.CacheWriteTokens,
-		Model:             task.Model,
-		SeenAt:            task.SeenAt,
-		CreatedAt:         task.CreatedAt,
-		UpdatedAt:         task.UpdatedAt,
+		Model:                task.Model,
+		SeenAt:               task.SeenAt,
+		StartedAt:            task.StartedAt,
+		DurationSeconds:      task.DurationSeconds,
+		HumanEstimateSeconds: task.HumanEstimateSeconds,
+		CreatedAt:            task.CreatedAt,
+		UpdatedAt:            task.UpdatedAt,
 	}
 }
 

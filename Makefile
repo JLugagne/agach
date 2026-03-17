@@ -24,3 +24,8 @@ clean:
 
 docker:
 	docker build -t agach-mcp .
+
+docker_build:
+	docker build -f Dockerfile.local -t agach-local .                                                                                                                                                                                             
+#	id=$(docker create agach-local)                                                                                                                                                                                                                
+#	docker cp $id:/agach-server ./agach-server

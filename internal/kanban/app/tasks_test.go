@@ -129,7 +129,7 @@ func TestApp_UpdateTask_Success(t *testing.T) {
 	newTitle := "New Title"
 	newDescription := "New Description"
 
-	err := a.UpdateTask(ctx, projectID, taskID, &newTitle, &newDescription, nil, nil, nil, nil, nil, nil, nil)
+	err := a.UpdateTask(ctx, projectID, taskID, &newTitle, &newDescription, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "New Title", updatedTask.Title)
@@ -148,7 +148,7 @@ func TestApp_UpdateTask_NotFound_ReturnsError(t *testing.T) {
 	}
 
 	newTitle := "New Title"
-	err := a.UpdateTask(ctx, projectID, taskID, &newTitle, nil, nil, nil, nil, nil, nil, nil, nil)
+	err := a.UpdateTask(ctx, projectID, taskID, &newTitle, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))

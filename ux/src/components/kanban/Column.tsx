@@ -1,12 +1,23 @@
+import { useState } from 'react';
 import type { ColumnWithTasksResponse, TaskWithDetailsResponse } from '../../lib/types';
 import TaskCard from './TaskCard';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { reorderTask } from '../../lib/api';
+import { AlertTriangle } from 'lucide-react';
 
 interface ColumnProps {
   column: ColumnWithTasksResponse;
+  projectId: string;
+  roleColorMap?: Record<string, string>;
   onTaskClick: (task: TaskWithDetailsResponse) => void;
   onTaskContextMenu: (task: TaskWithDetailsResponse, e: React.MouseEvent) => void;
   isTaskNew?: (taskId: string) => boolean;
   isTaskHighlighted?: (taskId: string) => boolean;
+  isTaskSelected?: (taskId: string) => boolean;
+  onTaskSelect?: (taskId: string, ctrlKey: boolean) => void;
+  onRefresh?: () => void;
 }
 
 const statusColorVars: Record<string, { dot: string; label: string; countBg: string; countText: string }> = {
@@ -16,16 +27,88 @@ const statusColorVars: Record<string, { dot: string; label: string; countBg: str
   blocked: { dot: 'var(--status-blocked)', label: 'var(--status-blocked)', countBg: 'var(--status-blocked-bg)', countText: 'var(--status-blocked)' },
 };
 
-export default function Column({ column, onTaskClick, onTaskContextMenu, isTaskNew, isTaskHighlighted }: ColumnProps) {
+export default function Column({
+  column,
+  projectId,
+  roleColorMap,
+  onTaskClick,
+  onTaskContextMenu,
+  isTaskNew,
+  isTaskHighlighted,
+  isTaskSelected,
+  onTaskSelect,
+  onRefresh,
+}: ColumnProps) {
   const colors = statusColorVars[column.slug] || statusColorVars.todo;
-  const tasks = column.tasks || [];
+  const [localTasks, setLocalTasks] = useState<TaskWithDetailsResponse[] | null>(null);
+
+  const tasks = localTasks ?? column.tasks ?? [];
   const wipLimit = column.wip_limit;
+  const isAtWip = wipLimit > 0 && tasks.length >= wipLimit;
   const isOverWip = wipLimit > 0 && tasks.length > wipLimit;
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+
+  // Reset local order whenever the column prop changes (e.g. after board refresh)
+  const prevColumnRef = column.tasks;
+  if (localTasks !== null && prevColumnRef !== undefined) {
+    // Only reset if the set of task IDs changed (a real board refresh, not our optimistic update)
+    const localIds = localTasks.map((t) => t.id).join(',');
+    const serverIds = (column.tasks ?? []).map((t) => t.id).join(',');
+    if (localIds !== serverIds && localIds.split(',').sort().join(',') !== serverIds.split(',').sort().join(',')) {
+      setLocalTasks(null);
+    }
+  }
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = tasks.findIndex((t) => t.id === active.id);
+    const newIndex = tasks.findIndex((t) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Optimistic update
+    const reordered = arrayMove(tasks, oldIndex, newIndex);
+    setLocalTasks(reordered);
+
+    // Determine the task's project id
+    const task = tasks[oldIndex];
+    const pid = task.project_id || projectId;
+
+    try {
+      await reorderTask(pid, task.id as string, newIndex);
+    } catch {
+      // Revert on failure
+      setLocalTasks(null);
+    } finally {
+      onRefresh?.();
+    }
+  };
+
   return (
-    <div className="flex flex-col rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-primary)] min-w-0 flex-1 h-full">
+    <div
+      className="flex flex-col rounded-lg bg-[var(--bg-tertiary)] min-w-0 flex-1 h-full transition-all duration-200"
+      style={{
+        border: isOverWip
+          ? '1px solid color-mix(in srgb, var(--status-blocked) 60%, transparent)'
+          : '1px solid var(--border-primary)',
+        boxShadow: isOverWip
+          ? '0 0 0 1px color-mix(in srgb, var(--status-blocked) 20%, transparent)'
+          : undefined,
+      }}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 h-[44px] bg-[var(--bg-secondary)] rounded-t-lg flex-shrink-0">
+      <div
+        className="flex items-center justify-between px-4 h-[44px] rounded-t-lg flex-shrink-0 transition-colors duration-200"
+        style={{
+          backgroundColor: isOverWip
+            ? 'color-mix(in srgb, var(--status-blocked) 8%, var(--bg-secondary))'
+            : 'var(--bg-secondary)',
+        }}
+      >
         <div className="flex items-center gap-2">
           <div
             className="w-2 h-2 rounded-full"
@@ -39,45 +122,59 @@ export default function Column({ column, onTaskClick, onTaskContextMenu, isTaskN
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span
-            className="px-1.5 py-0.5 rounded text-[10px] font-['JetBrains_Mono'] font-bold min-w-[20px] text-center"
-            style={{ backgroundColor: colors.countBg, color: colors.countText }}
-          >
-            {tasks.length}
-          </span>
-          {wipLimit > 0 && (
+          {wipLimit > 0 ? (
             <span
-              className={`text-[10px] font-['JetBrains_Mono'] ${
-                isOverWip ? 'text-[var(--status-blocked)]' : 'var(--text-dim)'
-              }`}
-              style={!isOverWip ? { color: 'var(--text-dim)' } : {}}
+              className="px-1.5 py-0.5 rounded text-[10px] font-['JetBrains_Mono'] font-bold min-w-[28px] text-center flex items-center gap-0.5"
+              style={{
+                backgroundColor: isAtWip
+                  ? 'color-mix(in srgb, var(--status-blocked) 15%, transparent)'
+                  : colors.countBg,
+                color: isAtWip ? 'var(--status-blocked)' : colors.countText,
+              }}
             >
-              /{wipLimit}
+              {isAtWip && (
+                <AlertTriangle size={10} className="flex-shrink-0" />
+              )}
+              {tasks.length}/{wipLimit}
+            </span>
+          ) : (
+            <span
+              className="px-1.5 py-0.5 rounded text-[10px] font-['JetBrains_Mono'] font-bold min-w-[20px] text-center"
+              style={{ backgroundColor: colors.countBg, color: colors.countText }}
+            >
+              {tasks.length}
             </span>
           )}
         </div>
       </div>
 
       {/* Cards */}
-      <div className="flex flex-col gap-2 p-3 overflow-y-auto flex-1">
-        {tasks.length === 0 ? (
-          <p className="text-[var(--text-muted)] text-xs font-['Inter'] text-center py-6">
-            No tasks
-          </p>
-        ) : (
-          tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              columnSlug={column.slug}
-              isNew={isTaskNew ? isTaskNew(task.id) : false}
-              isHighlighted={isTaskHighlighted ? isTaskHighlighted(task.id) : false}
-              onClick={() => onTaskClick(task)}
-              onContextMenu={(e) => onTaskContextMenu(task, e)}
-            />
-          ))
-        )}
-      </div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+          <div className="flex flex-col gap-2 p-3 overflow-y-auto flex-1">
+            {tasks.length === 0 ? (
+              <p className="text-[var(--text-muted)] text-xs font-['Inter'] text-center py-6">
+                No tasks
+              </p>
+            ) : (
+              tasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  columnSlug={column.slug}
+                  isNew={isTaskNew ? isTaskNew(task.id) : false}
+                  isHighlighted={isTaskHighlighted ? isTaskHighlighted(task.id) : false}
+                  selected={isTaskSelected ? isTaskSelected(task.id) : false}
+                  roleColor={task.assigned_role ? roleColorMap?.[task.assigned_role] : undefined}
+                  onClick={() => onTaskClick(task)}
+                  onContextMenu={(e) => onTaskContextMenu(task, e)}
+                  onSelect={onTaskSelect}
+                />
+              ))
+            )}
+          </div>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }

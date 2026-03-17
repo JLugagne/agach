@@ -190,7 +190,10 @@ type Task struct {
 	Model             string     `json:"model"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
-	SeenAt            *time.Time `json:"seen_at"` // NULL = unseen, non-NULL = timestamp of first view
+	SeenAt               *time.Time `json:"seen_at"` // NULL = unseen, non-NULL = timestamp of first view
+	StartedAt            *time.Time `json:"started_at"`
+	DurationSeconds      int        `json:"duration_seconds"`
+	HumanEstimateSeconds int        `json:"human_estimate_seconds"`
 }
 
 // Comment represents a comment on a task
@@ -256,4 +259,11 @@ type DependencyContext struct {
 	Title             string   `json:"title"`
 	CompletionSummary string   `json:"completion_summary"`
 	FilesModified     []string `json:"files_modified"`
+}
+
+// TimelineEntry represents task counts for a single day
+type TimelineEntry struct {
+	Date           string `json:"date"`            // "2026-03-17"
+	TasksCreated   int    `json:"tasks_created"`
+	TasksCompleted int    `json:"tasks_completed"`
 }

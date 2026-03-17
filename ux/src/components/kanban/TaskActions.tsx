@@ -6,11 +6,12 @@ import CommentWontDoModal from '../modals/CommentWontDoModal';
 import BlockTaskModal from '../modals/BlockTaskModal';
 import DeleteTaskModal from '../modals/DeleteTaskModal';
 import CompleteTaskModal from '../modals/CompleteTaskModal';
+import MoveToProjectModal from '../modals/MoveToProjectModal';
 
 interface TaskActionsProps {
   projectId: string;
   task: TaskWithDetailsResponse | null;
-  action: string | null; // 'block', 'unblock', 'wontdo', 'approve_wontdo', 'delete', 'comment_wontdo', 'complete'
+  action: string | null; // 'block', 'unblock', 'wontdo', 'approve_wontdo', 'delete', 'comment_wontdo', 'complete', 'move_to_project'
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -82,6 +83,16 @@ export default function TaskActions({ projectId, task, action, onClose, onSucces
     case 'complete':
       return (
         <CompleteTaskModal
+          task={task}
+          projectId={projectId}
+          onClose={onClose}
+          onSuccess={onSuccess}
+        />
+      );
+
+    case 'move_to_project':
+      return (
+        <MoveToProjectModal
           task={task}
           projectId={projectId}
           onClose={onClose}

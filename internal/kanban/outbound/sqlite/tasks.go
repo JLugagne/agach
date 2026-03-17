@@ -37,8 +37,8 @@ func (r *TaskRepository) Create(ctx context.Context, projectID domain.ProjectID,
 				blocked_at, blocked_by_agent, wont_do_requested, wont_do_reason, wont_do_requested_by,
 				wont_do_requested_at, completion_summary, completed_by_agent, completed_at,
 				files_modified, resolution, context_files, tags, estimated_effort, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, model, created_at, updated_at,
-				seen_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				seen_at, started_at, duration_seconds, human_estimate_seconds
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`
 
 		_, err := db.ExecContext(ctx, query,
@@ -77,6 +77,9 @@ func (r *TaskRepository) Create(ctx context.Context, projectID domain.ProjectID,
 			task.CreatedAt,
 			task.UpdatedAt,
 			timeToNullTime(task.SeenAt),
+			timeToNullTime(task.StartedAt),
+			task.DurationSeconds,
+			task.HumanEstimateSeconds,
 		)
 
 		if err != nil {
@@ -101,7 +104,7 @@ func (r *TaskRepository) FindByID(ctx context.Context, projectID domain.ProjectI
 				blocked_at, blocked_by_agent, wont_do_requested, wont_do_reason, wont_do_requested_by,
 				wont_do_requested_at, completion_summary, completed_by_agent, completed_at,
 				files_modified, resolution, context_files, tags, estimated_effort, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, model, created_at, updated_at,
-				seen_at
+				seen_at, started_at, duration_seconds, human_estimate_seconds
 			FROM tasks
 			WHERE id = ?
 		`
@@ -147,7 +150,7 @@ func (r *TaskRepository) List(ctx context.Context, projectID domain.ProjectID, f
 				tasks.blocked_at, tasks.blocked_by_agent, tasks.wont_do_requested, tasks.wont_do_reason, tasks.wont_do_requested_by,
 				tasks.wont_do_requested_at, tasks.completion_summary, tasks.completed_by_agent, tasks.completed_at,
 				tasks.files_modified, tasks.resolution, tasks.context_files, tasks.tags, tasks.estimated_effort, tasks.input_tokens, tasks.output_tokens, tasks.cache_read_tokens, tasks.cache_write_tokens, tasks.model, tasks.created_at, tasks.updated_at,
-				tasks.seen_at
+				tasks.seen_at, tasks.started_at, tasks.duration_seconds, tasks.human_estimate_seconds
 			FROM tasks` + ftsJoin + `
 			WHERE 1=1
 		`
@@ -195,7 +198,7 @@ func (r *TaskRepository) List(ctx context.Context, projectID domain.ProjectID, f
 			query += " AND " + strings.Join(whereClauses, " AND ")
 		}
 
-		query += " ORDER BY priority_score DESC, created_at ASC"
+		query += " ORDER BY priority_score DESC, position ASC, created_at ASC"
 
 		if filters.Limit > 0 {
 			query += " LIMIT ?"
@@ -263,6 +266,7 @@ func (r *TaskRepository) Update(ctx context.Context, projectID domain.ProjectID,
 				wont_do_requested_at = ?, completion_summary = ?, completed_by_agent = ?, completed_at = ?,
 				files_modified = ?, resolution = ?, context_files = ?, tags = ?, estimated_effort = ?,
 				input_tokens = ?, output_tokens = ?, cache_read_tokens = ?, cache_write_tokens = ?, model = ?,
+				started_at = ?, duration_seconds = ?, human_estimate_seconds = ?,
 				updated_at = ?
 			WHERE id = ?
 		`
@@ -297,6 +301,9 @@ func (r *TaskRepository) Update(ctx context.Context, projectID domain.ProjectID,
 			task.CacheReadTokens,
 			task.CacheWriteTokens,
 			task.Model,
+			timeToNullTime(task.StartedAt),
+			task.DurationSeconds,
+			task.HumanEstimateSeconds,
 			time.Now(),
 			string(task.ID),
 		)
@@ -388,13 +395,13 @@ func (r *TaskRepository) GetNextTask(ctx context.Context, projectID domain.Proje
 				blocked_at, blocked_by_agent, wont_do_requested, wont_do_reason, wont_do_requested_by,
 				wont_do_requested_at, completion_summary, completed_by_agent, completed_at,
 				files_modified, resolution, context_files, tags, estimated_effort, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, model, created_at, updated_at,
-				seen_at
+				seen_at, started_at, duration_seconds, human_estimate_seconds
 			FROM tasks
 			WHERE column_id = 'col_todo'
 				AND (assigned_role = '' OR assigned_role = ?)
 				AND is_blocked = 0
 				AND wont_do_requested = 0
-			ORDER BY priority_score DESC, created_at ASC
+			ORDER BY priority_score DESC, position ASC, created_at ASC
 			LIMIT 1
 		`
 
@@ -456,7 +463,7 @@ func (r *TaskRepository) GetDependentsNotDone(ctx context.Context, projectID dom
 				t.blocked_at, t.blocked_by_agent, t.wont_do_requested, t.wont_do_reason, t.wont_do_requested_by,
 				t.wont_do_requested_at, t.completion_summary, t.completed_by_agent, t.completed_at,
 				t.files_modified, t.resolution, t.context_files, t.tags, t.estimated_effort, t.input_tokens, t.output_tokens, t.cache_read_tokens, t.cache_write_tokens, t.model, t.created_at, t.updated_at,
-				t.seen_at
+				t.seen_at, t.started_at, t.duration_seconds, t.human_estimate_seconds
 			FROM task_dependencies td
 			JOIN tasks t ON td.task_id = t.id
 			WHERE td.depends_on_task_id = ?
@@ -483,12 +490,76 @@ func (r *TaskRepository) GetDependentsNotDone(ctx context.Context, projectID dom
 	return tasks, err
 }
 
+// ReorderTask changes the position of a task within its current column,
+// shifting other tasks in the same column to make room. All changes are
+// executed within a single transaction.
+func (r *TaskRepository) ReorderTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error {
+	return r.withProjectDB(ctx, projectID, func(db *sql.DB) error {
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+
+		// Get current column_id and position for the task
+		var columnID string
+		var oldPosition int
+		err = tx.QueryRowContext(ctx, `SELECT column_id, position FROM tasks WHERE id = ?`, string(taskID)).Scan(&columnID, &oldPosition)
+		if err != nil {
+			if isNotFound(err) {
+				return errors.Join(domain.ErrTaskNotFound, err)
+			}
+			return err
+		}
+
+		// No-op if position hasn't changed
+		if newPosition == oldPosition {
+			return nil
+		}
+
+		if newPosition > oldPosition {
+			// Moving DOWN: decrement position of tasks between oldPosition+1 and newPosition (inclusive)
+			_, err = tx.ExecContext(ctx,
+				`UPDATE tasks SET position = position - 1 WHERE column_id = ? AND position > ? AND position <= ?`,
+				columnID, oldPosition, newPosition,
+			)
+		} else {
+			// Moving UP: increment position of tasks between newPosition and oldPosition-1 (inclusive)
+			_, err = tx.ExecContext(ctx,
+				`UPDATE tasks SET position = position + 1 WHERE column_id = ? AND position >= ? AND position < ?`,
+				columnID, newPosition, oldPosition,
+			)
+		}
+		if err != nil {
+			return err
+		}
+
+		// Set the task's new position
+		result, err := tx.ExecContext(ctx,
+			`UPDATE tasks SET position = ?, updated_at = ? WHERE id = ?`,
+			newPosition, time.Now(), string(taskID),
+		)
+		if err != nil {
+			return err
+		}
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rowsAffected == 0 {
+			return domain.ErrTaskNotFound
+		}
+
+		return tx.Commit()
+	})
+}
+
 // scanTask scans a task row into a domain.Task
 func (r *TaskRepository) scanTask(scanner interface {
 	Scan(dest ...interface{}) error
 }) (*domain.Task, error) {
 	var task domain.Task
-	var blockedAt, wontDoRequestedAt, completedAt, seenAt sql.NullTime
+	var blockedAt, wontDoRequestedAt, completedAt, seenAt, startedAt sql.NullTime
 	var createdAt, updatedAt time.Time
 	var contextFilesJSON, tagsJSON, filesModifiedJSON string
 	var isBlocked, wontDoRequested int
@@ -529,6 +600,9 @@ func (r *TaskRepository) scanTask(scanner interface {
 		&createdAt,
 		&updatedAt,
 		&seenAt,
+		&startedAt,
+		&task.DurationSeconds,
+		&task.HumanEstimateSeconds,
 	)
 
 	if err != nil {
@@ -551,6 +625,9 @@ func (r *TaskRepository) scanTask(scanner interface {
 	}
 	if seenAt.Valid {
 		task.SeenAt = &seenAt.Time
+	}
+	if startedAt.Valid {
+		task.StartedAt = &startedAt.Time
 	}
 
 	if err := json.Unmarshal([]byte(contextFilesJSON), &task.ContextFiles); err != nil {
@@ -600,6 +677,100 @@ func (r *TaskRepository) MarkTaskSeen(ctx context.Context, projectID domain.Proj
 
 		return nil
 	})
+}
+
+// GetTimeline returns daily task creation and completion counts for the last N days.
+func (r *TaskRepository) GetTimeline(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error) {
+	var entries []domain.TimelineEntry
+
+	err := r.withProjectDB(ctx, projectID, func(db *sql.DB) error {
+		// Build a map of date -> entry
+		dateMap := make(map[string]*domain.TimelineEntry)
+
+		// Query tasks created per day
+		createdQuery := `
+			SELECT date(created_at) as day, COUNT(*) as cnt
+			FROM tasks
+			WHERE created_at >= date('now', '-' || ? || ' days')
+			GROUP BY date(created_at)
+			ORDER BY day
+		`
+		rows, err := db.QueryContext(ctx, createdQuery, days)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var day string
+			var cnt int
+			if err := rows.Scan(&day, &cnt); err != nil {
+				return err
+			}
+			if _, ok := dateMap[day]; !ok {
+				dateMap[day] = &domain.TimelineEntry{Date: day}
+			}
+			dateMap[day].TasksCreated = cnt
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+
+		// Query tasks completed per day
+		completedQuery := `
+			SELECT date(completed_at) as day, COUNT(*) as cnt
+			FROM tasks
+			WHERE completed_at IS NOT NULL AND completed_at >= date('now', '-' || ? || ' days')
+			GROUP BY date(completed_at)
+			ORDER BY day
+		`
+		rows2, err := db.QueryContext(ctx, completedQuery, days)
+		if err != nil {
+			return err
+		}
+		defer rows2.Close()
+
+		for rows2.Next() {
+			var day string
+			var cnt int
+			if err := rows2.Scan(&day, &cnt); err != nil {
+				return err
+			}
+			if _, ok := dateMap[day]; !ok {
+				dateMap[day] = &domain.TimelineEntry{Date: day}
+			}
+			dateMap[day].TasksCompleted = cnt
+		}
+		if err := rows2.Err(); err != nil {
+			return err
+		}
+
+		// Collect and sort entries by date
+		for _, entry := range dateMap {
+			entries = append(entries, *entry)
+		}
+
+		// Sort by date ascending
+		for i := 0; i < len(entries); i++ {
+			for j := i + 1; j < len(entries); j++ {
+				if entries[i].Date > entries[j].Date {
+					entries[i], entries[j] = entries[j], entries[i]
+				}
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if entries == nil {
+		entries = []domain.TimelineEntry{}
+	}
+
+	return entries, nil
 }
 
 // Helper functions for SQLite conversions

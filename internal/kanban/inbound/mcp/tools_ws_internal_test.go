@@ -61,7 +61,7 @@ type internalMockCommands struct {
 	updateProjectFn   func(context.Context, domain.ProjectID, string, string) error
 	deleteProjectFn   func(context.Context, domain.ProjectID) error
 	createTaskFn      func(context.Context, domain.ProjectID, string, string, string, domain.Priority, string, string, string, []string, []string, string) (domain.Task, error)
-	updateTaskFn      func(context.Context, domain.ProjectID, domain.TaskID, *string, *string, *string, *string, *string, *domain.Priority, *[]string, *[]string, *domain.TokenUsage) error
+	updateTaskFn      func(context.Context, domain.ProjectID, domain.TaskID, *string, *string, *string, *string, *string, *domain.Priority, *[]string, *[]string, *domain.TokenUsage, *int) error
 	updateTaskFilesFn func(context.Context, domain.ProjectID, domain.TaskID, *[]string, *[]string) error
 	deleteTaskFn      func(context.Context, domain.ProjectID, domain.TaskID) error
 	moveTaskFn        func(context.Context, domain.ProjectID, domain.TaskID, domain.ColumnSlug) error
@@ -92,8 +92,8 @@ func (m *internalMockCommands) DeleteRole(ctx context.Context, roleID domain.Rol
 func (m *internalMockCommands) CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error) {
 	return m.createTaskFn(ctx, projectID, title, summary, description, priority, createdByRole, createdByAgent, assignedRole, contextFiles, tags, estimatedEffort)
 }
-func (m *internalMockCommands) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage) error {
-	return m.updateTaskFn(ctx, projectID, taskID, title, description, assignedRole, estimatedEffort, resolution, priority, contextFiles, tags, tokenUsage)
+func (m *internalMockCommands) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error {
+	return m.updateTaskFn(ctx, projectID, taskID, title, description, assignedRole, estimatedEffort, resolution, priority, contextFiles, tags, tokenUsage, humanEstimateSeconds)
 }
 func (m *internalMockCommands) UpdateTaskFiles(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error {
 	return m.updateTaskFilesFn(ctx, projectID, taskID, filesModified, contextFiles)
@@ -103,6 +103,9 @@ func (m *internalMockCommands) DeleteTask(ctx context.Context, projectID domain.
 }
 func (m *internalMockCommands) MoveTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnSlug domain.ColumnSlug) error {
 	return m.moveTaskFn(ctx, projectID, taskID, targetColumnSlug)
+}
+func (m *internalMockCommands) ReorderTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error {
+	panic("not used in this test")
 }
 func (m *internalMockCommands) StartTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error {
 	panic("not used in this test")
@@ -486,7 +489,7 @@ func TestUpdateTask_EmitsBroadcast(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	cmds := &internalMockCommands{
-		updateTaskFn: func(_ context.Context, pID domain.ProjectID, tID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage) error {
+		updateTaskFn: func(_ context.Context, pID domain.ProjectID, tID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error {
 			return nil
 		},
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
+	"github.com/sirupsen/logrus"
 )
 
 // Task Commands
@@ -81,7 +82,7 @@ func (a *App) CreateTask(ctx context.Context, projectID domain.ProjectID, title,
 	return task, nil
 }
 
-func (a *App) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage) error {
+func (a *App) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error {
 	logger := a.logger.WithContext(ctx).WithFields(map[string]interface{}{
 		"projectID": projectID,
 		"taskID":    taskID,
@@ -129,6 +130,9 @@ func (a *App) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID
 		if tokenUsage.Model != "" {
 			task.Model = tokenUsage.Model
 		}
+	}
+	if humanEstimateSeconds != nil {
+		task.HumanEstimateSeconds = *humanEstimateSeconds
 	}
 
 	task.UpdatedAt = time.Now()
@@ -269,6 +273,24 @@ func (a *App) MoveTask(ctx context.Context, projectID domain.ProjectID, taskID d
 		}
 	}
 
+	// Set started_at when moving to in_progress (always overwrite to restart the timer)
+	if targetColumnSlug == domain.ColumnInProgress {
+		now := time.Now()
+		task.StartedAt = &now
+	}
+
+	// Check for unresolved dependencies when moving to in_progress
+	if targetColumnSlug == domain.ColumnInProgress {
+		hasUnresolved, err := a.tasks.HasUnresolvedDependencies(ctx, projectID, taskID)
+		if err != nil {
+			logger.WithError(err).Error("failed to check unresolved dependencies")
+			return err
+		}
+		if hasUnresolved {
+			return errors.Join(domain.ErrUnresolvedDependencies, fmt.Errorf("cannot move task to in_progress: dependencies not resolved"))
+		}
+	}
+
 	// Check WIP limit for in_progress column
 	if targetColumnSlug == domain.ColumnInProgress && targetColumn.WIPLimit > 0 {
 		inProgressTasks, err := a.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &targetColumnSlug})
@@ -303,6 +325,32 @@ func (a *App) MoveTask(ctx context.Context, projectID domain.ProjectID, taskID d
 
 func (a *App) StartTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error {
 	return a.MoveTask(ctx, projectID, taskID, domain.ColumnInProgress)
+}
+
+func (a *App) ReorderTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error {
+	logger := a.logger.WithContext(ctx).WithFields(logrus.Fields{
+		"projectID":   projectID,
+		"taskID":      taskID,
+		"newPosition": newPosition,
+	})
+
+	// Verify task exists
+	task, err := a.tasks.FindByID(ctx, projectID, taskID)
+	if err != nil {
+		logger.WithError(err).Error("failed to find task")
+		return errors.Join(domain.ErrTaskNotFound, err)
+	}
+	if task == nil {
+		return domain.ErrTaskNotFound
+	}
+
+	if err := a.tasks.ReorderTask(ctx, projectID, taskID, newPosition); err != nil {
+		logger.WithError(err).Error("failed to reorder task")
+		return err
+	}
+
+	logger.Info("task reordered successfully")
+	return nil
 }
 
 func (a *App) CompleteTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage) error {
@@ -346,6 +394,9 @@ func (a *App) CompleteTask(ctx context.Context, projectID domain.ProjectID, task
 	task.CompletedByAgent = completedByAgent
 	task.CompletedAt = &now
 	task.UpdatedAt = now
+	if task.StartedAt != nil {
+		task.DurationSeconds = int(task.CompletedAt.Sub(*task.StartedAt).Seconds())
+	}
 	if tokenUsage != nil {
 		task.InputTokens += tokenUsage.InputTokens
 		task.OutputTokens += tokenUsage.OutputTokens
@@ -804,6 +855,20 @@ func (a *App) MarkTaskSeen(ctx context.Context, projectID domain.ProjectID, task
 
 	logger.Info("task marked as seen")
 	return nil
+}
+
+// GetTimeline returns daily task creation and completion counts for the last N days.
+func (a *App) GetTimeline(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error) {
+	logger := a.logger.WithContext(ctx).WithField("projectID", projectID).WithField("days", days)
+
+	entries, err := a.tasks.GetTimeline(ctx, projectID, days)
+	if err != nil {
+		logger.WithError(err).Error("failed to get timeline")
+		return nil, err
+	}
+
+	logger.Info("timeline retrieved successfully")
+	return entries, nil
 }
 
 // Helper functions

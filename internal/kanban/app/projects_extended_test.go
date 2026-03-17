@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
-	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,12 +14,10 @@ import (
 
 func TestApp_ListProjectsWithSummary_Success(t *testing.T) {
 	ctx := context.Background()
-	a, mockProjects, _, mockTasks, mockColumns, _, _ := setupTestApp()
+	a, mockProjects, _, _, _, _, _ := setupTestApp()
 
 	projectID1 := domain.NewProjectID()
 	projectID2 := domain.NewProjectID()
-	todoColID := domain.NewColumnID()
-	doneColID := domain.NewColumnID()
 
 	mockProjects.ListFunc = func(ctx context.Context, parentID *domain.ProjectID) ([]domain.Project, error) {
 		if parentID == nil {
@@ -29,38 +26,21 @@ func TestApp_ListProjectsWithSummary_Success(t *testing.T) {
 				{ID: projectID2, Name: "Project 2"},
 			}, nil
 		}
-		// Sub-projects: return empty for both
 		return []domain.Project{}, nil
 	}
 
-	mockProjects.FindByIDFunc = func(ctx context.Context, id domain.ProjectID) (*domain.Project, error) {
+	mockProjects.GetSummaryFunc = func(ctx context.Context, id domain.ProjectID) (*domain.ProjectSummary, error) {
 		switch id {
 		case projectID1:
-			return &domain.Project{ID: projectID1, Name: "Project 1"}, nil
+			return &domain.ProjectSummary{TodoCount: 1, DoneCount: 1}, nil
 		case projectID2:
-			return &domain.Project{ID: projectID2, Name: "Project 2"}, nil
+			return &domain.ProjectSummary{}, nil
 		}
 		return nil, errors.New("not found")
 	}
 
-	mockTasks.ListFunc = func(ctx context.Context, pid domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error) {
-		if pid == projectID1 {
-			return []domain.TaskWithDetails{
-				{Task: domain.Task{ID: domain.NewTaskID(), ColumnID: todoColID}},
-				{Task: domain.Task{ID: domain.NewTaskID(), ColumnID: doneColID}},
-			}, nil
-		}
-		return []domain.TaskWithDetails{}, nil
-	}
-
-	mockColumns.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, cid domain.ColumnID) (*domain.Column, error) {
-		switch cid {
-		case todoColID:
-			return &domain.Column{ID: todoColID, Slug: domain.ColumnTodo}, nil
-		case doneColID:
-			return &domain.Column{ID: doneColID, Slug: domain.ColumnDone}, nil
-		}
-		return nil, errors.New("not found")
+	mockProjects.CountChildrenFunc = func(ctx context.Context, id domain.ProjectID) (int, error) {
+		return 0, nil
 	}
 
 	result, err := a.ListProjectsWithSummary(ctx)
@@ -92,12 +72,11 @@ func TestApp_ListProjectsWithSummary_Empty_ReturnsEmpty(t *testing.T) {
 
 func TestApp_ListSubProjectsWithSummary_Success(t *testing.T) {
 	ctx := context.Background()
-	a, mockProjects, _, mockTasks, mockColumns, _, _ := setupTestApp()
+	a, mockProjects, _, _, _, _, _ := setupTestApp()
 
 	parentID := domain.NewProjectID()
 	child1ID := domain.NewProjectID()
 	child2ID := domain.NewProjectID()
-	todoColID := domain.NewColumnID()
 
 	mockProjects.FindByIDFunc = func(ctx context.Context, id domain.ProjectID) (*domain.Project, error) {
 		switch id {
@@ -118,24 +97,18 @@ func TestApp_ListSubProjectsWithSummary_Success(t *testing.T) {
 				{ID: child2ID, Name: "Child 2", ParentID: &parentID},
 			}, nil
 		}
-		// Sub-sub-projects: return empty
 		return []domain.Project{}, nil
 	}
 
-	mockTasks.ListFunc = func(ctx context.Context, pid domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error) {
-		if pid == child1ID {
-			return []domain.TaskWithDetails{
-				{Task: domain.Task{ID: domain.NewTaskID(), ColumnID: todoColID}},
-			}, nil
+	mockProjects.GetSummaryFunc = func(ctx context.Context, id domain.ProjectID) (*domain.ProjectSummary, error) {
+		if id == child1ID {
+			return &domain.ProjectSummary{TodoCount: 1}, nil
 		}
-		return []domain.TaskWithDetails{}, nil
+		return &domain.ProjectSummary{}, nil
 	}
 
-	mockColumns.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, cid domain.ColumnID) (*domain.Column, error) {
-		if cid == todoColID {
-			return &domain.Column{ID: todoColID, Slug: domain.ColumnTodo}, nil
-		}
-		return nil, errors.New("not found")
+	mockProjects.CountChildrenFunc = func(ctx context.Context, id domain.ProjectID) (int, error) {
+		return 0, nil
 	}
 
 	result, err := a.ListSubProjectsWithSummary(ctx, parentID)
@@ -165,11 +138,10 @@ func TestApp_ListSubProjectsWithSummary_ParentNotFound_ReturnsError(t *testing.T
 
 func TestApp_GetProjectInfo_Success(t *testing.T) {
 	ctx := context.Background()
-	a, mockProjects, _, mockTasks, mockColumns, _, _ := setupTestApp()
+	a, mockProjects, _, _, _, _, _ := setupTestApp()
 
 	projectID := domain.NewProjectID()
 	childID := domain.NewProjectID()
-	todoColID := domain.NewColumnID()
 
 	mockProjects.FindByIDFunc = func(ctx context.Context, id domain.ProjectID) (*domain.Project, error) {
 		switch id {
@@ -187,24 +159,21 @@ func TestApp_GetProjectInfo_Success(t *testing.T) {
 				{ID: childID, Name: "Child Project", ParentID: &projectID},
 			}, nil
 		}
-		// Sub-sub-projects or sub-children: return empty
 		return []domain.Project{}, nil
 	}
 
-	mockTasks.ListFunc = func(ctx context.Context, pid domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error) {
-		if pid == projectID {
-			return []domain.TaskWithDetails{
-				{Task: domain.Task{ID: domain.NewTaskID(), ColumnID: todoColID}},
-			}, nil
+	mockProjects.GetSummaryFunc = func(ctx context.Context, id domain.ProjectID) (*domain.ProjectSummary, error) {
+		if id == projectID {
+			return &domain.ProjectSummary{TodoCount: 1}, nil
 		}
-		return []domain.TaskWithDetails{}, nil
+		return &domain.ProjectSummary{}, nil
 	}
 
-	mockColumns.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, cid domain.ColumnID) (*domain.Column, error) {
-		if cid == todoColID {
-			return &domain.Column{ID: todoColID, Slug: domain.ColumnTodo}, nil
+	mockProjects.CountChildrenFunc = func(ctx context.Context, id domain.ProjectID) (int, error) {
+		if id == projectID {
+			return 1, nil
 		}
-		return nil, errors.New("not found")
+		return 0, nil
 	}
 
 	info, err := a.GetProjectInfo(ctx, projectID)
@@ -222,7 +191,7 @@ func TestApp_GetProjectInfo_Success(t *testing.T) {
 
 func TestApp_GetProjectInfo_WithParent_BuildsBreadcrumb(t *testing.T) {
 	ctx := context.Background()
-	a, mockProjects, _, mockTasks, mockColumns, _, _ := setupTestApp()
+	a, mockProjects, _, _, _, _, _ := setupTestApp()
 
 	grandparentID := domain.NewProjectID()
 	parentID := domain.NewProjectID()
@@ -244,12 +213,12 @@ func TestApp_GetProjectInfo_WithParent_BuildsBreadcrumb(t *testing.T) {
 		return []domain.Project{}, nil
 	}
 
-	mockTasks.ListFunc = func(ctx context.Context, pid domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error) {
-		return []domain.TaskWithDetails{}, nil
+	mockProjects.GetSummaryFunc = func(ctx context.Context, id domain.ProjectID) (*domain.ProjectSummary, error) {
+		return &domain.ProjectSummary{}, nil
 	}
 
-	mockColumns.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, cid domain.ColumnID) (*domain.Column, error) {
-		return nil, errors.New("not found")
+	mockProjects.CountChildrenFunc = func(ctx context.Context, id domain.ProjectID) (int, error) {
+		return 0, nil
 	}
 
 	info, err := a.GetProjectInfo(ctx, projectID)

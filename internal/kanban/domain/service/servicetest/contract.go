@@ -17,29 +17,30 @@ import (
 //		},
 //	}
 type MockCommands struct {
-	CreateProjectFunc    func(ctx context.Context, name, description, workDir, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
-	UpdateProjectFunc    func(ctx context.Context, projectID domain.ProjectID, name, description string) error
-	DeleteProjectFunc    func(ctx context.Context, projectID domain.ProjectID) error
-	CreateRoleFunc       func(ctx context.Context, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error)
-	UpdateRoleFunc       func(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error
-	DeleteRoleFunc       func(ctx context.Context, roleID domain.RoleID) error
-	CreateTaskFunc       func(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error)
-	UpdateTaskFunc       func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage) error
-	UpdateTaskFilesFunc  func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error
-	DeleteTaskFunc       func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
-	MoveTaskFunc         func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnSlug domain.ColumnSlug) error
-	StartTaskFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
-	CompleteTaskFunc     func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage) error
-	BlockTaskFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, blockedReason, blockedByAgent string) error
-	UnblockTaskFunc      func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
-	RequestWontDoFunc    func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, wontDoReason, wontDoRequestedBy string) error
-	ApproveWontDoFunc    func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
-	RejectWontDoFunc     func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, reason string) error
-	CreateCommentFunc    func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, authorRole, authorName string, authorType domain.AuthorType, content string) (domain.Comment, error)
-	UpdateCommentFunc    func(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID, content string) error
-	DeleteCommentFunc    func(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID) error
-	AddDependencyFunc    func(ctx context.Context, projectID domain.ProjectID, taskID, dependsOnTaskID domain.TaskID) error
-	RemoveDependencyFunc func(ctx context.Context, projectID domain.ProjectID, taskID, dependsOnTaskID domain.TaskID) error
+	CreateProjectFunc        func(ctx context.Context, name, description, workDir, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
+	UpdateProjectFunc        func(ctx context.Context, projectID domain.ProjectID, name, description string) error
+	DeleteProjectFunc        func(ctx context.Context, projectID domain.ProjectID) error
+	CreateRoleFunc           func(ctx context.Context, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error)
+	UpdateRoleFunc           func(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error
+	DeleteRoleFunc           func(ctx context.Context, roleID domain.RoleID) error
+	CreateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error)
+	UpdateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error
+	UpdateTaskFilesFunc      func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error
+	DeleteTaskFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
+	MoveTaskFunc             func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnSlug domain.ColumnSlug) error
+	ReorderTaskFunc          func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error
+	StartTaskFunc            func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
+	CompleteTaskFunc         func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage) error
+	BlockTaskFunc            func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, blockedReason, blockedByAgent string) error
+	UnblockTaskFunc          func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
+	RequestWontDoFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, wontDoReason, wontDoRequestedBy string) error
+	ApproveWontDoFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
+	RejectWontDoFunc         func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, reason string) error
+	CreateCommentFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, authorRole, authorName string, authorType domain.AuthorType, content string) (domain.Comment, error)
+	UpdateCommentFunc        func(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID, content string) error
+	DeleteCommentFunc        func(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID) error
+	AddDependencyFunc        func(ctx context.Context, projectID domain.ProjectID, taskID, dependsOnTaskID domain.TaskID) error
+	RemoveDependencyFunc     func(ctx context.Context, projectID domain.ProjectID, taskID, dependsOnTaskID domain.TaskID) error
 	MarkTaskSeenFunc         func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
 	UpdateColumnWIPLimitFunc func(ctx context.Context, projectID domain.ProjectID, columnSlug domain.ColumnSlug, wipLimit int) error
 	MoveTaskToProjectFunc    func(ctx context.Context, sourceProjectID domain.ProjectID, taskID domain.TaskID, targetProjectID domain.ProjectID) error
@@ -95,11 +96,11 @@ func (m *MockCommands) CreateTask(ctx context.Context, projectID domain.ProjectI
 	return m.CreateTaskFunc(ctx, projectID, title, summary, description, priority, createdByRole, createdByAgent, assignedRole, contextFiles, tags, estimatedEffort)
 }
 
-func (m *MockCommands) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage) error {
+func (m *MockCommands) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error {
 	if m.UpdateTaskFunc == nil {
 		panic("called not defined UpdateTaskFunc")
 	}
-	return m.UpdateTaskFunc(ctx, projectID, taskID, title, description, assignedRole, estimatedEffort, resolution, priority, contextFiles, tags, tokenUsage)
+	return m.UpdateTaskFunc(ctx, projectID, taskID, title, description, assignedRole, estimatedEffort, resolution, priority, contextFiles, tags, tokenUsage, humanEstimateSeconds)
 }
 
 func (m *MockCommands) UpdateTaskFiles(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error {
@@ -121,6 +122,13 @@ func (m *MockCommands) MoveTask(ctx context.Context, projectID domain.ProjectID,
 		panic("called not defined MoveTaskFunc")
 	}
 	return m.MoveTaskFunc(ctx, projectID, taskID, targetColumnSlug)
+}
+
+func (m *MockCommands) ReorderTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error {
+	if m.ReorderTaskFunc == nil {
+		panic("called not defined ReorderTaskFunc")
+	}
+	return m.ReorderTaskFunc(ctx, projectID, taskID, newPosition)
 }
 
 func (m *MockCommands) StartTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error {

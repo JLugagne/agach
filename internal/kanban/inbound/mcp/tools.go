@@ -115,11 +115,14 @@ type taskDetail struct {
 	EstimatedEffort   string     `json:"estimated_effort,omitempty"`
 	InputTokens       int        `json:"input_tokens,omitempty"`
 	OutputTokens      int        `json:"output_tokens,omitempty"`
-	CacheReadTokens   int        `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens  int        `json:"cache_write_tokens,omitempty"`
-	Model             string     `json:"model,omitempty"`
-	CreatedAt         string     `json:"created_at"`
-	UpdatedAt         string     `json:"updated_at"`
+	CacheReadTokens      int        `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens     int        `json:"cache_write_tokens,omitempty"`
+	Model                string     `json:"model,omitempty"`
+	StartedAt            *time.Time `json:"started_at,omitempty"`
+	DurationSeconds      int        `json:"duration_seconds,omitempty"`
+	HumanEstimateSeconds int        `json:"human_estimate_seconds,omitempty"`
+	CreatedAt            string     `json:"created_at"`
+	UpdatedAt            string     `json:"updated_at"`
 }
 
 func toTaskDetail(task *domain.Task) taskDetail {
@@ -153,11 +156,14 @@ func toTaskDetail(task *domain.Task) taskDetail {
 		EstimatedEffort:   task.EstimatedEffort,
 		InputTokens:       task.InputTokens,
 		OutputTokens:      task.OutputTokens,
-		CacheReadTokens:   task.CacheReadTokens,
-		CacheWriteTokens:  task.CacheWriteTokens,
-		Model:             task.Model,
-		CreatedAt:         task.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:         task.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		CacheReadTokens:      task.CacheReadTokens,
+		CacheWriteTokens:     task.CacheWriteTokens,
+		Model:                task.Model,
+		StartedAt:            task.StartedAt,
+		DurationSeconds:      task.DurationSeconds,
+		HumanEstimateSeconds: task.HumanEstimateSeconds,
+		CreatedAt:            task.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:            task.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 	}
 }
 
@@ -536,7 +542,12 @@ func (h *ToolHandler) updateTask(ctx context.Context, args map[string]interface{
 		tokenUsage.Model = model
 	}
 
-	err := h.commands.UpdateTask(ctx, projectID, taskID, title, description, assignedRole, estimatedEffort, resolution, priority, contextFiles, tags, tokenUsage)
+	var humanEstimateSeconds *int
+	if v := intArg(args, "human_estimate_seconds", -1); v >= 0 {
+		humanEstimateSeconds = &v
+	}
+
+	err := h.commands.UpdateTask(ctx, projectID, taskID, title, description, assignedRole, estimatedEffort, resolution, priority, contextFiles, tags, tokenUsage, humanEstimateSeconds)
 	if err != nil {
 		return nil, err
 	}
@@ -643,6 +654,11 @@ func (h *ToolHandler) completeTask(ctx context.Context, args map[string]interfac
 	err := h.commands.CompleteTask(ctx, projectID, taskID, completionSummary, filesModified, completedByAgent, tokenUsage)
 	if err != nil {
 		return nil, err
+	}
+
+	// If a human estimate was provided, persist it via UpdateTask
+	if humanEst := intArg(args, "human_estimate_seconds", -1); humanEst >= 0 {
+		_ = h.commands.UpdateTask(ctx, projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, nil, &humanEst)
 	}
 
 	// Broadcast task_completed event
@@ -883,6 +899,31 @@ func (h *ToolHandler) listComments(ctx context.Context, args map[string]interfac
 		return nil, err
 	}
 	return comments, nil
+}
+
+func (h *ToolHandler) reorderTask(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	projectID := domain.ProjectID(args["project_id"].(string))
+	taskID := domain.TaskID(args["task_id"].(string))
+	newPosition := intArg(args, "position", 0)
+
+	err := h.commands.ReorderTask(ctx, projectID, taskID, newPosition)
+	if err != nil {
+		return nil, err
+	}
+
+	// Broadcast task_updated event so UI clients refresh the board
+	if h.hub != nil {
+		h.hub.Broadcast(websocket.Event{
+			Type:      "task_updated",
+			ProjectID: string(projectID),
+			Data: map[string]interface{}{
+				"task_id":  string(taskID),
+				"position": newPosition,
+			},
+		})
+	}
+
+	return map[string]interface{}{"success": true}, nil
 }
 
 func (h *ToolHandler) moveTaskToProject(ctx context.Context, args map[string]interface{}) (interface{}, error) {
