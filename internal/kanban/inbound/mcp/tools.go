@@ -204,7 +204,7 @@ type ToolHandler struct {
 }
 
 // NewToolHandler creates a new MCP tool handler
-func NewToolHandler(commands service.Commands, queries service.Queries, hub interface{}) *ToolHandler {
+func NewToolHandler(commands service.Commands, queries service.Queries, hub any) *ToolHandler {
 	var broadcaster Broadcaster
 	if h, ok := hub.(Broadcaster); ok {
 		broadcaster = h
@@ -219,7 +219,7 @@ func NewToolHandler(commands service.Commands, queries service.Queries, hub inte
 
 // Tool handler implementations
 
-func (h *ToolHandler) listProjects(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) listProjects(ctx context.Context, args map[string]any) (any, error) {
 	parentIDStr, hasParent := args["parent_id"].(string)
 	workDir, hasWorkDir := args["work_dir"].(string)
 
@@ -247,8 +247,12 @@ func (h *ToolHandler) listProjects(ctx context.Context, args map[string]interfac
 	return projects, nil
 }
 
-func (h *ToolHandler) getProjectInfo(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	projectID := domain.ProjectID(args["project_id"].(string))
+func (h *ToolHandler) getProjectInfo(ctx context.Context, args map[string]any) (any, error) {
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
 
 	info, err := h.queries.GetProjectInfo(ctx, projectID)
 	if err != nil {
@@ -280,8 +284,8 @@ func (h *ToolHandler) getProjectInfo(ctx context.Context, args map[string]interf
 		}
 	}
 
-	return map[string]interface{}{
-		"project": map[string]interface{}{
+	return map[string]any{
+		"project": map[string]any{
 			"id":          string(info.Project.ID),
 			"name":        info.Project.Name,
 			"description": info.Project.Description,
@@ -294,11 +298,23 @@ func (h *ToolHandler) getProjectInfo(ctx context.Context, args map[string]interf
 	}, nil
 }
 
-func (h *ToolHandler) createProject(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	name := args["name"].(string)
+func (h *ToolHandler) createProject(ctx context.Context, args map[string]any) (any, error) {
+	nameVal, ok := args["name"].(string)
+	if !ok {
+		return nil, fmt.Errorf("name is required and must be a string")
+	}
 	description, _ := args["description"].(string)
-	workDir, _ := args["work_dir"].(string)
-	createdByRole, _ := args["created_by_role"].(string)
+	workDirVal, ok := args["work_dir"].(string)
+	if !ok {
+		return nil, fmt.Errorf("work_dir is required and must be a string")
+	}
+	createdByRoleVal, ok := args["created_by_role"].(string)
+	if !ok {
+		return nil, fmt.Errorf("created_by_role is required and must be a string")
+	}
+	name := nameVal
+	workDir := workDirVal
+	createdByRole := createdByRoleVal
 	createdByAgent, _ := args["created_by_agent"].(string)
 
 	var parentID *domain.ProjectID
@@ -316,7 +332,7 @@ func (h *ToolHandler) createProject(ctx context.Context, args map[string]interfa
 	if h.hub != nil {
 		h.hub.Broadcast(websocket.Event{
 			Type: "project_created",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"id":        string(project.ID),
 				"name":      project.Name,
 				"parent_id": project.ParentID,
@@ -327,7 +343,7 @@ func (h *ToolHandler) createProject(ctx context.Context, args map[string]interfa
 	return project, nil
 }
 
-func (h *ToolHandler) updateProject(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) updateProject(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	name, _ := args["name"].(string)
 	description, _ := args["description"].(string)
@@ -341,7 +357,7 @@ func (h *ToolHandler) updateProject(ctx context.Context, args map[string]interfa
 	if h.hub != nil {
 		h.hub.Broadcast(websocket.Event{
 			Type: "project_updated",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"id":          string(projectID),
 				"name":        name,
 				"description": description,
@@ -349,10 +365,10 @@ func (h *ToolHandler) updateProject(ctx context.Context, args map[string]interfa
 		})
 	}
 
-	return map[string]interface{}{"success": true}, nil
+	return map[string]any{"success": true}, nil
 }
 
-func (h *ToolHandler) deleteProject(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) deleteProject(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 
 	err := h.commands.DeleteProject(ctx, projectID)
@@ -364,16 +380,16 @@ func (h *ToolHandler) deleteProject(ctx context.Context, args map[string]interfa
 	if h.hub != nil {
 		h.hub.Broadcast(websocket.Event{
 			Type: "project_deleted",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"id": string(projectID),
 			},
 		})
 	}
 
-	return map[string]interface{}{"success": true}, nil
+	return map[string]any{"success": true}, nil
 }
 
-func (h *ToolHandler) listRoles(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) listRoles(ctx context.Context, args map[string]any) (any, error) {
 	roles, err := h.queries.ListRoles(ctx)
 	if err != nil {
 		return nil, err
@@ -381,7 +397,7 @@ func (h *ToolHandler) listRoles(ctx context.Context, args map[string]interface{}
 	return toRoleSummaries(roles), nil
 }
 
-func (h *ToolHandler) getRole(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) getRole(ctx context.Context, args map[string]any) (any, error) {
 	slug := args["slug"].(string)
 
 	role, err := h.queries.GetRoleBySlug(ctx, slug)
@@ -391,7 +407,7 @@ func (h *ToolHandler) getRole(ctx context.Context, args map[string]interface{}) 
 	return role, nil
 }
 
-func (h *ToolHandler) updateRole(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) updateRole(ctx context.Context, args map[string]any) (any, error) {
 	slug := args["slug"].(string)
 
 	// Look up role by slug to get the ID
@@ -408,7 +424,7 @@ func (h *ToolHandler) updateRole(ctx context.Context, args map[string]interface{
 	sortOrder := 0
 
 	var techStack []string
-	if ts, ok := args["tech_stack"].([]interface{}); ok {
+	if ts, ok := args["tech_stack"].([]any); ok {
 		for _, v := range ts {
 			if s, ok := v.(string); ok {
 				techStack = append(techStack, s)
@@ -425,7 +441,7 @@ func (h *ToolHandler) updateRole(ctx context.Context, args map[string]interface{
 	if h.hub != nil {
 		h.hub.Broadcast(websocket.Event{
 			Type: "role_updated",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"slug": slug,
 			},
 		})
@@ -434,12 +450,12 @@ func (h *ToolHandler) updateRole(ctx context.Context, args map[string]interface{
 	// Return updated role
 	updated, err := h.queries.GetRoleBySlug(ctx, slug)
 	if err != nil {
-		return map[string]interface{}{"success": true}, nil
+		return map[string]any{"success": true}, nil
 	}
 	return updated, nil
 }
 
-func (h *ToolHandler) createTask(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) createTask(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	title := args["title"].(string)
 	summary := args["summary"].(string)
@@ -480,10 +496,10 @@ func (h *ToolHandler) createTask(ctx context.Context, args map[string]interface{
 		})
 	}
 
-	return map[string]interface{}{"id": string(task.ID), "title": task.Title}, nil
+	return map[string]any{"id": string(task.ID), "title": task.Title}, nil
 }
 
-func (h *ToolHandler) updateTask(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) updateTask(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	taskID := domain.TaskID(args["task_id"].(string))
 
@@ -561,10 +577,10 @@ func (h *ToolHandler) updateTask(ctx context.Context, args map[string]interface{
 		})
 	}
 
-	return map[string]interface{}{"success": true}, nil
+	return map[string]any{"success": true}, nil
 }
 
-func (h *ToolHandler) updateTaskFiles(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) updateTaskFiles(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	taskID := domain.TaskID(args["task_id"].(string))
 
@@ -593,10 +609,10 @@ func (h *ToolHandler) updateTaskFiles(ctx context.Context, args map[string]inter
 		})
 	}
 
-	return map[string]interface{}{"success": true}, nil
+	return map[string]any{"success": true}, nil
 }
 
-func (h *ToolHandler) moveTask(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) moveTask(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	taskID := domain.TaskID(args["task_id"].(string))
 	targetColumn := domain.ColumnSlug(args["target_column"].(string))
@@ -618,10 +634,10 @@ func (h *ToolHandler) moveTask(ctx context.Context, args map[string]interface{})
 		})
 	}
 
-	return map[string]interface{}{"success": true}, nil
+	return map[string]any{"success": true}, nil
 }
 
-func (h *ToolHandler) completeTask(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) completeTask(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	taskID := domain.TaskID(args["task_id"].(string))
 	completionSummary := args["completion_summary"].(string)
@@ -666,7 +682,7 @@ func (h *ToolHandler) completeTask(ctx context.Context, args map[string]interfac
 		h.hub.Broadcast(websocket.Event{
 			Type:      "task_completed",
 			ProjectID: string(projectID),
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"task_id":            string(taskID),
 				"completion_summary": completionSummary,
 				"files_modified":     filesModified,
@@ -675,10 +691,10 @@ func (h *ToolHandler) completeTask(ctx context.Context, args map[string]interfac
 		})
 	}
 
-	return map[string]interface{}{"success": true}, nil
+	return map[string]any{"success": true}, nil
 }
 
-func (h *ToolHandler) getTask(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) getTask(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	taskID := domain.TaskID(args["task_id"].(string))
 
@@ -689,7 +705,7 @@ func (h *ToolHandler) getTask(ctx context.Context, args map[string]interface{}) 
 	return toTaskDetail(task), nil
 }
 
-func (h *ToolHandler) listTasks(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) listTasks(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 
 	filters := tasks.TaskFilters{}
@@ -740,9 +756,13 @@ func (h *ToolHandler) listTasks(ctx context.Context, args map[string]interface{}
 	return toTaskSummaries(taskList), nil
 }
 
-func (h *ToolHandler) getNextTask(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) getNextTask(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
-	role := args["role"].(string)
+
+	role := ""
+	if roleVal, ok := args["role"].(string); ok {
+		role = roleVal
+	}
 
 	var subProjectID *domain.ProjectID
 	if spID, ok := args["sub_project_id"].(string); ok && spID != "" {
@@ -753,13 +773,13 @@ func (h *ToolHandler) getNextTask(ctx context.Context, args map[string]interface
 	task, err := h.queries.GetNextTask(ctx, projectID, role, subProjectID)
 	if err != nil {
 		if domain.IsDomainError(err) {
-			return map[string]interface{}{"task": nil, "message": err.Error()}, nil
+			return map[string]any{"task": nil, "message": err.Error()}, nil
 		}
 		return nil, err
 	}
 
 	if task == nil {
-		return map[string]interface{}{"task": nil, "message": "No tasks available for this role"}, nil
+		return map[string]any{"task": nil, "message": "No tasks available for this role"}, nil
 	}
 
 	// Get dependency context
@@ -768,13 +788,13 @@ func (h *ToolHandler) getNextTask(ctx context.Context, args map[string]interface
 		return nil, err
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"task":               toTaskForWork(task),
 		"dependency_context": depContext,
 	}, nil
 }
 
-func (h *ToolHandler) blockTask(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) blockTask(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	taskID := domain.TaskID(args["task_id"].(string))
 	blockedReason := args["blocked_reason"].(string)
@@ -798,10 +818,10 @@ func (h *ToolHandler) blockTask(ctx context.Context, args map[string]interface{}
 		})
 	}
 
-	return map[string]interface{}{"success": true}, nil
+	return map[string]any{"success": true}, nil
 }
 
-func (h *ToolHandler) requestWontDo(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) requestWontDo(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	taskID := domain.TaskID(args["task_id"].(string))
 	wontDoReason := args["wont_do_reason"].(string)
@@ -825,10 +845,10 @@ func (h *ToolHandler) requestWontDo(ctx context.Context, args map[string]interfa
 		})
 	}
 
-	return map[string]interface{}{"success": true}, nil
+	return map[string]any{"success": true}, nil
 }
 
-func (h *ToolHandler) addDependency(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) addDependency(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	taskID := domain.TaskID(args["task_id"].(string))
 	dependsOnTaskID := domain.TaskID(args["depends_on_task_id"].(string))
@@ -837,10 +857,10 @@ func (h *ToolHandler) addDependency(ctx context.Context, args map[string]interfa
 	if err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"success": true}, nil
+	return map[string]any{"success": true}, nil
 }
 
-func (h *ToolHandler) removeDependency(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) removeDependency(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	taskID := domain.TaskID(args["task_id"].(string))
 	dependsOnTaskID := domain.TaskID(args["depends_on_task_id"].(string))
@@ -849,10 +869,10 @@ func (h *ToolHandler) removeDependency(ctx context.Context, args map[string]inte
 	if err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"success": true}, nil
+	return map[string]any{"success": true}, nil
 }
 
-func (h *ToolHandler) listDependencies(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) listDependencies(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	taskID := domain.TaskID(args["task_id"].(string))
 
@@ -863,7 +883,7 @@ func (h *ToolHandler) listDependencies(ctx context.Context, args map[string]inte
 	return deps, nil
 }
 
-func (h *ToolHandler) addComment(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) addComment(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	taskID := domain.TaskID(args["task_id"].(string))
 	authorRole := args["author_role"].(string)
@@ -884,10 +904,10 @@ func (h *ToolHandler) addComment(ctx context.Context, args map[string]interface{
 		})
 	}
 
-	return map[string]interface{}{"id": string(comment.ID), "success": true}, nil
+	return map[string]any{"id": string(comment.ID), "success": true}, nil
 }
 
-func (h *ToolHandler) listComments(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) listComments(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	taskID := domain.TaskID(args["task_id"].(string))
 
@@ -901,7 +921,7 @@ func (h *ToolHandler) listComments(ctx context.Context, args map[string]interfac
 	return comments, nil
 }
 
-func (h *ToolHandler) reorderTask(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) reorderTask(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 	taskID := domain.TaskID(args["task_id"].(string))
 	newPosition := intArg(args, "position", 0)
@@ -916,17 +936,17 @@ func (h *ToolHandler) reorderTask(ctx context.Context, args map[string]interface
 		h.hub.Broadcast(websocket.Event{
 			Type:      "task_updated",
 			ProjectID: string(projectID),
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"task_id":  string(taskID),
 				"position": newPosition,
 			},
 		})
 	}
 
-	return map[string]interface{}{"success": true}, nil
+	return map[string]any{"success": true}, nil
 }
 
-func (h *ToolHandler) moveTaskToProject(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) moveTaskToProject(ctx context.Context, args map[string]any) (any, error) {
 	sourceProjectID := domain.ProjectID(args["project_id"].(string))
 	taskID := domain.TaskID(args["task_id"].(string))
 	targetProjectID := domain.ProjectID(args["target_project_id"].(string))
@@ -954,10 +974,10 @@ func (h *ToolHandler) moveTaskToProject(ctx context.Context, args map[string]int
 		})
 	}
 
-	return map[string]interface{}{"success": true}, nil
+	return map[string]any{"success": true}, nil
 }
 
-func (h *ToolHandler) getBoard(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (h *ToolHandler) getBoard(ctx context.Context, args map[string]any) (any, error) {
 	projectID := domain.ProjectID(args["project_id"].(string))
 
 	// Return a lightweight board overview: column counts + sub-projects with summaries.
@@ -980,7 +1000,7 @@ func (h *ToolHandler) getBoard(ctx context.Context, args map[string]interface{})
 		{Slug: "blocked", Name: "Blocked", Count: info.TaskSummary.BlockedCount},
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"project":      info.Project,
 		"columns":      columns,
 		"sub_projects": info.Children,
@@ -989,7 +1009,7 @@ func (h *ToolHandler) getBoard(ctx context.Context, args map[string]interface{})
 
 // Helper functions
 
-func intArg(args map[string]interface{}, key string, defaultVal int) int {
+func intArg(args map[string]any, key string, defaultVal int) int {
 	v, ok := args[key]
 	if !ok {
 		return defaultVal
@@ -1010,13 +1030,13 @@ func intArg(args map[string]interface{}, key string, defaultVal int) int {
 	}
 }
 
-func parseStringArray(v interface{}) []string {
+func parseStringArray(v any) []string {
 	if v == nil {
 		return nil
 	}
 
 	switch arr := v.(type) {
-	case []interface{}:
+	case []any:
 		result := make([]string, 0, len(arr))
 		for _, item := range arr {
 			if str, ok := item.(string); ok {
