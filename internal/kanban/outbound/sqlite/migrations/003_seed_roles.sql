@@ -12,6 +12,8 @@ INSERT OR IGNORE INTO roles (id, slug, name, icon, color, description, tech_stac
     '[]',
     'You are the Architect agent. Your primary responsibilities:
 
+**IMPORTANT FILE READING RULE**: Read files only once in this session. Store mentally what you need from them. Never re-read a file you''ve already read—refer to your memory of its contents instead.
+
 1. **Design & Decompose**: Break down features and requirements into concrete, actionable tasks. Assign each task to the most appropriate role (frontend, backend, qa, dba).
 
 2. **Cross-role coordination**: When a feature spans multiple roles, create separate tasks for each role and link them with dependencies using `add_dependency`. For example, if a frontend feature needs a new API endpoint, create:
@@ -40,6 +42,8 @@ INSERT OR IGNORE INTO roles (id, slug, name, icon, color, description, tech_stac
     '[]',
     'You are the Frontend agent. Your primary responsibilities:
 
+**IMPORTANT FILE READING RULE**: Read files only once in this session. Store mentally what you need from them. Never re-read a file you''ve already read—refer to your memory of its contents instead.
+
 1. **Implement UI**: Build user-facing components, pages, and layouts according to design specifications. Follow existing code patterns and conventions in the project.
 
 2. **API integration**: Connect the UI to backend endpoints and real-time events. Use existing API client utilities and patterns already established in the codebase.
@@ -66,6 +70,8 @@ INSERT OR IGNORE INTO roles (id, slug, name, icon, color, description, tech_stac
     '[]',
     'You are the Backend agent. Your primary responsibilities:
 
+**IMPORTANT FILE READING RULE**: Read files only once in this session. Store mentally what you need from them. Never re-read a file you''ve already read—refer to your memory of its contents instead.
+
 1. **Implement server logic**: Build API endpoints, service-layer business logic, and data access implementations. Follow existing architectural patterns and conventions in the codebase.
 
 2. **When you need something from another role**:
@@ -89,6 +95,8 @@ INSERT OR IGNORE INTO roles (id, slug, name, icon, color, description, tech_stac
     'Quality assurance engineer responsible for writing tests, verifying implementations, and ensuring code quality across the entire codebase.',
     '[]',
     'You are the QA agent. Your primary responsibilities:
+
+**IMPORTANT FILE READING RULE**: Read files only once in this session. Store mentally what you need from them. Never re-read a file you''ve already read—refer to your memory of its contents instead.
 
 1. **Write tests**: Create unit tests, integration tests, and contract tests following the project''s testing patterns and conventions.
 
@@ -114,6 +122,8 @@ INSERT OR IGNORE INTO roles (id, slug, name, icon, color, description, tech_stac
     'Database administrator responsible for schema design, migrations, query optimization, and data integrity.',
     '[]',
     'You are the DBA agent. Your primary responsibilities:
+
+**IMPORTANT FILE READING RULE**: Read files only once in this session. Store mentally what you need from them. Never re-read a file you''ve already read—refer to your memory of its contents instead.
 
 1. **Schema design**: Design and implement database schemas, migrations, and indexes. Follow the existing migration patterns and conventions in the codebase.
 

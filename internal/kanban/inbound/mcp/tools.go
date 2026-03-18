@@ -113,16 +113,10 @@ type taskDetail struct {
 	ContextFiles      []string   `json:"context_files,omitempty"`
 	Tags              []string   `json:"tags,omitempty"`
 	EstimatedEffort   string     `json:"estimated_effort,omitempty"`
-	InputTokens       int        `json:"input_tokens,omitempty"`
-	OutputTokens      int        `json:"output_tokens,omitempty"`
-	CacheReadTokens      int        `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens     int        `json:"cache_write_tokens,omitempty"`
-	Model                string     `json:"model,omitempty"`
-	StartedAt            *time.Time `json:"started_at,omitempty"`
-	DurationSeconds      int        `json:"duration_seconds,omitempty"`
-	HumanEstimateSeconds int        `json:"human_estimate_seconds,omitempty"`
-	CreatedAt            string     `json:"created_at"`
-	UpdatedAt            string     `json:"updated_at"`
+	StartedAt         *time.Time `json:"started_at,omitempty"`
+	DurationSeconds   int        `json:"duration_seconds,omitempty"`
+	CreatedAt         string     `json:"created_at"`
+	UpdatedAt         string     `json:"updated_at"`
 }
 
 func toTaskDetail(task *domain.Task) taskDetail {
@@ -154,16 +148,10 @@ func toTaskDetail(task *domain.Task) taskDetail {
 		ContextFiles:      task.ContextFiles,
 		Tags:              task.Tags,
 		EstimatedEffort:   task.EstimatedEffort,
-		InputTokens:       task.InputTokens,
-		OutputTokens:      task.OutputTokens,
-		CacheReadTokens:      task.CacheReadTokens,
-		CacheWriteTokens:     task.CacheWriteTokens,
-		Model:                task.Model,
-		StartedAt:            task.StartedAt,
-		DurationSeconds:      task.DurationSeconds,
-		HumanEstimateSeconds: task.HumanEstimateSeconds,
-		CreatedAt:            task.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:            task.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		StartedAt:         task.StartedAt,
+		DurationSeconds:   task.DurationSeconds,
+		CreatedAt:         task.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:         task.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 	}
 }
 
@@ -340,7 +328,7 @@ func (h *ToolHandler) createProject(ctx context.Context, args map[string]any) (a
 		})
 	}
 
-	return project, nil
+	return map[string]any{"id": string(project.ID), "success": true}, nil
 }
 
 func (h *ToolHandler) updateProject(ctx context.Context, args map[string]any) (any, error) {
@@ -463,12 +451,7 @@ func (h *ToolHandler) updateRole(ctx context.Context, args map[string]any) (any,
 		})
 	}
 
-	// Return updated role
-	updated, err := h.queries.GetRoleBySlug(ctx, slug)
-	if err != nil {
-		return map[string]any{"success": true}, nil
-	}
-	return updated, nil
+	return map[string]any{"success": true}, nil
 }
 
 func (h *ToolHandler) createTask(ctx context.Context, args map[string]any) (any, error) {
@@ -528,7 +511,7 @@ func (h *ToolHandler) createTask(ctx context.Context, args map[string]any) (any,
 		})
 	}
 
-	return map[string]any{"id": string(task.ID), "title": task.Title}, nil
+	return map[string]any{"id": string(task.ID)}, nil
 }
 
 func (h *ToolHandler) updateTask(ctx context.Context, args map[string]any) (any, error) {
