@@ -94,6 +94,7 @@ func (p Priority) Score() int {
 type ColumnSlug string
 
 const (
+	ColumnBacklog    ColumnSlug = "backlog"
 	ColumnTodo       ColumnSlug = "todo"
 	ColumnInProgress ColumnSlug = "in_progress"
 	ColumnDone       ColumnSlug = "done"
@@ -152,6 +153,12 @@ type TokenUsage struct {
 	CacheReadTokens  int    `json:"cache_read_tokens"`
 	CacheWriteTokens int    `json:"cache_write_tokens"`
 	Model            string `json:"model"`
+
+	// Cold start (first exchange) — SET semantics, not accumulated
+	ColdStartInputTokens      int `json:"cold_start_input_tokens,omitempty"`
+	ColdStartOutputTokens     int `json:"cold_start_output_tokens,omitempty"`
+	ColdStartCacheReadTokens  int `json:"cold_start_cache_read_tokens,omitempty"`
+	ColdStartCacheWriteTokens int `json:"cold_start_cache_write_tokens,omitempty"`
 }
 
 // Task represents a task in the kanban board
@@ -187,13 +194,18 @@ type Task struct {
 	OutputTokens      int        `json:"output_tokens"`
 	CacheReadTokens   int        `json:"cache_read_tokens"`
 	CacheWriteTokens  int        `json:"cache_write_tokens"`
-	Model             string     `json:"model"`
+	Model                     string     `json:"model"`
+	ColdStartInputTokens      int        `json:"cold_start_input_tokens"`
+	ColdStartOutputTokens     int        `json:"cold_start_output_tokens"`
+	ColdStartCacheReadTokens  int        `json:"cold_start_cache_read_tokens"`
+	ColdStartCacheWriteTokens int        `json:"cold_start_cache_write_tokens"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
 	SeenAt               *time.Time `json:"seen_at"` // NULL = unseen, non-NULL = timestamp of first view
 	StartedAt            *time.Time `json:"started_at"`
 	DurationSeconds      int        `json:"duration_seconds"`
 	HumanEstimateSeconds int        `json:"human_estimate_seconds"`
+	SessionID            string     `json:"session_id"` // Claude Code session ID for resuming
 }
 
 // Comment represents a comment on a task
@@ -218,6 +230,7 @@ type TaskDependency struct {
 
 // ProjectSummary contains task counts per column for a project
 type ProjectSummary struct {
+	BacklogCount    int `json:"backlog_count"`
 	TodoCount       int `json:"todo_count"`
 	InProgressCount int `json:"in_progress_count"`
 	DoneCount       int `json:"done_count"`
@@ -259,6 +272,21 @@ type DependencyContext struct {
 	Title             string   `json:"title"`
 	CompletionSummary string   `json:"completion_summary"`
 	FilesModified     []string `json:"files_modified"`
+}
+
+// RoleColdStartStat holds aggregated cold-start token stats per role
+type RoleColdStartStat struct {
+	AssignedRole       string  `json:"assigned_role"`
+	Count              int     `json:"count"`
+	MinInputTokens     int     `json:"min_input_tokens"`
+	MaxInputTokens     int     `json:"max_input_tokens"`
+	AvgInputTokens     float64 `json:"avg_input_tokens"`
+	MinOutputTokens    int     `json:"min_output_tokens"`
+	MaxOutputTokens    int     `json:"max_output_tokens"`
+	AvgOutputTokens    float64 `json:"avg_output_tokens"`
+	MinCacheReadTokens int     `json:"min_cache_read_tokens"`
+	MaxCacheReadTokens int     `json:"max_cache_read_tokens"`
+	AvgCacheReadTokens float64 `json:"avg_cache_read_tokens"`
 }
 
 // TimelineEntry represents task counts for a single day

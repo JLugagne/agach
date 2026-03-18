@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import {
   Plus,
   X,
@@ -7,7 +8,10 @@ import {
   Pencil,
   Check,
 } from 'lucide-react';
-import { listRoles, createRole, updateRole, deleteRole } from '../lib/api';
+import {
+  listRoles, createRole, updateRole, deleteRole,
+  listProjectRoles, createProjectRole, updateProjectRole, deleteProjectRole,
+} from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type { RoleResponse, CreateRoleRequest, UpdateRoleRequest } from '../lib/types';
 import MarkdownContent from '../components/ui/MarkdownContent';
@@ -23,6 +27,7 @@ const PRESET_COLORS = [
 ];
 
 export default function RolesPage() {
+  const { projectId } = useParams<{ projectId: string }>();
   const [roles, setRoles] = useState<RoleResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -30,14 +35,14 @@ export default function RolesPage() {
 
   const fetchRoles = useCallback(async () => {
     try {
-      const data = await listRoles();
+      const data = projectId ? await listProjectRoles(projectId) : await listRoles();
       setRoles(data ?? []);
     } catch {
       // ignore
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     fetchRoles();
@@ -89,7 +94,7 @@ export default function RolesPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-[28px] text-[#F0F0F0] mb-1" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>Roles</h1>
-            <p className="text-sm text-[#555555]">
+            <p className="text-sm text-[var(--text-dim)]">
               {roles.length} role{roles.length !== 1 ? 's' : ''} defined
             </p>
           </div>
@@ -104,11 +109,11 @@ export default function RolesPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-24">
-            <Loader2 className="animate-spin text-[#555555]" size={24} />
+            <Loader2 className="animate-spin text-[var(--text-dim)]" size={24} />
           </div>
         ) : roles.length === 0 ? (
           <div className="text-center py-24">
-            <p className="text-[#555555] text-sm mb-4">No roles defined yet.</p>
+            <p className="text-[var(--text-dim)] text-sm mb-4">No roles defined yet.</p>
             <button
               onClick={openCreate}
               className="text-sm text-[#00C896] hover:text-[#00C896]/80 transition-colors"
@@ -129,6 +134,7 @@ export default function RolesPage() {
       {modalOpen && (
         <RoleModal
           role={editingRole}
+          projectId={projectId}
           onClose={closeModal}
           onSaved={handleSaved}
           onDeleted={handleDeleted}
@@ -148,7 +154,7 @@ function RoleCard({ role, onClick }: { role: RoleResponse; onClick: () => void }
         <span className="text-xl">{role.icon || '\u2B22'}</span>
         <div className="flex-1 min-w-0">
           <h3 className="font-heading text-[15px] text-[#F0F0F0] truncate">{role.name}</h3>
-          <p className="font-mono text-[11px] text-[#444444]">{role.slug}</p>
+          <p className="font-mono text-[11px] text-[var(--text-dim)]">{role.slug}</p>
         </div>
         <div
           className="w-3 h-3 rounded-full shrink-0 mt-1"
@@ -157,7 +163,7 @@ function RoleCard({ role, onClick }: { role: RoleResponse; onClick: () => void }
       </div>
 
       {role.description && (
-        <p className="text-xs text-[#888888] mb-3 line-clamp-2">{role.description}</p>
+        <p className="text-xs text-[var(--text-muted)] mb-3 line-clamp-2">{role.description}</p>
       )}
 
       {role.tech_stack && role.tech_stack.length > 0 && (
@@ -165,13 +171,13 @@ function RoleCard({ role, onClick }: { role: RoleResponse; onClick: () => void }
           {role.tech_stack.slice(0, 4).map((tech) => (
             <span
               key={tech}
-              className="px-2 py-0.5 bg-[#1A1A1A] border border-[#252525] rounded text-[10px] font-mono text-[#888888]"
+              className="px-2 py-0.5 bg-[#1A1A1A] border border-[#252525] rounded text-[10px] font-mono text-[var(--text-muted)]"
             >
               {tech}
             </span>
           ))}
           {role.tech_stack.length > 4 && (
-            <span className="px-2 py-0.5 text-[10px] text-[#555555]">
+            <span className="px-2 py-0.5 text-[10px] text-[var(--text-dim)]">
               +{role.tech_stack.length - 4}
             </span>
           )}
@@ -243,11 +249,11 @@ function InlineEditField({ label, value, placeholder, monoFont, onSave }: Inline
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <label className="text-xs font-mono text-[#555555]">{label}</label>
+        <label className="text-xs font-mono text-[var(--text-dim)]">{label}</label>
         {!editing && (
           <button
             onClick={handleEdit}
-            className="flex items-center gap-1 text-[#444444] hover:text-[#888888] transition-colors"
+            className="flex items-center gap-1 text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
             title={`Edit ${label}`}
           >
             <Pencil size={12} />
@@ -258,7 +264,7 @@ function InlineEditField({ label, value, placeholder, monoFont, onSave }: Inline
             <button
               onClick={handleCancel}
               disabled={saving}
-              className="flex items-center gap-1 text-xs text-[#555555] hover:text-[#888888] transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 text-xs text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors disabled:opacity-50"
             >
               <X size={12} />
               Cancel
@@ -282,7 +288,7 @@ function InlineEditField({ label, value, placeholder, monoFont, onSave }: Inline
           onChange={handleTextareaChange}
           placeholder={placeholder}
           rows={6}
-          className={`w-full bg-[#1A1A1A] border border-[#00C896]/40 rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[#333333] focus:outline-none focus:border-[#00C896]/60 resize-none overflow-hidden ${monoFont ? 'font-mono text-xs' : ''}`}
+          className={`w-full bg-[#1A1A1A] border border-[#00C896]/40 rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/60 resize-none overflow-hidden ${monoFont ? 'font-mono text-xs' : ''}`}
         />
       ) : value ? (
         <div className="rounded-md bg-[#0D0D0D] border border-[#1A1A1A] px-3 py-2.5 min-h-[2.5rem]">
@@ -291,7 +297,7 @@ function InlineEditField({ label, value, placeholder, monoFont, onSave }: Inline
       ) : (
         <button
           onClick={handleEdit}
-          className="w-full text-left px-3 py-2.5 rounded-md border border-dashed border-[#252525] text-xs text-[#444444] hover:text-[#555555] hover:border-[#333333] transition-colors"
+          className="w-full text-left px-3 py-2.5 rounded-md border border-dashed border-[#252525] text-xs text-[var(--text-dim)] hover:text-[var(--text-dim)] hover:border-[#333333] transition-colors"
         >
           {placeholder ?? `Add ${label.toLowerCase()}...`}
         </button>
@@ -302,12 +308,13 @@ function InlineEditField({ label, value, placeholder, monoFont, onSave }: Inline
 
 interface RoleModalProps {
   role: RoleResponse | null;
+  projectId?: string;
   onClose: () => void;
   onSaved: () => void;
   onDeleted: () => void;
 }
 
-function RoleModal({ role, onClose, onSaved, onDeleted }: RoleModalProps) {
+function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalProps) {
   const isEdit = !!role;
   // Local role state for optimistic updates of description/prompt_hint
   const [localRole, setLocalRole] = useState<RoleResponse | null>(role);
@@ -323,17 +330,24 @@ function RoleModal({ role, onClose, onSaved, onDeleted }: RoleModalProps) {
   const [deleting, setDeleting] = useState(false);
   const [autoSlug, setAutoSlug] = useState(!isEdit);
 
+  const apiUpdate = (slug: string, data: UpdateRoleRequest) =>
+    projectId ? updateProjectRole(projectId, slug, data) : updateRole(slug, data);
+  const apiCreate = (data: CreateRoleRequest) =>
+    projectId ? createProjectRole(projectId, data) : createRole(data);
+  const apiDelete = (slug: string) =>
+    projectId ? deleteProjectRole(projectId, slug) : deleteRole(slug);
+
   // Inline save handlers for description and prompt_hint (edit mode only)
   const handleSaveDescription = async (newValue: string) => {
     if (!localRole) return;
-    const updated = await updateRole(localRole.slug, { description: newValue });
+    const updated = await apiUpdate(localRole.slug, { description: newValue });
     setLocalRole(updated);
     setDescription(newValue);
   };
 
   const handleSavePromptHint = async (newValue: string) => {
     if (!localRole) return;
-    const updated = await updateRole(localRole.slug, { prompt_hint: newValue });
+    const updated = await apiUpdate(localRole.slug, { prompt_hint: newValue });
     setLocalRole(updated);
     setPromptHint(newValue);
   };
@@ -381,7 +395,7 @@ function RoleModal({ role, onClose, onSaved, onDeleted }: RoleModalProps) {
           tech_stack: techStack,
           prompt_hint: promptHint.trim(),
         };
-        await updateRole(role.slug, data);
+        await apiUpdate(role.slug, data);
       } else {
         const data: CreateRoleRequest = {
           slug: slug.trim(),
@@ -392,7 +406,7 @@ function RoleModal({ role, onClose, onSaved, onDeleted }: RoleModalProps) {
           tech_stack: techStack,
           prompt_hint: promptHint.trim(),
         };
-        await createRole(data);
+        await apiCreate(data);
       }
       onSaved();
     } catch {
@@ -406,7 +420,7 @@ function RoleModal({ role, onClose, onSaved, onDeleted }: RoleModalProps) {
     if (!role) return;
     setDeleting(true);
     try {
-      await deleteRole(role.slug);
+      await apiDelete(role.slug);
       onDeleted();
     } catch {
       // ignore
@@ -428,7 +442,7 @@ function RoleModal({ role, onClose, onSaved, onDeleted }: RoleModalProps) {
           </h2>
           <button
             onClick={onClose}
-            className="text-[#555555] hover:text-[#888888] transition-colors"
+            className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
           >
             <X size={18} />
           </button>
@@ -439,25 +453,25 @@ function RoleModal({ role, onClose, onSaved, onDeleted }: RoleModalProps) {
           {/* Name & Slug row */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-mono text-[#555555] mb-1.5">Name</label>
+              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="e.g. Backend Developer"
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[#333333] focus:outline-none focus:border-[#00C896]/50"
+                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
                 autoFocus
               />
             </div>
             <div>
-              <label className="block text-xs font-mono text-[#555555] mb-1.5">Slug</label>
+              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Slug</label>
               <input
                 type="text"
                 value={slug}
                 onChange={(e) => handleSlugChange(e.target.value)}
                 placeholder="backenddev"
                 disabled={isEdit}
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[#333333] focus:outline-none focus:border-[#00C896]/50 disabled:opacity-50 font-mono"
+                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 disabled:opacity-50 font-mono"
               />
             </div>
           </div>
@@ -465,18 +479,18 @@ function RoleModal({ role, onClose, onSaved, onDeleted }: RoleModalProps) {
           {/* Icon & Color row */}
           <div className="flex items-end gap-6">
             <div>
-              <label className="block text-xs font-mono text-[#555555] mb-1.5">Icon (emoji)</label>
+              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Icon (emoji)</label>
               <input
                 type="text"
                 value={icon}
                 onChange={(e) => setIcon(e.target.value)}
                 placeholder="e.g. \uD83D\uDE80"
                 maxLength={10}
-                className="w-24 bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-center text-[#F0F0F0] placeholder-[#333333] focus:outline-none focus:border-[#00C896]/50"
+                className="w-24 bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-center text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
               />
             </div>
             <div>
-              <label className="block text-xs font-mono text-[#555555] mb-1.5">Color</label>
+              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Color</label>
               <div className="flex items-center gap-2">
                 {PRESET_COLORS.map((c) => (
                   <button
@@ -502,30 +516,30 @@ function RoleModal({ role, onClose, onSaved, onDeleted }: RoleModalProps) {
             />
           ) : (
             <div>
-              <label className="block text-xs font-mono text-[#555555] mb-1.5">Description</label>
+              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Description</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe this role..."
                 rows={4}
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[#333333] focus:outline-none focus:border-[#00C896]/50 resize-y"
+                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y"
               />
             </div>
           )}
 
           {/* Tech Stack */}
           <div>
-            <label className="block text-xs font-mono text-[#555555] mb-1.5">Tech Stack</label>
+            <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Tech Stack</label>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {techStack.map((tech) => (
                 <span
                   key={tech}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#1A1A1A] border border-[#252525] rounded text-xs font-mono text-[#888888]"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#1A1A1A] border border-[#252525] rounded text-xs font-mono text-[var(--text-muted)]"
                 >
                   {tech}
                   <button
                     onClick={() => removeTech(tech)}
-                    className="text-[#555555] hover:text-[#F06060] transition-colors"
+                    className="text-[var(--text-dim)] hover:text-[#F06060] transition-colors"
                   >
                     <X size={10} />
                   </button>
@@ -543,7 +557,7 @@ function RoleModal({ role, onClose, onSaved, onDeleted }: RoleModalProps) {
                 }
               }}
               placeholder="Type and press Enter"
-              className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[#333333] focus:outline-none focus:border-[#00C896]/50"
+              className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
             />
           </div>
 
@@ -558,13 +572,13 @@ function RoleModal({ role, onClose, onSaved, onDeleted }: RoleModalProps) {
             />
           ) : (
             <div>
-              <label className="block text-xs font-mono text-[#555555] mb-1.5">Prompt Hint</label>
+              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Prompt Hint</label>
               <textarea
                 value={promptHint}
                 onChange={(e) => setPromptHint(e.target.value)}
                 placeholder="System prompt context for this role..."
                 rows={6}
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[#333333] focus:outline-none focus:border-[#00C896]/50 resize-y font-mono text-xs"
+                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y font-mono text-xs"
               />
             </div>
           )}
@@ -587,7 +601,7 @@ function RoleModal({ role, onClose, onSaved, onDeleted }: RoleModalProps) {
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm text-[#888888] hover:text-[#E0E0E0] transition-colors"
+              className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[#E0E0E0] transition-colors"
             >
               Cancel
             </button>

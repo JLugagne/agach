@@ -70,12 +70,18 @@ export const reorderTask = (projectId: string, taskId: string, position: number)
 export const moveTaskToProject = (projectId: string, taskId: string, targetProjectId: string) =>
   request<TaskResponse>('POST', `/api/projects/${projectId}/tasks/${taskId}/move-to-project`, { target_project_id: targetProjectId });
 
-// Roles
+// Roles (global)
 export const listRoles = () => request<RoleResponse[]>('GET', '/api/roles');
 export const getRole = (slug: string) => request<RoleResponse>('GET', `/api/roles/${slug}`);
 export const createRole = (data: CreateRoleRequest) => request<RoleResponse>('POST', '/api/roles', data);
 export const updateRole = (slug: string, data: UpdateRoleRequest) => request<RoleResponse>('PATCH', `/api/roles/${slug}`, data);
 export const deleteRole = (slug: string) => request<void>('DELETE', `/api/roles/${slug}`);
+
+// Roles (per-project)
+export const listProjectRoles = (projectId: string) => request<RoleResponse[]>('GET', `/api/projects/${projectId}/roles`);
+export const createProjectRole = (projectId: string, data: CreateRoleRequest) => request<RoleResponse>('POST', `/api/projects/${projectId}/roles`, data);
+export const updateProjectRole = (projectId: string, slug: string, data: UpdateRoleRequest) => request<RoleResponse>('PATCH', `/api/projects/${projectId}/roles/${slug}`, data);
+export const deleteProjectRole = (projectId: string, slug: string) => request<void>('DELETE', `/api/projects/${projectId}/roles/${slug}`);
 
 // Comments
 export const listComments = (projectId: string, taskId: string) => request<CommentResponse[]>('GET', `/api/projects/${projectId}/tasks/${taskId}/comments`);
@@ -95,6 +101,7 @@ export async function uploadImage(projectId: string, file: File): Promise<{ url:
 
 // Statistics
 export const getToolUsage = (projectId: string) => request<ToolUsageStatResponse[]>('GET', `/api/projects/${projectId}/tool-usage`);
+export const getColdStartStats = (projectId: string) => request<unknown[]>('GET', `/api/projects/${projectId}/stats/cold-start`);
 export const getTimeline = (projectId: string, days?: number) => {
   const params = days ? `?days=${days}` : '';
   return request<TimelineEntryResponse[]>('GET', `/api/projects/${projectId}/stats/timeline${params}`);

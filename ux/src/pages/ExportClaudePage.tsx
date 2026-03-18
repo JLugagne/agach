@@ -11,7 +11,7 @@ export default function ExportClaudePage() {
           <Bot size={28} className="text-[#F09060]" />
         </div>
         <h1 className="font-heading text-2xl text-[#F0F0F0] mb-3">Export to Claude Code</h1>
-        <p className="text-sm text-[#888888] mb-8">
+        <p className="text-sm text-[var(--text-muted)] mb-8">
           This feature is coming soon. It will allow you to export your project context and tasks
           for use with Anthropic's Claude Code.
         </p>

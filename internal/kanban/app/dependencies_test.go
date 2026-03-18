@@ -248,3 +248,91 @@ func TestApp_GetDependencyContext_ReturnsEmpty_WhenNoDeps(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, depCtx)
 }
+
+func TestApp_GetDependencyTasks_Success(t *testing.T) {
+	ctx := context.Background()
+	a, _, _, mockTasks, _, _, mockDependencies := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+	depTask1ID := domain.NewTaskID()
+	depTask2ID := domain.NewTaskID()
+	columnID := domain.NewColumnID()
+
+	mockTasks.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (*domain.Task, error) {
+		return &domain.Task{ID: tid, ColumnID: columnID, Title: "Task", Summary: "Summary"}, nil
+	}
+
+	mockDependencies.ListFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) ([]domain.TaskDependency, error) {
+		return []domain.TaskDependency{
+			{ID: domain.NewDependencyID(), TaskID: taskID, DependsOnTaskID: depTask1ID},
+			{ID: domain.NewDependencyID(), TaskID: taskID, DependsOnTaskID: depTask2ID},
+		}, nil
+	}
+
+	tasks, err := a.GetDependencyTasks(ctx, projectID, taskID)
+
+	require.NoError(t, err)
+	assert.Len(t, tasks, 2)
+}
+
+func TestApp_GetDependencyTasks_TaskNotFound_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	a, _, _, mockTasks, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	mockTasks.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (*domain.Task, error) {
+		return nil, errors.New("not found")
+	}
+
+	_, err := a.GetDependencyTasks(ctx, projectID, taskID)
+
+	assert.Error(t, err)
+	assert.True(t, domain.IsDomainError(err))
+	assert.ErrorIs(t, err, domain.ErrTaskNotFound)
+}
+
+func TestApp_GetDependentTasks_Success(t *testing.T) {
+	ctx := context.Background()
+	a, _, _, mockTasks, _, _, mockDependencies := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+	dependent1ID := domain.NewTaskID()
+	columnID := domain.NewColumnID()
+
+	mockTasks.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (*domain.Task, error) {
+		return &domain.Task{ID: tid, ColumnID: columnID, Title: "Task", Summary: "Summary"}, nil
+	}
+
+	mockDependencies.ListDependentsFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) ([]domain.TaskDependency, error) {
+		return []domain.TaskDependency{
+			{ID: domain.NewDependencyID(), TaskID: dependent1ID, DependsOnTaskID: taskID},
+		}, nil
+	}
+
+	tasks, err := a.GetDependentTasks(ctx, projectID, taskID)
+
+	require.NoError(t, err)
+	assert.Len(t, tasks, 1)
+}
+
+func TestApp_GetDependentTasks_TaskNotFound_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	a, _, _, mockTasks, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	mockTasks.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (*domain.Task, error) {
+		return nil, errors.New("not found")
+	}
+
+	_, err := a.GetDependentTasks(ctx, projectID, taskID)
+
+	assert.Error(t, err)
+	assert.True(t, domain.IsDomainError(err))
+	assert.ErrorIs(t, err, domain.ErrTaskNotFound)
+}

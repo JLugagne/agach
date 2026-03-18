@@ -23,7 +23,10 @@ type MockCommands struct {
 	CreateRoleFunc           func(ctx context.Context, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error)
 	UpdateRoleFunc           func(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error
 	DeleteRoleFunc           func(ctx context.Context, roleID domain.RoleID) error
-	CreateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error)
+	CreateProjectRoleFunc    func(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error)
+	UpdateProjectRoleFunc    func(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error
+	DeleteProjectRoleFunc    func(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error
+	CreateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error)
 	UpdateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error
 	UpdateTaskFilesFunc      func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error
 	DeleteTaskFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
@@ -45,6 +48,7 @@ type MockCommands struct {
 	UpdateColumnWIPLimitFunc func(ctx context.Context, projectID domain.ProjectID, columnSlug domain.ColumnSlug, wipLimit int) error
 	MoveTaskToProjectFunc    func(ctx context.Context, sourceProjectID domain.ProjectID, taskID domain.TaskID, targetProjectID domain.ProjectID) error
 	IncrementToolUsageFunc   func(ctx context.Context, projectID domain.ProjectID, toolName string) error
+	UpdateTaskSessionIDFunc  func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
 }
 
 func (m *MockCommands) CreateProject(ctx context.Context, name, description, workDir, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
@@ -89,11 +93,32 @@ func (m *MockCommands) DeleteRole(ctx context.Context, roleID domain.RoleID) err
 	return m.DeleteRoleFunc(ctx, roleID)
 }
 
-func (m *MockCommands) CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error) {
+func (m *MockCommands) CreateProjectRole(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error) {
+	if m.CreateProjectRoleFunc == nil {
+		panic("called not defined CreateProjectRoleFunc")
+	}
+	return m.CreateProjectRoleFunc(ctx, projectID, slug, name, icon, color, description, promptHint, techStack, sortOrder)
+}
+
+func (m *MockCommands) UpdateProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error {
+	if m.UpdateProjectRoleFunc == nil {
+		panic("called not defined UpdateProjectRoleFunc")
+	}
+	return m.UpdateProjectRoleFunc(ctx, projectID, roleID, name, icon, color, description, promptHint, techStack, sortOrder)
+}
+
+func (m *MockCommands) DeleteProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error {
+	if m.DeleteProjectRoleFunc == nil {
+		panic("called not defined DeleteProjectRoleFunc")
+	}
+	return m.DeleteProjectRoleFunc(ctx, projectID, roleID)
+}
+
+func (m *MockCommands) CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error) {
 	if m.CreateTaskFunc == nil {
 		panic("called not defined CreateTaskFunc")
 	}
-	return m.CreateTaskFunc(ctx, projectID, title, summary, description, priority, createdByRole, createdByAgent, assignedRole, contextFiles, tags, estimatedEffort)
+	return m.CreateTaskFunc(ctx, projectID, title, summary, description, priority, createdByRole, createdByAgent, assignedRole, contextFiles, tags, estimatedEffort, startInBacklog)
 }
 
 func (m *MockCommands) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error {
@@ -241,4 +266,11 @@ func (m *MockCommands) IncrementToolUsage(ctx context.Context, projectID domain.
 		panic("called not defined IncrementToolUsageFunc")
 	}
 	return m.IncrementToolUsageFunc(ctx, projectID, toolName)
+}
+
+func (m *MockCommands) UpdateTaskSessionID(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error {
+	if m.UpdateTaskSessionIDFunc == nil {
+		panic("called not defined UpdateTaskSessionIDFunc")
+	}
+	return m.UpdateTaskSessionIDFunc(ctx, projectID, taskID, sessionID)
 }

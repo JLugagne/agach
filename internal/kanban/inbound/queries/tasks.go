@@ -2,6 +2,7 @@ package queries
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
@@ -33,11 +34,13 @@ func (h *TaskQueriesHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}", h.GetTask).Methods("GET")
 	router.HandleFunc("/api/projects/{id}/board", h.GetBoard).Methods("GET")
 	router.HandleFunc("/api/projects/{id}/columns", h.ListColumns).Methods("GET")
+	router.HandleFunc("/api/projects/{id}/next-tasks", h.GetNextTasks).Methods("GET")
 }
 
 // ListTasks lists tasks with optional filters
 func (h *TaskQueriesHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	projectID := domain.ProjectID(mux.Vars(r)["id"])
+	includeChildren := r.URL.Query().Get("include_children") == "true"
 
 	// Parse query parameters for filters
 	filters := tasks.TaskFilters{}
@@ -64,6 +67,7 @@ func (h *TaskQueriesHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 		filters.Search = search
 	}
 
+	// Fetch tasks for the parent project
 	taskList, err := h.queries.ListTasks(r.Context(), projectID, filters)
 	if err != nil {
 		if domain.IsDomainError(err) {
@@ -74,7 +78,31 @@ func (h *TaskQueriesHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.controller.SendSuccess(w, r, converters.ToPublicTasksWithDetails(taskList))
+	publicTasks := converters.ToPublicTasksWithDetails(taskList)
+	// Tag parent project tasks with their project_id
+	for i := range publicTasks {
+		publicTasks[i].ProjectID = string(projectID)
+	}
+
+	if includeChildren {
+		children, err := h.queries.ListSubProjects(r.Context(), projectID)
+		if err == nil {
+			for _, child := range children {
+				childTasks, err := h.queries.ListTasks(r.Context(), child.ID, filters)
+				if err != nil {
+					continue
+				}
+				childPublic := converters.ToPublicTasksWithDetails(childTasks)
+				for i := range childPublic {
+					childPublic[i].ProjectID = string(child.ID)
+					childPublic[i].ProjectName = child.Name
+				}
+				publicTasks = append(publicTasks, childPublic...)
+			}
+		}
+	}
+
+	h.controller.SendSuccess(w, r, publicTasks)
 }
 
 // GetTask gets a single task
@@ -189,6 +217,141 @@ func (h *TaskQueriesHandler) GetBoard(w http.ResponseWriter, r *http.Request) {
 	h.controller.SendSuccess(w, r, pkgkanban.BoardResponse{
 		Columns: boardColumns,
 	})
+}
+
+// GetNextTasks returns up to count ready tasks as [{id, title, role, project_id, session_id}]
+func (h *TaskQueriesHandler) GetNextTasks(w http.ResponseWriter, r *http.Request) {
+	projectID := domain.ProjectID(mux.Vars(r)["id"])
+
+	count := 1
+	if countStr := r.URL.Query().Get("count"); countStr != "" {
+		if n, err := strconv.Atoi(countStr); err == nil && n > 0 {
+			count = n
+		}
+	}
+
+	role := r.URL.Query().Get("role")
+	includeSubprojects := r.URL.Query().Get("include_subprojects") == "true"
+
+	type nextTaskResult struct {
+		ID        string `json:"id"`
+		Title     string `json:"title"`
+		Role      string `json:"role"`
+		ProjectID string `json:"project_id"`
+		SessionID string `json:"session_id"`
+	}
+
+	var results []nextTaskResult
+
+	if !includeSubprojects {
+		// Single project query
+		taskList, err := h.queries.GetNextTasks(r.Context(), projectID, role, count, nil)
+		if err != nil {
+			if domain.IsDomainError(err) {
+				h.controller.SendFail(w, r, nil, err)
+			} else {
+				h.controller.SendError(w, r, err)
+			}
+			return
+		}
+
+		results = make([]nextTaskResult, len(taskList))
+		for i, t := range taskList {
+			results[i] = nextTaskResult{
+				ID:        string(t.ID),
+				Title:     t.Title,
+				Role:      t.AssignedRole,
+				ProjectID: string(projectID),
+				SessionID: t.SessionID,
+			}
+		}
+	} else {
+		// Multi-project query: main project + all sub-projects
+		allTasks := make(map[string]domain.Task) // Map by task ID to deduplicate
+
+		// Get main project tasks
+		taskList, err := h.queries.GetNextTasks(r.Context(), projectID, role, count*10, nil) // Fetch extra to account for sub-projects
+		if err != nil {
+			if domain.IsDomainError(err) {
+				h.controller.SendFail(w, r, nil, err)
+			} else {
+				h.controller.SendError(w, r, err)
+			}
+			return
+		}
+
+		for _, t := range taskList {
+			allTasks[string(t.ID)] = t
+		}
+
+		// Get sub-projects
+		subProjects, err := h.queries.ListSubProjects(r.Context(), projectID)
+		if err == nil {
+			for _, subProj := range subProjects {
+				subTaskList, err := h.queries.GetNextTasks(r.Context(), subProj.ID, role, count*10, nil)
+				if err == nil {
+					for _, t := range subTaskList {
+						allTasks[string(t.ID)] = t
+					}
+				}
+			}
+		}
+
+		// Convert map to slice and sort by priority score descending, then by created_at ascending
+		taskSlice := make([]domain.Task, 0, len(allTasks))
+		for _, t := range allTasks {
+			taskSlice = append(taskSlice, t)
+		}
+
+		// Simple bubble sort by priority_score DESC, created_at ASC
+		for i := 0; i < len(taskSlice); i++ {
+			for j := i + 1; j < len(taskSlice); j++ {
+				if taskSlice[j].PriorityScore > taskSlice[i].PriorityScore ||
+					(taskSlice[j].PriorityScore == taskSlice[i].PriorityScore && taskSlice[j].CreatedAt.Before(taskSlice[i].CreatedAt)) {
+					taskSlice[i], taskSlice[j] = taskSlice[j], taskSlice[i]
+				}
+			}
+		}
+
+		// Limit to requested count
+		if len(taskSlice) > count {
+			taskSlice = taskSlice[:count]
+		}
+
+		// Map tasks back to projects for result
+		taskToProjectMap := make(map[string]domain.ProjectID)
+
+		// Map main project tasks
+		for _, t := range taskList {
+			taskToProjectMap[string(t.ID)] = projectID
+		}
+
+		// Map sub-project tasks
+		subProjects, _ = h.queries.ListSubProjects(r.Context(), projectID)
+		for _, subProj := range subProjects {
+			subTaskList, _ := h.queries.GetNextTasks(r.Context(), subProj.ID, role, count*10, nil)
+			for _, t := range subTaskList {
+				taskToProjectMap[string(t.ID)] = subProj.ID
+			}
+		}
+
+		results = make([]nextTaskResult, len(taskSlice))
+		for i, t := range taskSlice {
+			projID := taskToProjectMap[string(t.ID)]
+			if projID == "" {
+				projID = projectID
+			}
+			results[i] = nextTaskResult{
+				ID:        string(t.ID),
+				Title:     t.Title,
+				Role:      t.AssignedRole,
+				ProjectID: string(projID),
+				SessionID: t.SessionID,
+			}
+		}
+	}
+
+	h.controller.SendSuccess(w, r, results)
 }
 
 // ListColumns lists all columns for a project

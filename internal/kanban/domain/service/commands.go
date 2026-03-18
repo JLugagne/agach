@@ -13,13 +13,18 @@ type Commands interface {
 	UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string) error
 	DeleteProject(ctx context.Context, projectID domain.ProjectID) error
 
-	// Role commands
+	// Role commands (global)
 	CreateRole(ctx context.Context, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error)
 	UpdateRole(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error
 	DeleteRole(ctx context.Context, roleID domain.RoleID) error
 
+	// Role commands (per-project)
+	CreateProjectRole(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error)
+	UpdateProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error
+	DeleteProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error
+
 	// Task commands
-	CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error)
+	CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error)
 	UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error
 	UpdateTaskFiles(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error
 	DeleteTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
@@ -53,4 +58,7 @@ type Commands interface {
 
 	// Tool usage commands
 	IncrementToolUsage(ctx context.Context, projectID domain.ProjectID, toolName string) error
+
+	// Session commands
+	UpdateTaskSessionID(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
 }

@@ -246,3 +246,189 @@ func TestApp_GetProjectInfo_ProjectNotFound_ReturnsError(t *testing.T) {
 	assert.True(t, domain.IsDomainError(err))
 	assert.ErrorIs(t, err, domain.ErrProjectNotFound)
 }
+
+// ListProjectsByWorkDir Tests
+
+func TestApp_ListProjectsByWorkDir_Success(t *testing.T) {
+	ctx := context.Background()
+	a, mockProjects, _, _, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	workDir := "/home/user/project"
+
+	mockProjects.ListByWorkDirFunc = func(ctx context.Context, wd string) ([]domain.Project, error) {
+		if wd == workDir {
+			return []domain.Project{
+				{ID: projectID, Name: "Project", WorkDir: workDir},
+			}, nil
+		}
+		return []domain.Project{}, nil
+	}
+
+	mockProjects.GetSummaryFunc = func(ctx context.Context, id domain.ProjectID) (*domain.ProjectSummary, error) {
+		return &domain.ProjectSummary{TodoCount: 2}, nil
+	}
+
+	mockProjects.CountChildrenFunc = func(ctx context.Context, id domain.ProjectID) (int, error) {
+		return 0, nil
+	}
+
+	result, err := a.ListProjectsByWorkDir(ctx, workDir)
+
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, projectID, result[0].ID)
+	assert.Equal(t, 2, result[0].TaskSummary.TodoCount)
+}
+
+func TestApp_ListProjectsByWorkDir_NoResults(t *testing.T) {
+	ctx := context.Background()
+	a, mockProjects, _, _, _, _, _ := setupTestApp()
+
+	mockProjects.ListByWorkDirFunc = func(ctx context.Context, wd string) ([]domain.Project, error) {
+		return []domain.Project{}, nil
+	}
+
+	result, err := a.ListProjectsByWorkDir(ctx, "/nonexistent/dir")
+
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+// MoveTaskToProject Tests
+
+func TestApp_MoveTaskToProject_Success(t *testing.T) {
+	ctx := context.Background()
+	a, mockProjects, _, mockTasks, mockColumns, _, _ := setupTestApp()
+
+	sourceProjectID := domain.NewProjectID()
+	targetProjectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+	columnID := domain.NewColumnID()
+	targetColumnID := domain.NewColumnID()
+
+	mockTasks.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (*domain.Task, error) {
+		if pid == sourceProjectID && tid == taskID {
+			return &domain.Task{
+				ID:       taskID,
+				ColumnID: columnID,
+				Title:    "Task to move",
+				Summary:  "Summary",
+			}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	mockProjects.FindByIDFunc = func(ctx context.Context, id domain.ProjectID) (*domain.Project, error) {
+		switch id {
+		case sourceProjectID:
+			return &domain.Project{ID: sourceProjectID, Name: "Source", ParentID: nil}, nil
+		case targetProjectID:
+			return &domain.Project{ID: targetProjectID, Name: "Target", ParentID: &sourceProjectID}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	mockColumns.FindBySlugFunc = func(ctx context.Context, pid domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
+		if pid == targetProjectID && slug == domain.ColumnTodo {
+			return &domain.Column{ID: targetColumnID, Slug: domain.ColumnTodo, Name: "To Do"}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	mockTasks.CreateFunc = func(ctx context.Context, pid domain.ProjectID, task domain.Task) error {
+		assert.Equal(t, targetProjectID, pid)
+		return nil
+	}
+
+	mockTasks.DeleteFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) error {
+		assert.Equal(t, sourceProjectID, pid)
+		assert.Equal(t, taskID, tid)
+		return nil
+	}
+
+	err := a.MoveTaskToProject(ctx, sourceProjectID, taskID, targetProjectID)
+
+	require.NoError(t, err)
+}
+
+func TestApp_MoveTaskToProject_SameProject_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	a, _, _, _, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+
+	err := a.MoveTaskToProject(ctx, projectID, domain.NewTaskID(), projectID)
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrProjectsNotRelated)
+}
+
+func TestApp_MoveTaskToProject_UnrelatedProjects_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	a, mockProjects, _, mockTasks, _, _, _ := setupTestApp()
+
+	sourceProjectID := domain.NewProjectID()
+	targetProjectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+	columnID := domain.NewColumnID()
+
+	mockTasks.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (*domain.Task, error) {
+		if pid == sourceProjectID {
+			return &domain.Task{ID: tid, ColumnID: columnID, Title: "Task", Summary: "Summary"}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	// Both projects have no parent — unrelated
+	mockProjects.FindByIDFunc = func(ctx context.Context, id domain.ProjectID) (*domain.Project, error) {
+		return &domain.Project{ID: id, Name: "Project", ParentID: nil}, nil
+	}
+
+	err := a.MoveTaskToProject(ctx, sourceProjectID, taskID, targetProjectID)
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrProjectsNotRelated)
+}
+
+func TestApp_MoveTaskToProject_TaskNotFound_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	a, _, _, mockTasks, _, _, _ := setupTestApp()
+
+	sourceProjectID := domain.NewProjectID()
+	targetProjectID := domain.NewProjectID()
+
+	mockTasks.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (*domain.Task, error) {
+		return nil, errors.New("not found")
+	}
+
+	err := a.MoveTaskToProject(ctx, sourceProjectID, domain.NewTaskID(), targetProjectID)
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrTaskNotFound)
+}
+
+// IncrementToolUsage and GetToolUsageForProject Tests
+
+func TestApp_GetToolUsageForProject_NilToolUsage_ReturnsEmpty(t *testing.T) {
+	ctx := context.Background()
+	// setupTestApp doesn't set ToolUsage, so it's nil — should return empty slice
+	a, _, _, _, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	stats, err := a.GetToolUsageForProject(ctx, projectID)
+
+	require.NoError(t, err)
+	assert.Empty(t, stats)
+}
+
+func TestApp_IncrementToolUsage_NilToolUsage_NoOp(t *testing.T) {
+	ctx := context.Background()
+	// When ToolUsage is nil, IncrementToolUsage is a no-op
+	a, _, _, _, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	err := a.IncrementToolUsage(ctx, projectID, "create_task")
+
+	require.NoError(t, err)
+}

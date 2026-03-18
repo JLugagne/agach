@@ -51,6 +51,18 @@ var toolUsageMigration string
 //go:embed migrations/012_task_timing.sql
 var taskTimingMigration string
 
+//go:embed migrations/013_project_roles.sql
+var projectRolesMigration string
+
+//go:embed migrations/014_task_session_id.sql
+var taskSessionIDMigration string
+
+//go:embed migrations/015_task_cold_start.sql
+var taskColdStartMigration string
+
+//go:embed migrations/016_backlog_column.sql
+var backlogColumnMigration string
+
 // baseRepository contains shared database connections
 type baseRepository struct {
 	globalDB   *sql.DB
@@ -274,6 +286,26 @@ func (r *baseRepository) getProjectDB(projectID domain.ProjectID) (*sql.DB, erro
 	}
 	// Task timing columns (started_at, duration_seconds, human_estimate_seconds)
 	if err := runMigration(db, taskTimingMigration); err != nil && !isDuplicateColumn(err) {
+		db.Close()
+		return nil, err
+	}
+	// Per-project roles table
+	if err := runMigration(db, projectRolesMigration); err != nil {
+		db.Close()
+		return nil, err
+	}
+	// Task session_id column for Claude Code session resumption
+	if err := runMigration(db, taskSessionIDMigration); err != nil && !isDuplicateColumn(err) {
+		db.Close()
+		return nil, err
+	}
+	// Cold start token columns
+	if err := runMigration(db, taskColdStartMigration); err != nil && !isDuplicateColumn(err) {
+		db.Close()
+		return nil, err
+	}
+	// Backlog column (INSERT OR IGNORE — safe to re-run)
+	if err := runMigration(db, backlogColumnMigration); err != nil {
 		db.Close()
 		return nil, err
 	}

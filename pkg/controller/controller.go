@@ -28,6 +28,15 @@ func NewController(logger *logrus.Logger) *Controller {
 		s := fl.Field().String()
 		return uuidRe.MatchString(s) || shortIDRe.MatchString(s)
 	})
+	v.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
+		s := fl.Field().String()
+		for _, c := range s {
+			if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_') {
+				return false
+			}
+		}
+		return len(s) > 0
+	})
 	return &Controller{
 		logger:    logger,
 		validator: v,

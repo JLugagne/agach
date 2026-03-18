@@ -255,3 +255,201 @@ func TestApp_ListRoles_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, expectedRoles, roles)
 }
+
+// Per-project role command tests
+
+func TestApp_CreateProjectRole_Success(t *testing.T) {
+	ctx := context.Background()
+	a, _, mockRoles, _, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+
+	mockRoles.FindBySlugInProjectFunc = func(ctx context.Context, pid domain.ProjectID, slug string) (*domain.Role, error) {
+		return nil, errors.New("not found")
+	}
+
+	var createdRole domain.Role
+	mockRoles.CreateInProjectFunc = func(ctx context.Context, pid domain.ProjectID, role domain.Role) error {
+		createdRole = role
+		return nil
+	}
+
+	role, err := a.CreateProjectRole(ctx, projectID, "dev", "Developer", "", "#000", "desc", "hint", []string{"Go"}, 1)
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, role.ID)
+	assert.Equal(t, "dev", role.Slug)
+	assert.Equal(t, "Developer", role.Name)
+	assert.NotEmpty(t, createdRole.ID)
+}
+
+func TestApp_CreateProjectRole_EmptySlug_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	a, _, _, _, _, _, _ := setupTestApp()
+
+	_, err := a.CreateProjectRole(ctx, domain.NewProjectID(), "", "Developer", "", "", "", "", nil, 0)
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrRoleSlugRequired)
+}
+
+func TestApp_CreateProjectRole_EmptyName_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	a, _, _, _, _, _, _ := setupTestApp()
+
+	_, err := a.CreateProjectRole(ctx, domain.NewProjectID(), "dev", "", "", "", "", "", nil, 0)
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrRoleNameRequired)
+}
+
+func TestApp_CreateProjectRole_AlreadyExists_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	a, _, mockRoles, _, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	existingRole := &domain.Role{ID: domain.NewRoleID(), Slug: "dev", Name: "Developer"}
+
+	mockRoles.FindBySlugInProjectFunc = func(ctx context.Context, pid domain.ProjectID, slug string) (*domain.Role, error) {
+		return existingRole, nil
+	}
+
+	_, err := a.CreateProjectRole(ctx, projectID, "dev", "Developer", "", "", "", "", nil, 0)
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrRoleAlreadyExists)
+}
+
+func TestApp_UpdateProjectRole_Success(t *testing.T) {
+	ctx := context.Background()
+	a, _, mockRoles, _, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	roleID := domain.NewRoleID()
+	existingRole := &domain.Role{ID: roleID, Slug: "dev", Name: "Old Name"}
+
+	mockRoles.FindByIDInProjectFunc = func(ctx context.Context, pid domain.ProjectID, rid domain.RoleID) (*domain.Role, error) {
+		if pid == projectID && rid == roleID {
+			return existingRole, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	var updatedRole domain.Role
+	mockRoles.UpdateInProjectFunc = func(ctx context.Context, pid domain.ProjectID, role domain.Role) error {
+		updatedRole = role
+		return nil
+	}
+
+	err := a.UpdateProjectRole(ctx, projectID, roleID, "New Name", "", "", "", "", nil, 0)
+
+	require.NoError(t, err)
+	assert.Equal(t, "New Name", updatedRole.Name)
+}
+
+func TestApp_UpdateProjectRole_NotFound_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	a, _, mockRoles, _, _, _, _ := setupTestApp()
+
+	mockRoles.FindByIDInProjectFunc = func(ctx context.Context, pid domain.ProjectID, rid domain.RoleID) (*domain.Role, error) {
+		return nil, errors.New("not found")
+	}
+
+	err := a.UpdateProjectRole(ctx, domain.NewProjectID(), domain.NewRoleID(), "New Name", "", "", "", "", nil, 0)
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+}
+
+func TestApp_DeleteProjectRole_Success(t *testing.T) {
+	ctx := context.Background()
+	a, _, mockRoles, _, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	roleID := domain.NewRoleID()
+
+	mockRoles.FindByIDInProjectFunc = func(ctx context.Context, pid domain.ProjectID, rid domain.RoleID) (*domain.Role, error) {
+		if pid == projectID && rid == roleID {
+			return &domain.Role{ID: roleID, Slug: "dev", Name: "Developer"}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	mockRoles.DeleteInProjectFunc = func(ctx context.Context, pid domain.ProjectID, rid domain.RoleID) error {
+		return nil
+	}
+
+	err := a.DeleteProjectRole(ctx, projectID, roleID)
+
+	require.NoError(t, err)
+}
+
+func TestApp_DeleteProjectRole_NotFound_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	a, _, mockRoles, _, _, _, _ := setupTestApp()
+
+	mockRoles.FindByIDInProjectFunc = func(ctx context.Context, pid domain.ProjectID, rid domain.RoleID) (*domain.Role, error) {
+		return nil, errors.New("not found")
+	}
+
+	err := a.DeleteProjectRole(ctx, domain.NewProjectID(), domain.NewRoleID())
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+}
+
+func TestApp_ListProjectRoles_Success(t *testing.T) {
+	ctx := context.Background()
+	a, _, mockRoles, _, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	expectedRoles := []domain.Role{
+		{ID: domain.NewRoleID(), Slug: "dev", Name: "Developer"},
+	}
+
+	mockRoles.ListInProjectFunc = func(ctx context.Context, pid domain.ProjectID) ([]domain.Role, error) {
+		if pid == projectID {
+			return expectedRoles, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	roles, err := a.ListProjectRoles(ctx, projectID)
+
+	require.NoError(t, err)
+	assert.Equal(t, expectedRoles, roles)
+}
+
+func TestApp_GetProjectRoleBySlug_Success(t *testing.T) {
+	ctx := context.Background()
+	a, _, mockRoles, _, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	expectedRole := &domain.Role{ID: domain.NewRoleID(), Slug: "dev", Name: "Developer"}
+
+	mockRoles.FindBySlugInProjectFunc = func(ctx context.Context, pid domain.ProjectID, slug string) (*domain.Role, error) {
+		if pid == projectID && slug == "dev" {
+			return expectedRole, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	role, err := a.GetProjectRoleBySlug(ctx, projectID, "dev")
+
+	require.NoError(t, err)
+	assert.Equal(t, expectedRole, role)
+}
+
+func TestApp_GetProjectRoleBySlug_NotFound_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	a, _, mockRoles, _, _, _, _ := setupTestApp()
+
+	mockRoles.FindBySlugInProjectFunc = func(ctx context.Context, pid domain.ProjectID, slug string) (*domain.Role, error) {
+		return nil, errors.New("not found")
+	}
+
+	_, err := a.GetProjectRoleBySlug(ctx, domain.NewProjectID(), "nonexistent")
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+}

@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/inbound/converters"
 	"github.com/JLugagne/agach-mcp/pkg/controller"
 	pkgkanban "github.com/JLugagne/agach-mcp/pkg/kanban"
+	"github.com/JLugagne/agach-mcp/pkg/sse"
 	"github.com/JLugagne/agach-mcp/pkg/websocket"
 	"github.com/gorilla/mux"
 )
@@ -18,14 +20,16 @@ type TaskCommandsHandler struct {
 	commands   service.Commands
 	controller *controller.Controller
 	hub        *websocket.Hub
+	sseHub     *sse.Hub
 }
 
 // NewTaskCommandsHandler creates a new task commands handler
-func NewTaskCommandsHandler(commands service.Commands, ctrl *controller.Controller, hub *websocket.Hub) *TaskCommandsHandler {
+func NewTaskCommandsHandler(commands service.Commands, ctrl *controller.Controller, hub *websocket.Hub, sseHub *sse.Hub) *TaskCommandsHandler {
 	return &TaskCommandsHandler{
 		commands:   commands,
 		controller: ctrl,
 		hub:        hub,
+		sseHub:     sseHub,
 	}
 }
 
@@ -42,6 +46,7 @@ func (h *TaskCommandsHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/wont-do", h.WontDo).Methods("POST")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/approve-wont-do", h.ApproveWontDo).Methods("POST")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/reject-wont-do", h.RejectWontDo).Methods("POST")
+	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/session", h.UpdateTaskSession).Methods("PATCH")
 }
 
 // CreateTask creates a new task
@@ -69,6 +74,7 @@ func (h *TaskCommandsHandler) CreateTask(w http.ResponseWriter, r *http.Request)
 		req.ContextFiles,
 		req.Tags,
 		req.EstimatedEffort,
+		false, // HTTP creates always go to todo
 	)
 	if err != nil {
 		if domain.IsDomainError(err) {
@@ -85,6 +91,19 @@ func (h *TaskCommandsHandler) CreateTask(w http.ResponseWriter, r *http.Request)
 		ProjectID: string(projectID),
 		Data:      converters.ToPublicTask(task),
 	})
+
+	// Publish task_created to SSE subscribers
+	if h.sseHub != nil {
+		type ssePayload struct {
+			ID    string `json:"id"`
+			Title string `json:"title"`
+			Role  string `json:"role"`
+		}
+		payload := ssePayload{ID: string(task.ID), Title: task.Title, Role: task.AssignedRole}
+		if b, err := json.Marshal(payload); err == nil {
+			h.sseHub.Publish(string(projectID), string(b))
+		}
+	}
 
 	h.controller.SendSuccess(w, r, converters.ToPublicTask(task))
 }
@@ -106,6 +125,41 @@ func (h *TaskCommandsHandler) UpdateTask(w http.ResponseWriter, r *http.Request)
 		priority = &p
 	}
 
+	var tokenUsage *domain.TokenUsage
+	hasColdStart := req.ColdStartInputTokens != nil || req.ColdStartOutputTokens != nil || req.ColdStartCacheReadTokens != nil || req.ColdStartCacheWriteTokens != nil
+	hasCumulative := req.InputTokens != nil || req.OutputTokens != nil || req.CacheReadTokens != nil || req.CacheWriteTokens != nil
+	if hasColdStart || hasCumulative || req.Model != nil {
+		tu := domain.TokenUsage{}
+		if req.ColdStartInputTokens != nil {
+			tu.ColdStartInputTokens = *req.ColdStartInputTokens
+		}
+		if req.ColdStartOutputTokens != nil {
+			tu.ColdStartOutputTokens = *req.ColdStartOutputTokens
+		}
+		if req.ColdStartCacheReadTokens != nil {
+			tu.ColdStartCacheReadTokens = *req.ColdStartCacheReadTokens
+		}
+		if req.ColdStartCacheWriteTokens != nil {
+			tu.ColdStartCacheWriteTokens = *req.ColdStartCacheWriteTokens
+		}
+		if req.InputTokens != nil {
+			tu.InputTokens = *req.InputTokens
+		}
+		if req.OutputTokens != nil {
+			tu.OutputTokens = *req.OutputTokens
+		}
+		if req.CacheReadTokens != nil {
+			tu.CacheReadTokens = *req.CacheReadTokens
+		}
+		if req.CacheWriteTokens != nil {
+			tu.CacheWriteTokens = *req.CacheWriteTokens
+		}
+		if req.Model != nil {
+			tu.Model = *req.Model
+		}
+		tokenUsage = &tu
+	}
+
 	err := h.commands.UpdateTask(
 		r.Context(),
 		projectID,
@@ -118,7 +172,7 @@ func (h *TaskCommandsHandler) UpdateTask(w http.ResponseWriter, r *http.Request)
 		priority,
 		req.ContextFiles,
 		req.Tags,
-		nil,
+		tokenUsage,
 		req.HumanEstimateSeconds,
 	)
 	if err != nil {
@@ -467,4 +521,30 @@ func (h *TaskCommandsHandler) RejectWontDo(w http.ResponseWriter, r *http.Reques
 	})
 
 	h.controller.SendSuccess(w, r, map[string]string{"message": "won't do rejected"})
+}
+
+// UpdateTaskSession updates the session ID for a task
+func (h *TaskCommandsHandler) UpdateTaskSession(w http.ResponseWriter, r *http.Request) {
+	projectID := domain.ProjectID(mux.Vars(r)["id"])
+	taskID := domain.TaskID(mux.Vars(r)["taskId"])
+
+	var req struct {
+		SessionID string `json:"session_id" validate:"max=500"`
+	}
+	if err := h.controller.DecodeAndValidate(r, &req, pkgkanban.ErrInvalidTaskRequest); err != nil {
+		h.controller.SendFail(w, r, nil, errors.Join(pkgkanban.ErrInvalidTaskRequest, err))
+		return
+	}
+
+	err := h.commands.UpdateTaskSessionID(r.Context(), projectID, taskID, req.SessionID)
+	if err != nil {
+		if domain.IsDomainError(err) {
+			h.controller.SendFail(w, r, nil, err)
+		} else {
+			h.controller.SendError(w, r, err)
+		}
+		return
+	}
+
+	h.controller.SendSuccess(w, r, map[string]string{"message": "session updated"})
 }

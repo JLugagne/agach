@@ -13,7 +13,7 @@ import (
 
 // Task Commands
 
-func (a *App) CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error) {
+func (a *App) CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error) {
 	logger := a.logger.WithContext(ctx).WithField("projectID", projectID)
 
 	if title == "" {
@@ -33,21 +33,25 @@ func (a *App) CreateTask(ctx context.Context, projectID domain.ProjectID, title,
 		return domain.Task{}, domain.ErrProjectNotFound
 	}
 
-	// Get the todo column
-	todoColumn, err := a.columns.FindBySlug(ctx, projectID, domain.ColumnTodo)
+	// Get the target column (backlog or todo)
+	targetSlug := domain.ColumnTodo
+	if startInBacklog {
+		targetSlug = domain.ColumnBacklog
+	}
+	targetColumn, err := a.columns.FindBySlug(ctx, projectID, targetSlug)
 	if err != nil {
-		logger.WithError(err).Error("failed to find todo column")
+		logger.WithError(err).Error("failed to find target column")
 		return domain.Task{}, errors.Join(domain.ErrColumnNotFound, err)
 	}
-	if todoColumn == nil {
+	if targetColumn == nil {
 		return domain.Task{}, domain.ErrColumnNotFound
 	}
 
 	// Calculate priority score
 	priorityScore := getPriorityScore(priority)
 
-	// Get next position in todo column
-	existingTasks, err := a.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &todoColumn.Slug})
+	// Get next position in target column
+	existingTasks, err := a.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &targetColumn.Slug})
 	if err != nil {
 		logger.WithError(err).Error("failed to list existing tasks")
 		return domain.Task{}, err
@@ -56,7 +60,7 @@ func (a *App) CreateTask(ctx context.Context, projectID domain.ProjectID, title,
 
 	task := domain.Task{
 		ID:              domain.NewTaskID(),
-		ColumnID:        todoColumn.ID,
+		ColumnID:        targetColumn.ID,
 		Title:           title,
 		Summary:         summary,
 		Description:     description,
@@ -129,6 +133,13 @@ func (a *App) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID
 		task.CacheWriteTokens += tokenUsage.CacheWriteTokens
 		if tokenUsage.Model != "" {
 			task.Model = tokenUsage.Model
+		}
+		// Cold start: SET semantics (not accumulated)
+		if tokenUsage.ColdStartInputTokens > 0 {
+			task.ColdStartInputTokens = tokenUsage.ColdStartInputTokens
+			task.ColdStartOutputTokens = tokenUsage.ColdStartOutputTokens
+			task.ColdStartCacheReadTokens = tokenUsage.ColdStartCacheReadTokens
+			task.ColdStartCacheWriteTokens = tokenUsage.ColdStartCacheWriteTokens
 		}
 	}
 	if humanEstimateSeconds != nil {
@@ -766,9 +777,11 @@ func (a *App) GetNextTask(ctx context.Context, projectID domain.ProjectID, role 
 	falseVal := false
 	filters := tasks.TaskFilters{
 		ColumnSlug:      &todoSlug,
-		AssignedRole:    &role,
 		IsBlocked:       &falseVal,
 		WontDoRequested: &falseVal,
+	}
+	if role != "" {
+		filters.AssignedRole = &role
 	}
 
 	var bestTask *domain.Task
@@ -814,6 +827,32 @@ func (a *App) GetNextTask(ctx context.Context, projectID domain.ProjectID, role 
 
 	_ = bestProjectID
 	return bestTask, nil
+}
+
+func (a *App) GetNextTasks(ctx context.Context, projectID domain.ProjectID, role string, count int, subProjectID *domain.ProjectID) ([]domain.Task, error) {
+	logger := a.logger.WithContext(ctx).WithFields(logrus.Fields{
+		"projectID":    projectID,
+		"role":         role,
+		"count":        count,
+		"subProjectID": subProjectID,
+	})
+
+	if count <= 0 {
+		count = 1
+	}
+
+	targetProjectID := projectID
+	if subProjectID != nil {
+		targetProjectID = *subProjectID
+	}
+
+	results, err := a.tasks.GetNextTasks(ctx, targetProjectID, role, count)
+	if err != nil {
+		logger.WithError(err).Error("failed to get next tasks")
+		return nil, err
+	}
+
+	return results, nil
 }
 
 func (a *App) GetDependencyContext(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.DependencyContext, error) {
@@ -869,6 +908,30 @@ func (a *App) GetTimeline(ctx context.Context, projectID domain.ProjectID, days 
 
 	logger.Info("timeline retrieved successfully")
 	return entries, nil
+}
+
+// GetColdStartStats returns aggregated cold-start token statistics grouped by assigned role.
+func (a *App) GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error) {
+	logger := a.logger.WithContext(ctx).WithField("projectID", projectID)
+
+	rootID, err := a.resolveRootProjectID(ctx, projectID)
+	if err != nil {
+		logger.WithError(err).Error("failed to resolve root project ID")
+		return nil, err
+	}
+
+	stats, err := a.tasks.GetColdStartStats(ctx, rootID)
+	if err != nil {
+		logger.WithError(err).Error("failed to get cold start stats")
+		return nil, err
+	}
+
+	return stats, nil
+}
+
+// UpdateTaskSessionID saves the Claude Code session ID on a task for later resumption.
+func (a *App) UpdateTaskSessionID(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error {
+	return a.tasks.UpdateSessionID(ctx, projectID, taskID, sessionID)
 }
 
 // Helper functions

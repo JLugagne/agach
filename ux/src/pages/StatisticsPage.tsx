@@ -1,10 +1,24 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { getToolUsage, getBoard, getProjectSummary, getTimeline } from '../lib/api';
+import { getToolUsage, getBoard, getProjectSummary, getTimeline, getColdStartStats } from '../lib/api';
 import type { ToolUsageStatResponse, ProjectSummaryResponse, TaskWithDetailsResponse, TimelineEntryResponse } from '../lib/types';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { formatDuration } from '../lib/utils';
+
+interface RoleColdStartStat {
+  assigned_role: string;
+  count: number;
+  min_input_tokens: number;
+  max_input_tokens: number;
+  avg_input_tokens: number;
+  min_output_tokens: number;
+  max_output_tokens: number;
+  avg_output_tokens: number;
+  min_cache_read_tokens: number;
+  max_cache_read_tokens: number;
+  avg_cache_read_tokens: number;
+}
 
 const TIME_RANGE_OPTIONS = [7, 14, 30] as const;
 type TimeRange = (typeof TIME_RANGE_OPTIONS)[number];
@@ -20,6 +34,7 @@ export default function StatisticsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>(14);
   const [timeline, setTimeline] = useState<TimelineEntryResponse[]>([]);
   const [timelineError, setTimelineError] = useState(false);
+  const [coldStartStats, setColdStartStats] = useState<RoleColdStartStat[]>([]);
   const [timingStats, setTimingStats] = useState<{
     avgDuration: number;
     totalSaved: number;
@@ -33,13 +48,15 @@ export default function StatisticsPage() {
     if (!projectId) return;
     setLoading(true);
     try {
-      const [usage, summaryData, board] = await Promise.all([
+      const [usage, summaryData, board, coldStart] = await Promise.all([
         getToolUsage(projectId).catch(() => [] as ToolUsageStatResponse[]),
         getProjectSummary(projectId).catch(() => null),
         getBoard(projectId).catch(() => null),
+        getColdStartStats(projectId).catch(() => [] as RoleColdStartStat[]),
       ]);
       setToolUsage(usage ?? []);
       setSummary(summaryData);
+      setColdStartStats((coldStart ?? []) as RoleColdStartStat[]);
 
       // Aggregate token usage and role/priority stats from all tasks
       if (board?.columns) {
@@ -290,6 +307,41 @@ export default function StatisticsPage() {
                 )}
               </div>
             )}
+          </Section>
+        )}
+
+        {/* Cold Start Cost per Agent Role */}
+        {coldStartStats.length > 0 && (
+          <Section title="Cold Start Cost per Agent Role">
+            <p className="text-xs text-[var(--text-muted)] mb-3">
+              Cold start cost is the token usage of the first exchange when an agent starts fresh. Higher cache read tokens indicate better context reuse.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-[var(--text-muted)] uppercase tracking-wider" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    <th className="text-left py-2 pr-4">Role</th>
+                    <th className="text-right py-2 px-2">Runs</th>
+                    <th className="text-right py-2 px-2">Min Input</th>
+                    <th className="text-right py-2 px-2">Avg Input</th>
+                    <th className="text-right py-2 px-2">Max Input</th>
+                    <th className="text-right py-2 px-2">Avg Cache Read</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {coldStartStats.map((stat) => (
+                    <tr key={stat.assigned_role} className="border-t border-[var(--border-primary)]">
+                      <td className="py-2 pr-4 text-[var(--text-secondary)]">{stat.assigned_role}</td>
+                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{stat.count.toLocaleString()}</td>
+                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{stat.min_input_tokens.toLocaleString()}</td>
+                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{Math.round(stat.avg_input_tokens).toLocaleString()}</td>
+                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{stat.max_input_tokens.toLocaleString()}</td>
+                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{Math.round(stat.avg_cache_read_tokens).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </Section>
         )}
 

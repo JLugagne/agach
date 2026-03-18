@@ -90,7 +90,7 @@ export default function SubProjectsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center">
-        <Loader2 className="animate-spin text-[#555555]" size={24} />
+        <Loader2 className="animate-spin text-[var(--text-dim)]" size={24} />
       </div>
     );
   }
@@ -101,7 +101,7 @@ export default function SubProjectsPage() {
         <h3 className="font-heading text-sm text-[#F0F0F0]">{selectedProject.name}</h3>
         <button
           onClick={() => setSelectedProject(null)}
-          className="text-[#555555] hover:text-[#888888] transition-colors"
+          className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
         >
           <X size={16} />
         </button>
@@ -109,26 +109,26 @@ export default function SubProjectsPage() {
       <div className="flex-1 overflow-auto p-6">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-mono text-[#555555] mb-1">Name</label>
+            <label className="block text-xs font-mono text-[var(--text-dim)] mb-1">Name</label>
             <p className="text-sm text-[#F0F0F0]">{selectedProject.name}</p>
           </div>
           <div>
-            <label className="block text-xs font-mono text-[#555555] mb-1">Description</label>
-            <p className="text-sm text-[#888888]">
+            <label className="block text-xs font-mono text-[var(--text-dim)] mb-1">Description</label>
+            <p className="text-sm text-[var(--text-muted)]">
               {selectedProject.description || 'No description'}
             </p>
           </div>
           {selectedProject.summary && (
             <div>
-              <label className="block text-xs font-mono text-[#555555] mb-1">Tasks</label>
+              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1">Tasks</label>
               <div className="flex flex-wrap gap-3 text-xs">
-                <span className="text-[#888888]">
+                <span className="text-[var(--text-muted)]">
                   {selectedProject.summary.todo_count} todo
                 </span>
                 <span className="text-[#00C896]">
                   {selectedProject.summary.in_progress_count} in progress
                 </span>
-                <span className="text-[#888888]">
+                <span className="text-[var(--text-muted)]">
                   {selectedProject.summary.done_count} done
                 </span>
                 <span className="text-[#F06060]">
@@ -172,7 +172,7 @@ export default function SubProjectsPage() {
 
       {subProjects.length === 0 ? (
         <div className="text-center py-16">
-          <p className="text-[#555555] text-sm mb-4">No sub-projects yet.</p>
+          <p className="text-[var(--text-dim)] text-sm mb-4">No sub-projects yet.</p>
           <button
             onClick={() => setShowCreate(true)}
             className="text-sm text-[#00C896] hover:text-[#00C896]/80 transition-colors"
@@ -201,13 +201,13 @@ export default function SubProjectsPage() {
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm text-[#F0F0F0] truncate">{sub.name}</h3>
                   {sub.description && (
-                    <p className="text-xs text-[#888888] truncate mt-0.5">{sub.description}</p>
+                    <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">{sub.description}</p>
                   )}
                 </div>
-                <span className="text-xs text-[#555555] shrink-0">
+                <span className="text-xs text-[var(--text-dim)] shrink-0">
                   {total} task{total !== 1 ? 's' : ''}
                 </span>
-                <ChevronRight size={14} className="text-[#444444] shrink-0" />
+                <ChevronRight size={14} className="text-[var(--text-dim)] shrink-0" />
               </button>
             );
           })}
@@ -222,33 +222,33 @@ export default function SubProjectsPage() {
             <h2 className="font-heading text-lg text-[#F0F0F0] mb-4">New Sub-Project</h2>
 
             <div className="mb-4">
-              <label className="block text-xs font-mono text-[#555555] mb-1.5">Name</label>
+              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Name</label>
               <input
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Sub-project name"
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[#333333] focus:outline-none focus:border-[#00C896]/50"
+                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
                 autoFocus
                 onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
               />
             </div>
 
             <div className="mb-6">
-              <label className="block text-xs font-mono text-[#555555] mb-1.5">Description</label>
+              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Description</label>
               <textarea
                 value={newDesc}
                 onChange={(e) => setNewDesc(e.target.value)}
                 placeholder="Optional description"
                 rows={3}
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[#333333] focus:outline-none focus:border-[#00C896]/50 resize-y"
+                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y"
               />
             </div>
 
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowCreate(false)}
-                className="px-4 py-2 text-sm text-[#888888] hover:text-[#E0E0E0] transition-colors"
+                className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[#E0E0E0] transition-colors"
               >
                 Cancel
               </button>

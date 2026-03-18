@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 import { X, FileCode2, Tag, ArrowRight, ArrowLeft, Pencil, Check, XCircle, Paperclip, Loader2, Plus } from 'lucide-react';
 import type { TaskWithDetailsResponse, TaskResponse, ColumnWithTasksResponse, RoleResponse } from '../../lib/types';
-import { getTask, listDependencies, listDependents, updateTask, addDependency, removeDependency, listTasks, listRoles } from '../../lib/api';
+import { getTask, listDependencies, listDependents, updateTask, addDependency, removeDependency, listTasks, listProjectRoles } from '../../lib/api';
 import BlockedBanner from './BlockedBanner';
 import CommentSection from './CommentSection';
 import MarkdownContent from '../ui/MarkdownContent';
@@ -167,7 +167,7 @@ export default function TaskDrawer({ projectId, taskId, columns, onClose, onActi
 
   const fetchRoles = async () => {
     try {
-      const data = await listRoles();
+      const data = await listProjectRoles(projectId);
       setRoles(data ?? []);
     } catch {
       setRoles([]);
@@ -1356,6 +1356,7 @@ export default function TaskDrawer({ projectId, taskId, columns, onClose, onActi
               <div className="text-[var(--text-muted)] text-[10px] font-['Inter'] flex flex-col gap-0.5">
                 {task.created_by_role && <span>Created by role: {task.created_by_role}</span>}
                 {task.created_by_agent && <span>Created by agent: {task.created_by_agent}</span>}
+                {task.session_id && <span>Session: <code className="font-mono text-[9px] bg-[var(--bg-secondary)] px-1 py-0.5 rounded break-all">{task.session_id}</code></span>}
                 <span>Created: {new Date(task.created_at).toLocaleString()}</span>
                 <span>Updated: {new Date(task.updated_at).toLocaleString()}</span>
               </div>

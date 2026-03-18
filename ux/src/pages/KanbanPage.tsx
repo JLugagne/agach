@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { Plus, ChevronRight, FolderTree, X, Search } from 'lucide-react';
-import { getBoard, getProject, getTask, createTask, listRoles, listSubProjects, moveTask as apiMoveTask, markTaskSeen, updateTask } from '../lib/api';
+import { getBoard, getProject, getTask, createTask, listProjectRoles, listSubProjects, moveTask as apiMoveTask, markTaskSeen, updateTask } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type {
   BoardResponse,
@@ -195,12 +195,6 @@ export default function KanbanPage() {
       // All other shortcuts are skipped when an input is focused
       if (isInputFocused) return;
 
-      if (e.key === 'c' || e.key === 'C') {
-        e.preventDefault();
-        setShowNewTask(true);
-        return;
-      }
-
       if (e.key === '/') {
         e.preventDefault();
         searchInputRef.current?.focus();
@@ -252,8 +246,9 @@ export default function KanbanPage() {
 
   // Fetch roles and child project IDs
   useEffect(() => {
-    listRoles().then(setRoles).catch(() => {});
-  }, []);
+    if (!projectId) return;
+    listProjectRoles(projectId).then(setRoles).catch(() => {});
+  }, [projectId]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -339,10 +334,12 @@ export default function KanbanPage() {
 
     return {
       ...board,
-      columns: board.columns.map((col): ColumnWithTasksResponse => ({
-        ...col,
-        tasks: filterTasks(col.tasks || []),
-      })),
+      columns: board.columns
+        .filter((col) => col.slug !== 'backlog')
+        .map((col): ColumnWithTasksResponse => ({
+          ...col,
+          tasks: filterTasks(col.tasks || []),
+        })),
     };
   }, [board, includeChildren, selectedRoles]);
 
@@ -791,7 +788,6 @@ export default function KanbanPage() {
             </div>
             <div className="flex flex-col gap-2">
               {[
-                { key: 'C', description: 'Create task' },
                 { key: '/', description: 'Focus search' },
                 { key: 'Esc', description: 'Close / deselect' },
                 { key: '?', description: 'Toggle this panel' },

@@ -33,11 +33,14 @@ type MockTaskRepository struct {
 	MoveFunc                      func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnID domain.ColumnID) error
 	CountByColumnFunc             func(ctx context.Context, projectID domain.ProjectID, columnID domain.ColumnID) (int, error)
 	GetNextTaskFunc               func(ctx context.Context, projectID domain.ProjectID, role string) (*domain.Task, error)
+	GetNextTasksFunc              func(ctx context.Context, projectID domain.ProjectID, role string, count int) ([]domain.Task, error)
 	HasUnresolvedDependenciesFunc func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (bool, error)
 	GetDependentsNotDoneFunc      func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.Task, error)
 	MarkTaskSeenFunc              func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
 	ReorderTaskFunc               func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error
 	GetTimelineFunc               func(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error)
+	UpdateSessionIDFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
+	GetColdStartStatsFunc         func(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error)
 }
 
 func (m *MockTaskRepository) Create(ctx context.Context, projectID domain.ProjectID, task domain.Task) error {
@@ -96,6 +99,13 @@ func (m *MockTaskRepository) GetNextTask(ctx context.Context, projectID domain.P
 	return m.GetNextTaskFunc(ctx, projectID, role)
 }
 
+func (m *MockTaskRepository) GetNextTasks(ctx context.Context, projectID domain.ProjectID, role string, count int) ([]domain.Task, error) {
+	if m.GetNextTasksFunc == nil {
+		panic("called not defined GetNextTasksFunc")
+	}
+	return m.GetNextTasksFunc(ctx, projectID, role, count)
+}
+
 func (m *MockTaskRepository) HasUnresolvedDependencies(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (bool, error) {
 	if m.HasUnresolvedDependenciesFunc == nil {
 		panic("called not defined HasUnresolvedDependenciesFunc")
@@ -129,6 +139,20 @@ func (m *MockTaskRepository) GetTimeline(ctx context.Context, projectID domain.P
 		panic("called not defined GetTimelineFunc")
 	}
 	return m.GetTimelineFunc(ctx, projectID, days)
+}
+
+func (m *MockTaskRepository) UpdateSessionID(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error {
+	if m.UpdateSessionIDFunc == nil {
+		panic("called not defined UpdateSessionIDFunc")
+	}
+	return m.UpdateSessionIDFunc(ctx, projectID, taskID, sessionID)
+}
+
+func (m *MockTaskRepository) GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error) {
+	if m.GetColdStartStatsFunc == nil {
+		panic("called not defined GetColdStartStatsFunc")
+	}
+	return m.GetColdStartStatsFunc(ctx, projectID)
 }
 
 // TasksContractTesting runs all contract tests for a TaskRepository implementation.

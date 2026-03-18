@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
+	tasksrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/service"
 	"github.com/JLugagne/agach-mcp/pkg/websocket"
 	"github.com/stretchr/testify/assert"
@@ -60,7 +61,7 @@ type internalMockCommands struct {
 	createProjectFn   func(context.Context, string, string, string, string, string, *domain.ProjectID) (domain.Project, error)
 	updateProjectFn   func(context.Context, domain.ProjectID, string, string) error
 	deleteProjectFn   func(context.Context, domain.ProjectID) error
-	createTaskFn      func(context.Context, domain.ProjectID, string, string, string, domain.Priority, string, string, string, []string, []string, string) (domain.Task, error)
+	createTaskFn      func(context.Context, domain.ProjectID, string, string, string, domain.Priority, string, string, string, []string, []string, string, bool) (domain.Task, error)
 	updateTaskFn      func(context.Context, domain.ProjectID, domain.TaskID, *string, *string, *string, *string, *string, *domain.Priority, *[]string, *[]string, *domain.TokenUsage, *int) error
 	updateTaskFilesFn func(context.Context, domain.ProjectID, domain.TaskID, *[]string, *[]string) error
 	deleteTaskFn      func(context.Context, domain.ProjectID, domain.TaskID) error
@@ -89,8 +90,8 @@ func (m *internalMockCommands) UpdateRole(ctx context.Context, roleID domain.Rol
 func (m *internalMockCommands) DeleteRole(ctx context.Context, roleID domain.RoleID) error {
 	panic("not used in this test")
 }
-func (m *internalMockCommands) CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error) {
-	return m.createTaskFn(ctx, projectID, title, summary, description, priority, createdByRole, createdByAgent, assignedRole, contextFiles, tags, estimatedEffort)
+func (m *internalMockCommands) CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error) {
+	return m.createTaskFn(ctx, projectID, title, summary, description, priority, createdByRole, createdByAgent, assignedRole, contextFiles, tags, estimatedEffort, startInBacklog)
 }
 func (m *internalMockCommands) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error {
 	return m.updateTaskFn(ctx, projectID, taskID, title, description, assignedRole, estimatedEffort, resolution, priority, contextFiles, tags, tokenUsage, humanEstimateSeconds)
@@ -156,9 +157,124 @@ func (m *internalMockCommands) MoveTaskToProject(ctx context.Context, sourceProj
 func (m *internalMockCommands) IncrementToolUsage(ctx context.Context, projectID domain.ProjectID, toolName string) error {
 	panic("not used in this test")
 }
+func (m *internalMockCommands) CreateProjectRole(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error) {
+	panic("not used in this test")
+}
+func (m *internalMockCommands) UpdateProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error {
+	panic("not used in this test")
+}
+func (m *internalMockCommands) DeleteProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error {
+	panic("not used in this test")
+}
+func (m *internalMockCommands) UpdateTaskSessionID(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error {
+	panic("not used in this test")
+}
 
 // Verify internalMockCommands implements service.Commands
 var _ service.Commands = (*internalMockCommands)(nil)
+
+// internalMockQueries is a minimal mock of service.Queries for internal tests.
+type internalMockQueries struct {
+	getNextTaskFn    func(context.Context, domain.ProjectID, string, *domain.ProjectID) (*domain.Task, error)
+	listTasksFn      func(context.Context, domain.ProjectID, tasksrepo.TaskFilters) ([]domain.TaskWithDetails, error)
+	getTaskFn        func(context.Context, domain.ProjectID, domain.TaskID) (*domain.Task, error)
+	listCommentsFn   func(context.Context, domain.ProjectID, domain.TaskID, int, int) ([]domain.Comment, error)
+	countCommentsFn  func(context.Context, domain.ProjectID, domain.TaskID) (int, error)
+	listDepsFn       func(context.Context, domain.ProjectID, domain.TaskID) ([]domain.TaskDependency, error)
+}
+
+func (m *internalMockQueries) GetNextTask(ctx context.Context, projectID domain.ProjectID, role string, subProjectID *domain.ProjectID) (*domain.Task, error) {
+	return m.getNextTaskFn(ctx, projectID, role, subProjectID)
+}
+func (m *internalMockQueries) ListTasks(ctx context.Context, projectID domain.ProjectID, filters tasksrepo.TaskFilters) ([]domain.TaskWithDetails, error) {
+	return m.listTasksFn(ctx, projectID, filters)
+}
+func (m *internalMockQueries) GetTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (*domain.Task, error) {
+	return m.getTaskFn(ctx, projectID, taskID)
+}
+func (m *internalMockQueries) ListComments(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, limit, offset int) ([]domain.Comment, error) {
+	return m.listCommentsFn(ctx, projectID, taskID, limit, offset)
+}
+func (m *internalMockQueries) CountComments(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (int, error) {
+	if m.countCommentsFn != nil {
+		return m.countCommentsFn(ctx, projectID, taskID)
+	}
+	return 0, nil
+}
+func (m *internalMockQueries) ListDependencies(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.TaskDependency, error) {
+	if m.listDepsFn != nil {
+		return m.listDepsFn(ctx, projectID, taskID)
+	}
+	return []domain.TaskDependency{}, nil
+}
+func (m *internalMockQueries) GetProject(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) ListProjects(ctx context.Context) ([]domain.Project, error) { panic("not used") }
+func (m *internalMockQueries) ListProjectsWithSummary(ctx context.Context) ([]domain.ProjectWithSummary, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) ListSubProjects(ctx context.Context, parentID domain.ProjectID) ([]domain.Project, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) ListSubProjectsWithSummary(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) GetProjectSummary(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectSummary, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) GetProjectInfo(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectInfo, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) ListProjectsByWorkDir(ctx context.Context, workDir string) ([]domain.ProjectWithSummary, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) GetRole(ctx context.Context, roleID domain.RoleID) (*domain.Role, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) GetRoleBySlug(ctx context.Context, slug string) (*domain.Role, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) ListRoles(ctx context.Context) ([]domain.Role, error) { panic("not used") }
+func (m *internalMockQueries) ListProjectRoles(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) GetProjectRoleBySlug(ctx context.Context, projectID domain.ProjectID, slug string) (*domain.Role, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) GetNextTasks(ctx context.Context, projectID domain.ProjectID, role string, count int, subProjectID *domain.ProjectID) ([]domain.Task, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) GetDependencyContext(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.DependencyContext, error) {
+	return []domain.DependencyContext{}, nil
+}
+func (m *internalMockQueries) GetColumn(ctx context.Context, projectID domain.ProjectID, columnID domain.ColumnID) (*domain.Column, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) GetColumnBySlug(ctx context.Context, projectID domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) ListColumns(ctx context.Context, projectID domain.ProjectID) ([]domain.Column, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) GetComment(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID) (*domain.Comment, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) GetDependencyTasks(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.Task, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) GetDependentTasks(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.Task, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) GetToolUsageForProject(ctx context.Context, projectID domain.ProjectID) ([]domain.ToolUsageStat, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) GetTimeline(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error) {
+	panic("not used")
+}
+func (m *internalMockQueries) GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error) {
+	panic("not used")
+}
 
 // newInternalToolHandler creates a ToolHandler with the given recorder wired as
 // the broadcaster, using the provided commands mock and a no-op queries stub.
@@ -263,7 +379,7 @@ func TestCreateTask_EmitsBroadcast(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	cmds := &internalMockCommands{
-		createTaskFn: func(_ context.Context, pID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error) {
+		createTaskFn: func(_ context.Context, pID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error) {
 			return domain.Task{
 				ID:       taskID,
 				Title:    title,
@@ -595,6 +711,201 @@ func TestCreateProject_NoEventOnError(t *testing.T) {
 	})
 	require.Error(t, err, "createProject should return the command error")
 	assert.Equal(t, 0, recorder.Count(), "no event should be broadcast when createProject fails")
+}
+
+// TestGetNextTask_ReturnsTask tests that getNextTask returns task data when
+// a task is available.
+func TestGetNextTask_ReturnsTask(t *testing.T) {
+	ctx := context.Background()
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	queries := &internalMockQueries{
+		getNextTaskFn: func(_ context.Context, pID domain.ProjectID, role string, subProjectID *domain.ProjectID) (*domain.Task, error) {
+			assert.Equal(t, projectID, pID)
+			assert.Equal(t, "backend_go", role)
+			return &domain.Task{
+				ID:           taskID,
+				Title:        "Next task",
+				Summary:      "Do some work",
+				Priority:     domain.PriorityHigh,
+				AssignedRole: role,
+			}, nil
+		},
+	}
+
+	handler := &ToolHandler{commands: nil, queries: queries, hub: nil}
+
+	result, err := handler.getNextTask(ctx, map[string]interface{}{
+		"project_id": string(projectID),
+		"role":       "backend_go",
+	})
+	require.NoError(t, err)
+
+	data, ok := result.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, string(taskID), data["id"])
+	assert.Equal(t, "Next task", data["title"])
+	assert.Equal(t, "backend_go", data["assigned_role"])
+}
+
+// TestGetNextTask_NoTaskAvailable tests that getNextTask returns a nil task
+// response when no task is available.
+func TestGetNextTask_NoTaskAvailable(t *testing.T) {
+	ctx := context.Background()
+	projectID := domain.NewProjectID()
+
+	queries := &internalMockQueries{
+		getNextTaskFn: func(_ context.Context, pID domain.ProjectID, role string, subProjectID *domain.ProjectID) (*domain.Task, error) {
+			return nil, domain.ErrNoAvailableTasks
+		},
+	}
+
+	handler := &ToolHandler{commands: nil, queries: queries, hub: nil}
+
+	_, err := handler.getNextTask(ctx, map[string]interface{}{
+		"project_id": string(projectID),
+		"role":       "backend_go",
+	})
+	require.Error(t, err)
+}
+
+// TestGetNextTask_MissingProjectID tests that getNextTask returns an error
+// when project_id is missing.
+func TestGetNextTask_MissingProjectID(t *testing.T) {
+	ctx := context.Background()
+	handler := &ToolHandler{commands: nil, queries: nil, hub: nil}
+
+	_, err := handler.getNextTask(ctx, map[string]interface{}{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "project_id")
+}
+
+// TestListTasks_ReturnsTaskSummaries tests that listTasks returns a slice of
+// task summaries from the queries service.
+func TestListTasks_ReturnsTaskSummaries(t *testing.T) {
+	ctx := context.Background()
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	queries := &internalMockQueries{
+		listTasksFn: func(_ context.Context, pID domain.ProjectID, filters tasksrepo.TaskFilters) ([]domain.TaskWithDetails, error) {
+			assert.Equal(t, projectID, pID)
+			return []domain.TaskWithDetails{
+				{
+					Task: domain.Task{
+						ID:      taskID,
+						Title:   "Task 1",
+						Summary: "Summary 1",
+					},
+				},
+			}, nil
+		},
+	}
+
+	handler := &ToolHandler{commands: nil, queries: queries, hub: nil}
+
+	result, err := handler.listTasks(ctx, map[string]interface{}{
+		"project_id": string(projectID),
+	})
+	require.NoError(t, err)
+
+	summaries, ok := result.([]taskSummary)
+	require.True(t, ok)
+	require.Len(t, summaries, 1)
+	assert.Equal(t, string(taskID), summaries[0].ID)
+	assert.Equal(t, "Task 1", summaries[0].Title)
+}
+
+// TestListTasks_MissingProjectID tests that listTasks returns an error when
+// project_id is not provided.
+func TestListTasks_MissingProjectID(t *testing.T) {
+	ctx := context.Background()
+	handler := &ToolHandler{commands: nil, queries: nil, hub: nil}
+
+	_, err := handler.listTasks(ctx, map[string]interface{}{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "project_id")
+}
+
+// TestGetTask_ReturnsTaskDetails tests that getTask returns description,
+// has_comments and depends_on from the queries service.
+func TestGetTask_ReturnsTaskDetails(t *testing.T) {
+	ctx := context.Background()
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	queries := &internalMockQueries{
+		getTaskFn: func(_ context.Context, pID domain.ProjectID, tID domain.TaskID) (*domain.Task, error) {
+			assert.Equal(t, projectID, pID)
+			assert.Equal(t, taskID, tID)
+			return &domain.Task{
+				ID:          taskID,
+				Title:       "Test task",
+				Description: "Task description",
+				ContextFiles: []string{"file1.go"},
+			}, nil
+		},
+		countCommentsFn: func(_ context.Context, pID domain.ProjectID, tID domain.TaskID) (int, error) {
+			return 2, nil
+		},
+		listDepsFn: func(_ context.Context, pID domain.ProjectID, tID domain.TaskID) ([]domain.TaskDependency, error) {
+			return []domain.TaskDependency{}, nil
+		},
+	}
+
+	handler := &ToolHandler{commands: nil, queries: queries, hub: nil}
+
+	result, err := handler.getTask(ctx, map[string]interface{}{
+		"project_id": string(projectID),
+		"task_id":    string(taskID),
+	})
+	require.NoError(t, err)
+
+	data, ok := result.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "Task description", data["description"])
+	assert.Equal(t, true, data["has_comments"])
+	assert.NotNil(t, data["context_files"])
+}
+
+// TestListComments_ReturnsComments tests that listComments returns comments
+// from the queries service.
+func TestListComments_ReturnsComments(t *testing.T) {
+	ctx := context.Background()
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+	commentID := domain.NewCommentID()
+
+	queries := &internalMockQueries{
+		listCommentsFn: func(_ context.Context, pID domain.ProjectID, tID domain.TaskID, limit, offset int) ([]domain.Comment, error) {
+			assert.Equal(t, projectID, pID)
+			assert.Equal(t, taskID, tID)
+			return []domain.Comment{
+				{
+					ID:         commentID,
+					TaskID:     tID,
+					AuthorRole: "developer",
+					AuthorType: domain.AuthorTypeAgent,
+					Content:    "Progress update",
+				},
+			}, nil
+		},
+	}
+
+	handler := &ToolHandler{commands: nil, queries: queries, hub: nil}
+
+	result, err := handler.listComments(ctx, map[string]interface{}{
+		"project_id": string(projectID),
+		"task_id":    string(taskID),
+	})
+	require.NoError(t, err)
+
+	comments, ok := result.([]domain.Comment)
+	require.True(t, ok)
+	require.Len(t, comments, 1)
+	assert.Equal(t, commentID, comments[0].ID)
+	assert.Equal(t, "Progress update", comments[0].Content)
 }
 
 // TestNilHub_DoesNotPanic tests that ToolHandler with a nil hub does not panic

@@ -19,6 +19,7 @@ export interface ProjectResponse {
 }
 
 export interface ProjectSummaryResponse {
+  backlog_count: number;
   todo_count: number;
   in_progress_count: number;
   done_count: number;
@@ -119,6 +120,7 @@ export interface TaskResponse {
   started_at: string | null;
   duration_seconds: number;
   human_estimate_seconds: number;
+  session_id?: string;
   created_at: string;
   updated_at: string;
 }

@@ -4,45 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/service"
 	"github.com/JLugagne/agach-mcp/pkg/websocket"
 )
-
-// taskForWork contains only the fields an agent needs to start working on a task.
-// Irrelevant fields (blocked_reason, wont_do_reason, completion_summary, etc.) are omitted.
-type taskForWork struct {
-	ID              string   `json:"id"`
-	Title           string   `json:"title"`
-	Summary         string   `json:"summary"`
-	Description     string   `json:"description"`
-	Priority        string   `json:"priority"`
-	AssignedRole    string   `json:"assigned_role,omitempty"`
-	CreatedByRole   string   `json:"created_by_role,omitempty"`
-	ContextFiles    []string `json:"context_files,omitempty"`
-	Tags            []string `json:"tags,omitempty"`
-	EstimatedEffort string   `json:"estimated_effort,omitempty"`
-	Resolution      string   `json:"resolution,omitempty"`
-}
-
-func toTaskForWork(task *domain.Task) taskForWork {
-	return taskForWork{
-		ID:              string(task.ID),
-		Title:           task.Title,
-		Summary:         task.Summary,
-		Description:     task.Description,
-		Priority:        string(task.Priority),
-		AssignedRole:    task.AssignedRole,
-		CreatedByRole:   task.CreatedByRole,
-		ContextFiles:    task.ContextFiles,
-		Tags:            task.Tags,
-		EstimatedEffort: task.EstimatedEffort,
-		Resolution:      task.Resolution,
-	}
-}
 
 // taskSummary is a lightweight representation of a task for MCP list responses.
 // Use get_task for full details.
@@ -83,77 +50,6 @@ func toTaskSummaries(taskList []domain.TaskWithDetails) []taskSummary {
 	return summaries
 }
 
-// taskDetail is a full representation of a task with omitempty on fields that are commonly empty.
-// Used by get_task to avoid sending zero-value fields that waste tokens.
-type taskDetail struct {
-	ID                string     `json:"id"`
-	ColumnID          string     `json:"column_id"`
-	Title             string     `json:"title"`
-	Summary           string     `json:"summary"`
-	Description       string     `json:"description,omitempty"`
-	Priority          string     `json:"priority"`
-	PriorityScore     int        `json:"priority_score"`
-	Position          int        `json:"position"`
-	CreatedByRole     string     `json:"created_by_role,omitempty"`
-	CreatedByAgent    string     `json:"created_by_agent,omitempty"`
-	AssignedRole      string     `json:"assigned_role,omitempty"`
-	IsBlocked         bool       `json:"is_blocked,omitempty"`
-	BlockedReason     string     `json:"blocked_reason,omitempty"`
-	BlockedAt         *time.Time `json:"blocked_at,omitempty"`
-	BlockedByAgent    string     `json:"blocked_by_agent,omitempty"`
-	WontDoRequested   bool       `json:"wont_do_requested,omitempty"`
-	WontDoReason      string     `json:"wont_do_reason,omitempty"`
-	WontDoRequestedBy string     `json:"wont_do_requested_by,omitempty"`
-	WontDoRequestedAt *time.Time `json:"wont_do_requested_at,omitempty"`
-	CompletionSummary string     `json:"completion_summary,omitempty"`
-	CompletedByAgent  string     `json:"completed_by_agent,omitempty"`
-	CompletedAt       *time.Time `json:"completed_at,omitempty"`
-	FilesModified     []string   `json:"files_modified,omitempty"`
-	Resolution        string     `json:"resolution,omitempty"`
-	ContextFiles      []string   `json:"context_files,omitempty"`
-	Tags              []string   `json:"tags,omitempty"`
-	EstimatedEffort   string     `json:"estimated_effort,omitempty"`
-	StartedAt         *time.Time `json:"started_at,omitempty"`
-	DurationSeconds   int        `json:"duration_seconds,omitempty"`
-	CreatedAt         string     `json:"created_at"`
-	UpdatedAt         string     `json:"updated_at"`
-}
-
-func toTaskDetail(task *domain.Task) taskDetail {
-	return taskDetail{
-		ID:                string(task.ID),
-		ColumnID:          string(task.ColumnID),
-		Title:             task.Title,
-		Summary:           task.Summary,
-		Description:       task.Description,
-		Priority:          string(task.Priority),
-		PriorityScore:     task.PriorityScore,
-		Position:          task.Position,
-		CreatedByRole:     task.CreatedByRole,
-		CreatedByAgent:    task.CreatedByAgent,
-		AssignedRole:      task.AssignedRole,
-		IsBlocked:         task.IsBlocked,
-		BlockedReason:     task.BlockedReason,
-		BlockedAt:         task.BlockedAt,
-		BlockedByAgent:    task.BlockedByAgent,
-		WontDoRequested:   task.WontDoRequested,
-		WontDoReason:      task.WontDoReason,
-		WontDoRequestedBy: task.WontDoRequestedBy,
-		WontDoRequestedAt: task.WontDoRequestedAt,
-		CompletionSummary: task.CompletionSummary,
-		CompletedByAgent:  task.CompletedByAgent,
-		CompletedAt:       task.CompletedAt,
-		FilesModified:     task.FilesModified,
-		Resolution:        task.Resolution,
-		ContextFiles:      task.ContextFiles,
-		Tags:              task.Tags,
-		EstimatedEffort:   task.EstimatedEffort,
-		StartedAt:         task.StartedAt,
-		DurationSeconds:   task.DurationSeconds,
-		CreatedAt:         task.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:         task.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-	}
-}
 
 // roleSummary is a lightweight representation of a role for MCP list responses.
 // Use get_role for the full role including prompt_hint and tech_stack.
@@ -386,7 +282,13 @@ func (h *ToolHandler) deleteProject(ctx context.Context, args map[string]any) (a
 }
 
 func (h *ToolHandler) listRoles(ctx context.Context, args map[string]any) (any, error) {
-	roles, err := h.queries.ListRoles(ctx)
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+
+	roles, err := h.queries.ListProjectRoles(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -490,7 +392,13 @@ func (h *ToolHandler) createTask(ctx context.Context, args map[string]any) (any,
 	tags := parseStringArray(args["tags"])
 	dependsOn := parseStringArray(args["depends_on"])
 
-	task, err := h.commands.CreateTask(ctx, projectID, title, summary, description, priority, createdByRole, createdByAgent, assignedRole, contextFiles, tags, estimatedEffort)
+	// Determine start column: backlog (default) or todo
+	startInBacklog := true
+	if startIn, ok := args["start_in"].(string); ok && startIn == "todo" {
+		startInBacklog = false
+	}
+
+	task, err := h.commands.CreateTask(ctx, projectID, title, summary, description, priority, createdByRole, createdByAgent, assignedRole, contextFiles, tags, estimatedEffort, startInBacklog)
 	if err != nil {
 		return nil, err
 	}
@@ -512,6 +420,90 @@ func (h *ToolHandler) createTask(ctx context.Context, args map[string]any) (any,
 	}
 
 	return map[string]any{"id": string(task.ID)}, nil
+}
+
+func (h *ToolHandler) bulkCreateTasks(ctx context.Context, args map[string]any) (any, error) {
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+
+	tasksRaw, ok := args["tasks"].([]any)
+	if !ok || len(tasksRaw) == 0 {
+		return nil, fmt.Errorf("tasks is required and must be a non-empty array")
+	}
+
+	type createdTask struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	}
+
+	results := make([]createdTask, 0, len(tasksRaw))
+
+	for i, raw := range tasksRaw {
+		t, ok := raw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("tasks[%d] must be an object", i)
+		}
+
+		title, _ := t["title"].(string)
+		if title == "" {
+			return nil, fmt.Errorf("tasks[%d].title is required", i)
+		}
+		summary, _ := t["summary"].(string)
+		if summary == "" {
+			return nil, fmt.Errorf("tasks[%d].summary is required", i)
+		}
+		createdByRole, _ := t["created_by_role"].(string)
+		if createdByRole == "" {
+			return nil, fmt.Errorf("tasks[%d].created_by_role is required", i)
+		}
+
+		description, _ := t["description"].(string)
+		createdByAgent, _ := t["created_by_agent"].(string)
+		assignedRole, _ := t["assigned_role"].(string)
+		estimatedEffort, _ := t["estimated_effort"].(string)
+
+		priorityStr, _ := t["priority"].(string)
+		priority := domain.PriorityMedium
+		if priorityStr != "" {
+			priority = domain.Priority(priorityStr)
+		}
+
+		contextFiles := parseStringArray(t["context_files"])
+		tags := parseStringArray(t["tags"])
+		dependsOn := parseStringArray(t["depends_on"])
+
+		// Determine start column: backlog (default) or todo
+		startInBacklog := true
+		if startIn, ok := t["start_in"].(string); ok && startIn == "todo" {
+			startInBacklog = false
+		}
+
+		task, err := h.commands.CreateTask(ctx, projectID, title, summary, description, priority, createdByRole, createdByAgent, assignedRole, contextFiles, tags, estimatedEffort, startInBacklog)
+		if err != nil {
+			return nil, fmt.Errorf("tasks[%d]: %w", i, err)
+		}
+
+		for _, depID := range dependsOn {
+			if err := h.commands.AddDependency(ctx, projectID, task.ID, domain.TaskID(depID)); err != nil {
+				return nil, fmt.Errorf("tasks[%d] dependency %s: %w", i, depID, err)
+			}
+		}
+
+		if h.hub != nil {
+			h.hub.Broadcast(websocket.Event{
+				Type:      "task_created",
+				ProjectID: string(projectID),
+				Data:      task,
+			})
+		}
+
+		results = append(results, createdTask{ID: string(task.ID), Title: task.Title})
+	}
+
+	return results, nil
 }
 
 func (h *ToolHandler) updateTask(ctx context.Context, args map[string]any) (any, error) {
@@ -558,35 +550,7 @@ func (h *ToolHandler) updateTask(ctx context.Context, args map[string]any) (any,
 		tags = &t
 	}
 
-	var tokenUsage *domain.TokenUsage
-	inputTokens := intArg(args, "input_tokens", -1)
-	outputTokens := intArg(args, "output_tokens", -1)
-	cacheReadTokens := intArg(args, "cache_read_tokens", -1)
-	cacheWriteTokens := intArg(args, "cache_write_tokens", -1)
-	model, hasModel := args["model"].(string)
-	if inputTokens >= 0 || outputTokens >= 0 || cacheReadTokens >= 0 || cacheWriteTokens >= 0 || hasModel {
-		tokenUsage = &domain.TokenUsage{}
-		if inputTokens >= 0 {
-			tokenUsage.InputTokens = inputTokens
-		}
-		if outputTokens >= 0 {
-			tokenUsage.OutputTokens = outputTokens
-		}
-		if cacheReadTokens >= 0 {
-			tokenUsage.CacheReadTokens = cacheReadTokens
-		}
-		if cacheWriteTokens >= 0 {
-			tokenUsage.CacheWriteTokens = cacheWriteTokens
-		}
-		tokenUsage.Model = model
-	}
-
-	var humanEstimateSeconds *int
-	if v := intArg(args, "human_estimate_seconds", -1); v >= 0 {
-		humanEstimateSeconds = &v
-	}
-
-	err := h.commands.UpdateTask(ctx, projectID, taskID, title, description, assignedRole, estimatedEffort, resolution, priority, contextFiles, tags, tokenUsage, humanEstimateSeconds)
+	err := h.commands.UpdateTask(ctx, projectID, taskID, title, description, assignedRole, estimatedEffort, resolution, priority, contextFiles, tags, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -703,37 +667,9 @@ func (h *ToolHandler) completeTask(ctx context.Context, args map[string]any) (an
 	completedByAgent := completedByAgentVal
 	filesModified := parseStringArray(args["files_modified"])
 
-	var tokenUsage *domain.TokenUsage
-	inputTokens := intArg(args, "input_tokens", -1)
-	outputTokens := intArg(args, "output_tokens", -1)
-	cacheReadTokens := intArg(args, "cache_read_tokens", -1)
-	cacheWriteTokens := intArg(args, "cache_write_tokens", -1)
-	model, hasModel := args["model"].(string)
-	if inputTokens >= 0 || outputTokens >= 0 || cacheReadTokens >= 0 || cacheWriteTokens >= 0 || hasModel {
-		tokenUsage = &domain.TokenUsage{}
-		if inputTokens >= 0 {
-			tokenUsage.InputTokens = inputTokens
-		}
-		if outputTokens >= 0 {
-			tokenUsage.OutputTokens = outputTokens
-		}
-		if cacheReadTokens >= 0 {
-			tokenUsage.CacheReadTokens = cacheReadTokens
-		}
-		if cacheWriteTokens >= 0 {
-			tokenUsage.CacheWriteTokens = cacheWriteTokens
-		}
-		tokenUsage.Model = model
-	}
-
-	err := h.commands.CompleteTask(ctx, projectID, taskID, completionSummary, filesModified, completedByAgent, tokenUsage)
+	err := h.commands.CompleteTask(ctx, projectID, taskID, completionSummary, filesModified, completedByAgent, nil)
 	if err != nil {
 		return nil, err
-	}
-
-	// If a human estimate was provided, persist it via UpdateTask
-	if humanEst := intArg(args, "human_estimate_seconds", -1); humanEst >= 0 {
-		_ = h.commands.UpdateTask(ctx, projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, nil, &humanEst)
 	}
 
 	// Broadcast task_completed event
@@ -769,7 +705,73 @@ func (h *ToolHandler) getTask(ctx context.Context, args map[string]any) (any, er
 	if err != nil {
 		return nil, err
 	}
-	return toTaskDetail(task), nil
+
+	commentCount, err := h.queries.CountComments(ctx, projectID, taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	deps, err := h.queries.ListDependencies(ctx, projectID, taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := map[string]any{
+		"description":  task.Description,
+		"has_comments": commentCount > 0,
+	}
+	depIDs := make([]string, 0, len(deps))
+	for _, d := range deps {
+		depIDs = append(depIDs, string(d.DependsOnTaskID))
+	}
+	result["depends_on"] = depIDs
+	if len(task.ContextFiles) > 0 {
+		result["context_files"] = task.ContextFiles
+	}
+	if len(task.FilesModified) > 0 {
+		result["files_modified"] = task.FilesModified
+	}
+	if includeResolution, _ := args["include_resolution"].(bool); includeResolution {
+		if task.Resolution != "" {
+			result["resolution"] = task.Resolution
+		}
+		if task.CompletionSummary != "" {
+			result["completion_summary"] = task.CompletionSummary
+		}
+	}
+	return result, nil
+}
+
+func (h *ToolHandler) getNextTask(ctx context.Context, args map[string]any) (any, error) {
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	role, _ := args["role"].(string)
+
+	var subProjectID *domain.ProjectID
+	if spID, ok := args["sub_project_id"].(string); ok && spID != "" {
+		pid := domain.ProjectID(spID)
+		subProjectID = &pid
+	}
+
+	task, err := h.queries.GetNextTask(ctx, projectID, role, subProjectID)
+	if err != nil {
+		return nil, err
+	}
+	if task == nil {
+		return map[string]any{"task": nil, "message": "no task available"}, nil
+	}
+	return map[string]any{
+		"id":            string(task.ID),
+		"title":         task.Title,
+		"summary":       task.Summary,
+		"priority":      string(task.Priority),
+		"assigned_role": task.AssignedRole,
+		"project_id":    string(projectID),
+		"session_id":    task.SessionID,
+	}, nil
 }
 
 func (h *ToolHandler) listTasks(ctx context.Context, args map[string]any) (any, error) {
@@ -825,48 +827,6 @@ func (h *ToolHandler) listTasks(ctx context.Context, args map[string]any) (any, 
 	}
 
 	return toTaskSummaries(taskList), nil
-}
-
-func (h *ToolHandler) getNextTask(ctx context.Context, args map[string]any) (any, error) {
-	projectIDVal, ok := args["project_id"].(string)
-	if !ok {
-		return nil, fmt.Errorf("project_id is required and must be a string")
-	}
-	projectID := domain.ProjectID(projectIDVal)
-
-	role := ""
-	if roleVal, ok := args["role"].(string); ok {
-		role = roleVal
-	}
-
-	var subProjectID *domain.ProjectID
-	if spID, ok := args["sub_project_id"].(string); ok && spID != "" {
-		id := domain.ProjectID(spID)
-		subProjectID = &id
-	}
-
-	task, err := h.queries.GetNextTask(ctx, projectID, role, subProjectID)
-	if err != nil {
-		if domain.IsDomainError(err) {
-			return map[string]any{"task": nil, "message": err.Error()}, nil
-		}
-		return nil, err
-	}
-
-	if task == nil {
-		return map[string]any{"task": nil, "message": "No tasks available for this role"}, nil
-	}
-
-	// Get dependency context
-	depContext, err := h.queries.GetDependencyContext(ctx, projectID, task.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	return map[string]any{
-		"task":               toTaskForWork(task),
-		"dependency_context": depContext,
-	}, nil
 }
 
 func (h *ToolHandler) blockTask(ctx context.Context, args map[string]any) (any, error) {
@@ -976,7 +936,59 @@ func (h *ToolHandler) addDependency(ctx context.Context, args map[string]any) (a
 	if err != nil {
 		return nil, err
 	}
+
+	// If move_to_todo is true, move the task from backlog to todo
+	if moveToTodo, _ := args["move_to_todo"].(bool); moveToTodo {
+		if err := h.commands.MoveTask(ctx, projectID, taskID, domain.ColumnTodo); err != nil {
+			return nil, fmt.Errorf("dependency added but failed to move task to todo: %w", err)
+		}
+	}
+
 	return map[string]any{"success": true}, nil
+}
+
+func (h *ToolHandler) bulkAddDependencies(ctx context.Context, args map[string]any) (any, error) {
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+
+	depsRaw, ok := args["dependencies"].([]any)
+	if !ok || len(depsRaw) == 0 {
+		return nil, fmt.Errorf("dependencies is required and must be a non-empty array")
+	}
+
+	added := 0
+	for i, raw := range depsRaw {
+		d, ok := raw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("dependencies[%d] must be an object", i)
+		}
+		taskID, _ := d["task_id"].(string)
+		if taskID == "" {
+			return nil, fmt.Errorf("dependencies[%d].task_id is required", i)
+		}
+		dependsOn, _ := d["depends_on_task_id"].(string)
+		if dependsOn == "" {
+			return nil, fmt.Errorf("dependencies[%d].depends_on_task_id is required", i)
+		}
+
+		if err := h.commands.AddDependency(ctx, projectID, domain.TaskID(taskID), domain.TaskID(dependsOn)); err != nil {
+			return nil, fmt.Errorf("dependencies[%d]: %w", i, err)
+		}
+
+		// If move_to_todo is true, move the task from backlog to todo
+		if moveToTodo, _ := d["move_to_todo"].(bool); moveToTodo {
+			if err := h.commands.MoveTask(ctx, projectID, domain.TaskID(taskID), domain.ColumnTodo); err != nil {
+				return nil, fmt.Errorf("dependencies[%d] move_to_todo: %w", i, err)
+			}
+		}
+
+		added++
+	}
+
+	return map[string]any{"added": added}, nil
 }
 
 func (h *ToolHandler) removeDependency(ctx context.Context, args map[string]any) (any, error) {
@@ -1081,7 +1093,46 @@ func (h *ToolHandler) listComments(ctx context.Context, args map[string]any) (an
 	if err != nil {
 		return nil, err
 	}
+
 	return comments, nil
+}
+
+func (h *ToolHandler) reportTokens(ctx context.Context, args map[string]any) (any, error) {
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	taskIDVal, ok := args["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("task_id is required and must be a string")
+	}
+	taskID := domain.TaskID(taskIDVal)
+
+	usage := &domain.TokenUsage{
+		InputTokens:      intArg(args, "input", 0),
+		OutputTokens:     intArg(args, "output", 0),
+		CacheReadTokens:  intArg(args, "cache_read", 0),
+		CacheWriteTokens: intArg(args, "cache_write", 0),
+	}
+	if model, ok := args["model"].(string); ok {
+		usage.Model = model
+	}
+
+	err := h.commands.UpdateTask(ctx, projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, usage, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if h.hub != nil {
+		h.hub.Broadcast(websocket.Event{
+			Type:      "task_updated",
+			ProjectID: string(projectID),
+			Data:      map[string]string{"task_id": string(taskID)},
+		})
+	}
+
+	return map[string]any{"success": true}, nil
 }
 
 func (h *ToolHandler) reorderTask(ctx context.Context, args map[string]any) (any, error) {
@@ -1181,6 +1232,7 @@ func (h *ToolHandler) getBoard(ctx context.Context, args map[string]any) (any, e
 	}
 
 	columns := []columnOverview{
+		{Slug: "backlog", Name: "Backlog", Count: info.TaskSummary.BacklogCount},
 		{Slug: "todo", Name: "To Do", Count: info.TaskSummary.TodoCount},
 		{Slug: "in_progress", Name: "In Progress", Count: info.TaskSummary.InProgressCount},
 		{Slug: "done", Name: "Done", Count: info.TaskSummary.DoneCount},

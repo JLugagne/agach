@@ -103,6 +103,10 @@ func (a *App) CreateProject(ctx context.Context, name, description, workDir, cre
 		return domain.Project{}, err
 	}
 
+	if err := a.roles.CopyGlobalRolesToProject(ctx, project.ID); err != nil {
+		logger.WithError(err).Warn("failed to copy global roles to project")
+	}
+
 	logger.WithField("projectID", project.ID).Info("project created successfully")
 	return project, nil
 }

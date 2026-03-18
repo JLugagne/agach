@@ -1,91 +1,91 @@
 @import "tailwindcss";
 
 :root {
-  --bg-primary: #0F0F0F;
-  --bg-secondary: #0D0D0D;
-  --bg-tertiary: #111111;
-  --bg-elevated: #1A1A1A;
-  
-  --border-primary: #1E1E1E;
-  --border-secondary: #2A2A2A;
-  --border-subtle: #252525;
-  
-  --text-primary: #F0F0F0;
-  --text-secondary: #999999;
-  --text-muted: #555555;
-  --text-dim: #444444;
-  
-  --primary: #00C896;
-  --primary-hover: #00B886;
-  --primary-text: #0F0F0F;
-  
-  --nav-bg-active: #1A1A1A;
-  --nav-text-active: #00C896;
-  
-  --card-bg: #111111;
-  --card-border: #1E1E1E;
+  --bg-primary: #0A0A0A;
+  --bg-secondary: #0F0F0F;
+  --bg-tertiary: #141414;
+  --bg-elevated: #1C1C1C;
 
-  --status-todo: #555555;
-  --status-todo-bg: #1E1E1E;
-  --status-progress: #F09060;
-  --status-progress-bg: #2A1A10;
-  --status-done: #00C896;
-  --status-done-bg: #0A2A20;
-  --status-blocked: #F06060;
-  --status-blocked-bg: #2A0A0A;
+  --border-primary: #383838;
+  --border-secondary: #484848;
+  --border-subtle: #303030;
 
-  --priority-critical: #F06060;
-  --priority-critical-bg: #2A0A0A;
-  --priority-high: #F09060;
-  --priority-high-bg: #2A1A10;
-  --priority-medium: #FFD060;
-  --priority-medium-bg: #2A2A10;
-  --priority-low: #555555;
-  --priority-low-bg: #1E1E1E;
+  --text-primary: #F5F5F5;
+  --text-secondary: #E8E8E8;
+  --text-muted: #CCCCCC;
+  --text-dim: #AAAAAA;
+
+  --primary: #00D4A0;
+  --primary-hover: #00BC8E;
+  --primary-text: #0A0A0A;
+
+  --nav-bg-active: #1C1C1C;
+  --nav-text-active: #00D4A0;
+
+  --card-bg: #161616;
+  --card-border: #2A2A2A;
+
+  --status-todo: #AAAAAA;
+  --status-todo-bg: #2A2A2A;
+  --status-progress: #F5976A;
+  --status-progress-bg: #2E1A0C;
+  --status-done: #00D4A0;
+  --status-done-bg: #0C2E22;
+  --status-blocked: #F56565;
+  --status-blocked-bg: #2E0C0C;
+
+  --priority-critical: #F56565;
+  --priority-critical-bg: #2E0C0C;
+  --priority-high: #F5976A;
+  --priority-high-bg: #2E1A0C;
+  --priority-medium: #F5D060;
+  --priority-medium-bg: #2E2A0C;
+  --priority-low: #AAAAAA;
+  --priority-low-bg: #2A2A2A;
 }
 
 [data-theme='light'] {
-  --bg-primary: #FAFAFA;
+  --bg-primary: #F8F8F8;
   --bg-secondary: #FFFFFF;
-  --bg-tertiary: #F0F0F0;
+  --bg-tertiary: #EFEFEF;
   --bg-elevated: #FFFFFF;
-  
-  --border-primary: #E5E5E5;
-  --border-secondary: #F0F0F0;
-  --border-subtle: #F0F0F0;
-  
-  --text-primary: #1A1A1A;
-  --text-secondary: #888888;
-  --text-muted: #AAAAAA;
-  --text-dim: #CCCCCC;
-  
+
+  --border-primary: #DEDEDE;
+  --border-secondary: #EBEBEB;
+  --border-subtle: #E8E8E8;
+
+  --text-primary: #111111;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+  --text-dim: #C0C0C0;
+
   --primary: #0D6E6E;
   --primary-hover: #0A5A5A;
   --primary-text: #FFFFFF;
-  
+
   --nav-bg-active: #0D6E6E;
   --nav-text-active: #FFFFFF;
-  
+
   --card-bg: #FFFFFF;
-  --card-border: #E5E5E5;
+  --card-border: #DEDEDE;
 
-  --status-todo: #888888;
-  --status-todo-bg: #F0F0F0;
-  --status-progress: #E07B54;
-  --status-progress-bg: #FFF3EE;
+  --status-todo: #777777;
+  --status-todo-bg: #EFEFEF;
+  --status-progress: #C96030;
+  --status-progress-bg: #FFF0E8;
   --status-done: #0D6E6E;
-  --status-done-bg: #E6F2F2;
-  --status-blocked: #D94040;
-  --status-blocked-bg: #FFF5F5;
+  --status-done-bg: #E0F0F0;
+  --status-blocked: #C43030;
+  --status-blocked-bg: #FFF0F0;
 
-  --priority-critical: #D94040;
-  --priority-critical-bg: #FFF5F5;
-  --priority-high: #E07B54;
-  --priority-high-bg: #FFF3EE;
-  --priority-medium: #B8860B;
-  --priority-medium-bg: #FFFBEB;
-  --priority-low: #888888;
-  --priority-low-bg: #F0F0F0;
+  --priority-critical: #C43030;
+  --priority-critical-bg: #FFF0F0;
+  --priority-high: #C96030;
+  --priority-high-bg: #FFF0E8;
+  --priority-medium: #8A6500;
+  --priority-medium-bg: #FFF8DC;
+  --priority-low: #777777;
+  --priority-low-bg: #EFEFEF;
 }
 
 html, body, #root {
@@ -94,7 +94,7 @@ html, body, #root {
   padding: 0;
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Geist', sans-serif;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
@@ -103,11 +103,12 @@ html, body, #root {
 }
 
 .font-heading {
-  font-family: 'Newsreader', Georgia, serif;
+  font-family: 'Geist', sans-serif;
+  font-weight: 600;
 }
 
 .font-mono {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-family: 'Geist Mono', ui-monospace, monospace;
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }

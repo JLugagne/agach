@@ -1,25 +1,29 @@
-.PHONY: generate build run dev test clean docker docker_build
+.PHONY: generate build build-server build-cli run dev test clean docker docker_build install-cli
 
-BINARY  := agach-server
 GO_TAGS := sqlite_fts5
 
 generate:
 	cd ux && npm run build
 
-build: generate
-	CGO_ENABLED=1 go build -tags $(GO_TAGS) -o $(BINARY) .
+build: build-server build-cli
 
-run: build
-	./$(BINARY)
+build-server: generate
+	CGO_ENABLED=1 go build -tags $(GO_TAGS) -o agach-server ./cmd/agach-server
+
+build-cli:
+	CGO_ENABLED=1 go build -tags $(GO_TAGS) -o agach ./cmd/agach
+
+run: build-server
+	./agach-server
 
 dev: generate
-	CGO_ENABLED=1 go run -tags $(GO_TAGS) .
+	CGO_ENABLED=1 go run -tags $(GO_TAGS) ./cmd/agach-server
 
 test:
 	CGO_ENABLED=1 go test -tags $(GO_TAGS) -race -failfast ./...
 
 clean:
-	rm -f $(BINARY)
+	rm -f agach-server agach
 	rm -rf ux/dist
 
 docker:
@@ -27,3 +31,6 @@ docker:
 
 docker_build:
 	docker build -f Dockerfile.local --output type=local,dest=. .
+
+install-cli:
+	go install ./cmd/agach
