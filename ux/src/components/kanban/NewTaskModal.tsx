@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Plus, XCircle, Paperclip, Loader2 } from 'lucide-react';
-import { createTask, listRoles } from '../../lib/api';
+import { createTask, listProjectRoles } from '../../lib/api';
 import type { RoleResponse } from '../../lib/types';
 import { useImageUpload } from '../../hooks/useImageUpload';
 
@@ -29,7 +29,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskM
   const { upload: uploadImg, uploading: imgUploading, error: imgError } = useImageUpload(projectId);
 
   useEffect(() => {
-    listRoles()
+    listProjectRoles(projectId)
       .then((data) => setRoles(data || []))
       .catch(() => {});
   }, []);
@@ -161,7 +161,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskM
           </h2>
           <button
             onClick={onClose}
-            className="text-[#555555] hover:text-[#888888] transition-colors"
+            className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
           >
             <X size={20} />
           </button>
@@ -179,7 +179,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskM
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Task title"
-              className="w-full bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-2 text-[#F0F0F0] text-sm font-['Inter'] placeholder-[#333333] focus:outline-none focus:border-[#00C896] transition-colors"
+              className="w-full bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-2 text-[#F0F0F0] text-sm font-['Inter'] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896] transition-colors"
             />
           </div>
 
@@ -193,7 +193,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskM
               onChange={(e) => setSummary(e.target.value)}
               placeholder="Brief description of what needs to be done"
               rows={2}
-              className="w-full bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-2 text-[#F0F0F0] text-sm font-['Inter'] placeholder-[#333333] resize-y focus:outline-none focus:border-[#00C896] transition-colors"
+              className="w-full bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-2 text-[#F0F0F0] text-sm font-['Inter'] placeholder-[var(--text-dim)] resize-y focus:outline-none focus:border-[#00C896] transition-colors"
             />
           </div>
 
@@ -211,7 +211,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskM
                   type="button"
                   onClick={() => descFileInputRef.current?.click()}
                   title="Attach image"
-                  className="text-[#555555] hover:text-[#888888] transition-colors"
+                  className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
                 >
                   <Paperclip size={14} />
                 </button>
@@ -233,7 +233,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskM
               onDrop={handleDescDrop}
               placeholder="Detailed description (optional)"
               rows={4}
-              className={`w-full bg-[#0D0D0D] border rounded-md px-3 py-2 text-[#F0F0F0] text-sm font-['Inter'] placeholder-[#333333] resize-y focus:outline-none transition-colors ${descDragOver ? 'border-[#00C896]' : 'border-[#1E1E1E] focus:border-[#00C896]'}`}
+              className={`w-full bg-[#0D0D0D] border rounded-md px-3 py-2 text-[#F0F0F0] text-sm font-['Inter'] placeholder-[var(--text-dim)] resize-y focus:outline-none transition-colors ${descDragOver ? 'border-[#00C896]' : 'border-[#1E1E1E] focus:border-[#00C896]'}`}
             />
             {imgError && (
               <p className="text-[#F06060] text-xs font-['Inter'] mt-1">{imgError}</p>
@@ -285,10 +285,10 @@ export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskM
               {tags.map((tag) => (
                 <span
                   key={tag}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#1E1E1E] text-[#888888] text-xs font-['JetBrains_Mono']"
+                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#1E1E1E] text-[var(--text-muted)] text-xs font-['JetBrains_Mono']"
                 >
                   {tag}
-                  <button onClick={() => removeTag(tag)} className="text-[#555555] hover:text-[#F06060]">
+                  <button onClick={() => removeTag(tag)} className="text-[var(--text-dim)] hover:text-[#F06060]">
                     <XCircle size={12} />
                   </button>
                 </span>
@@ -306,14 +306,14 @@ export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskM
                   }
                 }}
                 placeholder="Add tag..."
-                className="flex-1 bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-1.5 text-[#F0F0F0] text-xs font-['Inter'] placeholder-[#333333] focus:outline-none focus:border-[#00C896] transition-colors"
+                className="flex-1 bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-1.5 text-[#F0F0F0] text-xs font-['Inter'] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896] transition-colors"
               />
               <button
                 onClick={addTag}
                 disabled={!tagInput.trim()}
                 className="px-2 py-1.5 bg-[#1E1E1E] hover:bg-[#252525] disabled:opacity-30 rounded-md transition-colors"
               >
-                <Plus size={14} className="text-[#888888]" />
+                <Plus size={14} className="text-[var(--text-muted)]" />
               </button>
             </div>
           </div>
@@ -332,7 +332,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskM
                   <span className="text-[#AAAAAA] text-xs font-['JetBrains_Mono'] truncate flex-1">
                     {f}
                   </span>
-                  <button onClick={() => removeFile(f)} className="text-[#555555] hover:text-[#F06060]">
+                  <button onClick={() => removeFile(f)} className="text-[var(--text-dim)] hover:text-[#F06060]">
                     <XCircle size={12} />
                   </button>
                 </div>
@@ -350,14 +350,14 @@ export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskM
                   }
                 }}
                 placeholder="path/to/file.go"
-                className="flex-1 bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-1.5 text-[#F0F0F0] text-xs font-['JetBrains_Mono'] placeholder-[#333333] focus:outline-none focus:border-[#00C896] transition-colors"
+                className="flex-1 bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-1.5 text-[#F0F0F0] text-xs font-['JetBrains_Mono'] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896] transition-colors"
               />
               <button
                 onClick={addFile}
                 disabled={!fileInput.trim()}
                 className="px-2 py-1.5 bg-[#1E1E1E] hover:bg-[#252525] disabled:opacity-30 rounded-md transition-colors"
               >
-                <Plus size={14} className="text-[#888888]" />
+                <Plus size={14} className="text-[var(--text-muted)]" />
               </button>
             </div>
           </div>
@@ -369,7 +369,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskM
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#2A2A2A] flex-shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-['Inter'] text-[#888888] hover:text-[#E0E0E0] transition-colors rounded-md"
+            className="px-4 py-2 text-sm font-['Inter'] text-[var(--text-muted)] hover:text-[#E0E0E0] transition-colors rounded-md"
           >
             Cancel
           </button>

@@ -310,3 +310,40 @@ func TestApp_ListComments_TaskNotFound_ReturnsError(t *testing.T) {
 	assert.True(t, domain.IsDomainError(err))
 	assert.ErrorIs(t, err, domain.ErrTaskNotFound)
 }
+
+func TestApp_CountComments_Success(t *testing.T) {
+	ctx := context.Background()
+	a, _, _, _, _, mockComments, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	mockComments.CountFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (int, error) {
+		if pid == projectID && tid == taskID {
+			return 5, nil
+		}
+		return 0, errors.New("not found")
+	}
+
+	count, err := a.CountComments(ctx, projectID, taskID)
+
+	require.NoError(t, err)
+	assert.Equal(t, 5, count)
+}
+
+func TestApp_CountComments_Zero(t *testing.T) {
+	ctx := context.Background()
+	a, _, _, _, _, mockComments, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	mockComments.CountFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (int, error) {
+		return 0, nil
+	}
+
+	count, err := a.CountComments(ctx, projectID, taskID)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, count)
+}

@@ -36,9 +36,11 @@ func (r *TaskRepository) Create(ctx context.Context, projectID domain.ProjectID,
 				created_by_role, created_by_agent, assigned_role, is_blocked, blocked_reason,
 				blocked_at, blocked_by_agent, wont_do_requested, wont_do_reason, wont_do_requested_by,
 				wont_do_requested_at, completion_summary, completed_by_agent, completed_at,
-				files_modified, resolution, context_files, tags, estimated_effort, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, model, created_at, updated_at,
-				seen_at, started_at, duration_seconds, human_estimate_seconds
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				files_modified, resolution, context_files, tags, estimated_effort, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, model,
+				cold_start_input_tokens, cold_start_output_tokens, cold_start_cache_read_tokens, cold_start_cache_write_tokens,
+				created_at, updated_at,
+				seen_at, started_at, duration_seconds, human_estimate_seconds, session_id
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`
 
 		_, err := db.ExecContext(ctx, query,
@@ -74,12 +76,17 @@ func (r *TaskRepository) Create(ctx context.Context, projectID domain.ProjectID,
 			task.CacheReadTokens,
 			task.CacheWriteTokens,
 			task.Model,
+			task.ColdStartInputTokens,
+			task.ColdStartOutputTokens,
+			task.ColdStartCacheReadTokens,
+			task.ColdStartCacheWriteTokens,
 			task.CreatedAt,
 			task.UpdatedAt,
 			timeToNullTime(task.SeenAt),
 			timeToNullTime(task.StartedAt),
 			task.DurationSeconds,
 			task.HumanEstimateSeconds,
+			task.SessionID,
 		)
 
 		if err != nil {
@@ -103,8 +110,10 @@ func (r *TaskRepository) FindByID(ctx context.Context, projectID domain.ProjectI
 				created_by_role, created_by_agent, assigned_role, is_blocked, blocked_reason,
 				blocked_at, blocked_by_agent, wont_do_requested, wont_do_reason, wont_do_requested_by,
 				wont_do_requested_at, completion_summary, completed_by_agent, completed_at,
-				files_modified, resolution, context_files, tags, estimated_effort, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, model, created_at, updated_at,
-				seen_at, started_at, duration_seconds, human_estimate_seconds
+				files_modified, resolution, context_files, tags, estimated_effort, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, model,
+				cold_start_input_tokens, cold_start_output_tokens, cold_start_cache_read_tokens, cold_start_cache_write_tokens,
+				created_at, updated_at,
+				seen_at, started_at, duration_seconds, human_estimate_seconds, session_id
 			FROM tasks
 			WHERE id = ?
 		`
@@ -149,8 +158,10 @@ func (r *TaskRepository) List(ctx context.Context, projectID domain.ProjectID, f
 				tasks.created_by_role, tasks.created_by_agent, tasks.assigned_role, tasks.is_blocked, tasks.blocked_reason,
 				tasks.blocked_at, tasks.blocked_by_agent, tasks.wont_do_requested, tasks.wont_do_reason, tasks.wont_do_requested_by,
 				tasks.wont_do_requested_at, tasks.completion_summary, tasks.completed_by_agent, tasks.completed_at,
-				tasks.files_modified, tasks.resolution, tasks.context_files, tasks.tags, tasks.estimated_effort, tasks.input_tokens, tasks.output_tokens, tasks.cache_read_tokens, tasks.cache_write_tokens, tasks.model, tasks.created_at, tasks.updated_at,
-				tasks.seen_at, tasks.started_at, tasks.duration_seconds, tasks.human_estimate_seconds
+				tasks.files_modified, tasks.resolution, tasks.context_files, tasks.tags, tasks.estimated_effort, tasks.input_tokens, tasks.output_tokens, tasks.cache_read_tokens, tasks.cache_write_tokens, tasks.model,
+				tasks.cold_start_input_tokens, tasks.cold_start_output_tokens, tasks.cold_start_cache_read_tokens, tasks.cold_start_cache_write_tokens,
+				tasks.created_at, tasks.updated_at,
+				tasks.seen_at, tasks.started_at, tasks.duration_seconds, tasks.human_estimate_seconds, tasks.session_id
 			FROM tasks` + ftsJoin + `
 			WHERE 1=1
 		`
@@ -266,6 +277,7 @@ func (r *TaskRepository) Update(ctx context.Context, projectID domain.ProjectID,
 				wont_do_requested_at = ?, completion_summary = ?, completed_by_agent = ?, completed_at = ?,
 				files_modified = ?, resolution = ?, context_files = ?, tags = ?, estimated_effort = ?,
 				input_tokens = ?, output_tokens = ?, cache_read_tokens = ?, cache_write_tokens = ?, model = ?,
+				cold_start_input_tokens = ?, cold_start_output_tokens = ?, cold_start_cache_read_tokens = ?, cold_start_cache_write_tokens = ?,
 				started_at = ?, duration_seconds = ?, human_estimate_seconds = ?,
 				updated_at = ?
 			WHERE id = ?
@@ -301,6 +313,10 @@ func (r *TaskRepository) Update(ctx context.Context, projectID domain.ProjectID,
 			task.CacheReadTokens,
 			task.CacheWriteTokens,
 			task.Model,
+			task.ColdStartInputTokens,
+			task.ColdStartOutputTokens,
+			task.ColdStartCacheReadTokens,
+			task.ColdStartCacheWriteTokens,
 			timeToNullTime(task.StartedAt),
 			task.DurationSeconds,
 			task.HumanEstimateSeconds,
@@ -389,23 +405,32 @@ func (r *TaskRepository) GetNextTask(ctx context.Context, projectID domain.Proje
 	var task *domain.Task
 
 	err := r.withProjectDB(ctx, projectID, func(db *sql.DB) error {
+		roleFilter := ""
+		var args []any
+		if role != "" {
+			roleFilter = "AND (assigned_role = '' OR assigned_role = ?)"
+			args = append(args, role)
+		}
+
 		query := `
 			SELECT id, column_id, title, summary, description, priority, priority_score, position,
 				created_by_role, created_by_agent, assigned_role, is_blocked, blocked_reason,
 				blocked_at, blocked_by_agent, wont_do_requested, wont_do_reason, wont_do_requested_by,
 				wont_do_requested_at, completion_summary, completed_by_agent, completed_at,
-				files_modified, resolution, context_files, tags, estimated_effort, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, model, created_at, updated_at,
-				seen_at, started_at, duration_seconds, human_estimate_seconds
+				files_modified, resolution, context_files, tags, estimated_effort, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, model,
+				cold_start_input_tokens, cold_start_output_tokens, cold_start_cache_read_tokens, cold_start_cache_write_tokens,
+				created_at, updated_at,
+				seen_at, started_at, duration_seconds, human_estimate_seconds, session_id
 			FROM tasks
 			WHERE column_id = 'col_todo'
-				AND (assigned_role = '' OR assigned_role = ?)
+				` + roleFilter + `
 				AND is_blocked = 0
 				AND wont_do_requested = 0
 			ORDER BY priority_score DESC, position ASC, created_at ASC
 			LIMIT 1
 		`
 
-		t, err := r.scanTask(db.QueryRowContext(ctx, query, role))
+		t, err := r.scanTask(db.QueryRowContext(ctx, query, args...))
 		if err != nil {
 			if isNotFound(err) {
 				return errors.Join(domain.ErrNoTasksAvailable, err)
@@ -422,6 +447,67 @@ func (r *TaskRepository) GetNextTask(ctx context.Context, projectID domain.Proje
 	}
 
 	return task, nil
+}
+
+// GetNextTasks retrieves up to count highest-priority tasks for a role that are not blocked or won't-do-requested.
+func (r *TaskRepository) GetNextTasks(ctx context.Context, projectID domain.ProjectID, role string, count int) ([]domain.Task, error) {
+	if count <= 0 {
+		count = 1
+	}
+
+	var results []domain.Task
+
+	err := r.withProjectDB(ctx, projectID, func(db *sql.DB) error {
+		roleFilter := ""
+		var args []any
+		if role != "" {
+			roleFilter = "AND (assigned_role = '' OR assigned_role = ?)"
+			args = append(args, role)
+		}
+		args = append(args, count)
+
+		query := `
+			SELECT id, column_id, title, summary, description, priority, priority_score, position,
+				created_by_role, created_by_agent, assigned_role, is_blocked, blocked_reason,
+				blocked_at, blocked_by_agent, wont_do_requested, wont_do_reason, wont_do_requested_by,
+				wont_do_requested_at, completion_summary, completed_by_agent, completed_at,
+				files_modified, resolution, context_files, tags, estimated_effort, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, model,
+				cold_start_input_tokens, cold_start_output_tokens, cold_start_cache_read_tokens, cold_start_cache_write_tokens,
+				created_at, updated_at,
+				seen_at, started_at, duration_seconds, human_estimate_seconds, session_id
+			FROM tasks
+			WHERE column_id = 'col_todo'
+				` + roleFilter + `
+				AND is_blocked = 0
+				AND wont_do_requested = 0
+				AND NOT EXISTS (
+					SELECT 1 FROM task_dependencies td
+					JOIN tasks dep ON dep.id = td.depends_on_task_id
+					WHERE td.task_id = tasks.id
+						AND dep.column_id != 'col_done'
+				)
+			ORDER BY priority_score DESC, position ASC, created_at ASC
+			LIMIT ?
+		`
+
+		rows, err := db.QueryContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			t, err := r.scanTask(rows)
+			if err != nil {
+				return err
+			}
+			results = append(results, *t)
+		}
+
+		return rows.Err()
+	})
+
+	return results, err
 }
 
 // HasUnresolvedDependencies checks if a task has any unresolved dependencies.
@@ -462,8 +548,10 @@ func (r *TaskRepository) GetDependentsNotDone(ctx context.Context, projectID dom
 				t.created_by_role, t.created_by_agent, t.assigned_role, t.is_blocked, t.blocked_reason,
 				t.blocked_at, t.blocked_by_agent, t.wont_do_requested, t.wont_do_reason, t.wont_do_requested_by,
 				t.wont_do_requested_at, t.completion_summary, t.completed_by_agent, t.completed_at,
-				t.files_modified, t.resolution, t.context_files, t.tags, t.estimated_effort, t.input_tokens, t.output_tokens, t.cache_read_tokens, t.cache_write_tokens, t.model, t.created_at, t.updated_at,
-				t.seen_at, t.started_at, t.duration_seconds, t.human_estimate_seconds
+				t.files_modified, t.resolution, t.context_files, t.tags, t.estimated_effort, t.input_tokens, t.output_tokens, t.cache_read_tokens, t.cache_write_tokens, t.model,
+				t.cold_start_input_tokens, t.cold_start_output_tokens, t.cold_start_cache_read_tokens, t.cold_start_cache_write_tokens,
+				t.created_at, t.updated_at,
+				t.seen_at, t.started_at, t.duration_seconds, t.human_estimate_seconds, t.session_id
 			FROM task_dependencies td
 			JOIN tasks t ON td.task_id = t.id
 			WHERE td.depends_on_task_id = ?
@@ -597,12 +685,17 @@ func (r *TaskRepository) scanTask(scanner interface {
 		&task.CacheReadTokens,
 		&task.CacheWriteTokens,
 		&task.Model,
+		&task.ColdStartInputTokens,
+		&task.ColdStartOutputTokens,
+		&task.ColdStartCacheReadTokens,
+		&task.ColdStartCacheWriteTokens,
 		&createdAt,
 		&updatedAt,
 		&seenAt,
 		&startedAt,
 		&task.DurationSeconds,
 		&task.HumanEstimateSeconds,
+		&task.SessionID,
 	)
 
 	if err != nil {
@@ -786,6 +879,70 @@ func timeToNullTime(t *time.Time) sql.NullTime {
 		return sql.NullTime{Valid: false}
 	}
 	return sql.NullTime{Time: *t, Valid: true}
+}
+
+// UpdateSessionID sets the session_id field for a task.
+func (r *TaskRepository) UpdateSessionID(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error {
+	return r.withProjectDB(ctx, projectID, func(db *sql.DB) error {
+		result, err := db.ExecContext(ctx,
+			`UPDATE tasks SET session_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+			sessionID, string(taskID),
+		)
+		if err != nil {
+			return err
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			return domain.ErrTaskNotFound
+		}
+		return nil
+	})
+}
+
+// GetColdStartStats returns aggregated cold-start token statistics grouped by assigned role.
+func (r *TaskRepository) GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error) {
+	var stats []domain.RoleColdStartStat
+	err := r.withProjectDB(ctx, projectID, func(db *sql.DB) error {
+		rows, err := db.QueryContext(ctx, `
+			SELECT
+				assigned_role,
+				COUNT(*)                        AS count,
+				MIN(cold_start_input_tokens)    AS min_input_tokens,
+				MAX(cold_start_input_tokens)    AS max_input_tokens,
+				AVG(cold_start_input_tokens)    AS avg_input_tokens,
+				MIN(cold_start_output_tokens)   AS min_output_tokens,
+				MAX(cold_start_output_tokens)   AS max_output_tokens,
+				AVG(cold_start_output_tokens)   AS avg_output_tokens,
+				MIN(cold_start_cache_read_tokens)  AS min_cache_read_tokens,
+				MAX(cold_start_cache_read_tokens)  AS max_cache_read_tokens,
+				AVG(cold_start_cache_read_tokens)  AS avg_cache_read_tokens
+			FROM tasks
+			WHERE cold_start_input_tokens > 0
+			GROUP BY assigned_role
+			ORDER BY assigned_role`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var s domain.RoleColdStartStat
+			if err := rows.Scan(
+				&s.AssignedRole,
+				&s.Count,
+				&s.MinInputTokens, &s.MaxInputTokens, &s.AvgInputTokens,
+				&s.MinOutputTokens, &s.MaxOutputTokens, &s.AvgOutputTokens,
+				&s.MinCacheReadTokens, &s.MaxCacheReadTokens, &s.AvgCacheReadTokens,
+			); err != nil {
+				return err
+			}
+			stats = append(stats, s)
+		}
+		return rows.Err()
+	})
+	return stats, err
 }
 
 // escapeLike escapes SQLite LIKE special characters ('%', '_', '\') in a user-supplied

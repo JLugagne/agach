@@ -126,6 +126,10 @@ func (a *App) GetComment(ctx context.Context, projectID domain.ProjectID, commen
 	return comment, nil
 }
 
+func (a *App) CountComments(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (int, error) {
+	return a.comments.Count(ctx, projectID, taskID)
+}
+
 func (a *App) ListComments(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, limit, offset int) ([]domain.Comment, error) {
 	logger := a.logger.WithContext(ctx).WithFields(map[string]interface{}{
 		"projectID": projectID,

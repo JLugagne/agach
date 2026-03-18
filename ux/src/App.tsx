@@ -9,6 +9,7 @@ import SubProjectsPage from './pages/SubProjectsPage';
 import ExportGeminiPage from './pages/ExportGeminiPage';
 import ExportClaudePage from './pages/ExportClaudePage';
 import StatisticsPage from './pages/StatisticsPage';
+import BacklogPage from './pages/BacklogPage';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
           <Route path="/" element={<Layout><HomePage /></Layout>} />
           <Route path="/projects/:projectId" element={<Layout><KanbanPage /></Layout>} />
           <Route path="/projects/:projectId/board" element={<Layout><KanbanPage /></Layout>} />
+          <Route path="/projects/:projectId/backlog" element={<Layout><BacklogPage /></Layout>} />
           <Route path="/projects/:projectId/settings" element={<Layout><ProjectSettingsPage /></Layout>} />
           <Route path="/projects/:projectId/settings/sub-projects" element={<Layout><SubProjectsPage /></Layout>} />
           <Route path="/projects/:projectId/export/gemini" element={<Layout><ExportGeminiPage /></Layout>} />

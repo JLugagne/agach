@@ -14,10 +14,10 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY internal/ internal/
 COPY pkg/ pkg/
+COPY cmd/ cmd/
 COPY ux/embed.go ux/embed.go
 COPY --from=frontend /app/ux/dist ux/dist/
-COPY main.go ./
-RUN CGO_ENABLED=1 go build -tags sqlite_fts5 -ldflags="-extldflags '-static'" -o /agach-server .
+RUN CGO_ENABLED=1 go build -tags sqlite_fts5 -ldflags="-extldflags '-static'" -o /agach-server ./cmd/agach-server
 
 # Stage 3: Final image
 FROM alpine:3.21

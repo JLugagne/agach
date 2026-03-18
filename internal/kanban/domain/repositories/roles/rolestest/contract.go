@@ -25,13 +25,20 @@ import (
 //		},
 //	}
 type MockRoleRepository struct {
-	CreateFunc     func(ctx context.Context, role domain.Role) error
-	FindByIDFunc   func(ctx context.Context, id domain.RoleID) (*domain.Role, error)
-	FindBySlugFunc func(ctx context.Context, slug string) (*domain.Role, error)
-	ListFunc       func(ctx context.Context) ([]domain.Role, error)
-	UpdateFunc     func(ctx context.Context, role domain.Role) error
-	DeleteFunc     func(ctx context.Context, id domain.RoleID) error
-	IsInUseFunc    func(ctx context.Context, slug string) (bool, error)
+	CreateFunc                   func(ctx context.Context, role domain.Role) error
+	FindByIDFunc                 func(ctx context.Context, id domain.RoleID) (*domain.Role, error)
+	FindBySlugFunc               func(ctx context.Context, slug string) (*domain.Role, error)
+	ListFunc                     func(ctx context.Context) ([]domain.Role, error)
+	UpdateFunc                   func(ctx context.Context, role domain.Role) error
+	DeleteFunc                   func(ctx context.Context, id domain.RoleID) error
+	IsInUseFunc                  func(ctx context.Context, slug string) (bool, error)
+	CopyGlobalRolesToProjectFunc func(ctx context.Context, projectID domain.ProjectID) error
+	CreateInProjectFunc          func(ctx context.Context, projectID domain.ProjectID, role domain.Role) error
+	FindBySlugInProjectFunc      func(ctx context.Context, projectID domain.ProjectID, slug string) (*domain.Role, error)
+	FindByIDInProjectFunc        func(ctx context.Context, projectID domain.ProjectID, id domain.RoleID) (*domain.Role, error)
+	ListInProjectFunc            func(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error)
+	UpdateInProjectFunc          func(ctx context.Context, projectID domain.ProjectID, role domain.Role) error
+	DeleteInProjectFunc          func(ctx context.Context, projectID domain.ProjectID, id domain.RoleID) error
 }
 
 func (m *MockRoleRepository) Create(ctx context.Context, role domain.Role) error {
@@ -81,6 +88,55 @@ func (m *MockRoleRepository) IsInUse(ctx context.Context, slug string) (bool, er
 		panic("called not defined IsInUseFunc")
 	}
 	return m.IsInUseFunc(ctx, slug)
+}
+
+func (m *MockRoleRepository) CopyGlobalRolesToProject(ctx context.Context, projectID domain.ProjectID) error {
+	if m.CopyGlobalRolesToProjectFunc == nil {
+		return nil
+	}
+	return m.CopyGlobalRolesToProjectFunc(ctx, projectID)
+}
+
+func (m *MockRoleRepository) CreateInProject(ctx context.Context, projectID domain.ProjectID, role domain.Role) error {
+	if m.CreateInProjectFunc == nil {
+		return nil
+	}
+	return m.CreateInProjectFunc(ctx, projectID, role)
+}
+
+func (m *MockRoleRepository) FindBySlugInProject(ctx context.Context, projectID domain.ProjectID, slug string) (*domain.Role, error) {
+	if m.FindBySlugInProjectFunc == nil {
+		panic("called not defined FindBySlugInProjectFunc")
+	}
+	return m.FindBySlugInProjectFunc(ctx, projectID, slug)
+}
+
+func (m *MockRoleRepository) FindByIDInProject(ctx context.Context, projectID domain.ProjectID, id domain.RoleID) (*domain.Role, error) {
+	if m.FindByIDInProjectFunc == nil {
+		panic("called not defined FindByIDInProjectFunc")
+	}
+	return m.FindByIDInProjectFunc(ctx, projectID, id)
+}
+
+func (m *MockRoleRepository) ListInProject(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error) {
+	if m.ListInProjectFunc == nil {
+		panic("called not defined ListInProjectFunc")
+	}
+	return m.ListInProjectFunc(ctx, projectID)
+}
+
+func (m *MockRoleRepository) UpdateInProject(ctx context.Context, projectID domain.ProjectID, role domain.Role) error {
+	if m.UpdateInProjectFunc == nil {
+		panic("called not defined UpdateInProjectFunc")
+	}
+	return m.UpdateInProjectFunc(ctx, projectID, role)
+}
+
+func (m *MockRoleRepository) DeleteInProject(ctx context.Context, projectID domain.ProjectID, id domain.RoleID) error {
+	if m.DeleteInProjectFunc == nil {
+		panic("called not defined DeleteInProjectFunc")
+	}
+	return m.DeleteInProjectFunc(ctx, projectID, id)
 }
 
 // RolesContractTesting runs all contract tests for a RoleRepository implementation.

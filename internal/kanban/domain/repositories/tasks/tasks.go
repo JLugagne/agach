@@ -35,6 +35,9 @@ type TaskRepository interface {
 	// Sorts by priority_score DESC, created_at ASC
 	GetNextTask(ctx context.Context, projectID domain.ProjectID, role string) (*domain.Task, error)
 
+	// GetNextTasks returns up to count tasks for a given role with the same filters as GetNextTask
+	GetNextTasks(ctx context.Context, projectID domain.ProjectID, role string, count int) ([]domain.Task, error)
+
 	// HasUnresolvedDependencies checks if a task has dependencies not in "done" or "wont_do"
 	HasUnresolvedDependencies(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (bool, error)
 
@@ -50,6 +53,12 @@ type TaskRepository interface {
 
 	// GetTimeline returns daily task creation and completion counts for the last N days.
 	GetTimeline(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error)
+
+	// UpdateSessionID sets the session_id field for a task (for Claude Code session resumption).
+	UpdateSessionID(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
+
+	// GetColdStartStats returns aggregated cold-start token statistics grouped by assigned role.
+	GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error)
 }
 
 // TaskFilters defines optional filters for listing tasks

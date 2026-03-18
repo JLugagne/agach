@@ -24,7 +24,7 @@ export default function SettingsLayout({ projectName, children, rightDrawer }: S
         <div className="p-4 border-b border-[#1E1E1E]">
           <Link
             to={`/`}
-            className="flex items-center gap-2 text-[#888888] hover:text-[#E0E0E0] text-sm transition-colors"
+            className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[#E0E0E0] text-sm transition-colors"
           >
             <ChevronLeft size={14} />
             <span>Back to Projects</span>
@@ -33,7 +33,7 @@ export default function SettingsLayout({ projectName, children, rightDrawer }: S
 
         <div className="p-4">
           <p className="font-heading text-sm text-[#F0F0F0] truncate mb-1">{projectName}</p>
-          <p className="text-xs text-[#555555]">Settings</p>
+          <p className="text-xs text-[var(--text-dim)]">Settings</p>
         </div>
 
         <nav className="flex-1 px-2">
@@ -48,7 +48,7 @@ export default function SettingsLayout({ projectName, children, rightDrawer }: S
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm mb-0.5 transition-colors ${
                   isActive
                     ? 'bg-[#1A1A1A] text-[#F0F0F0]'
-                    : 'text-[#888888] hover:text-[#E0E0E0] hover:bg-[#1A1A1A]/50'
+                    : 'text-[var(--text-muted)] hover:text-[#E0E0E0] hover:bg-[#1A1A1A]/50'
                 }`}
               >
                 <Icon size={15} />

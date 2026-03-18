@@ -10,6 +10,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/inbound/queries"
 	"github.com/JLugagne/agach-mcp/internal/kanban/outbound/sqlite"
 	"github.com/JLugagne/agach-mcp/pkg/controller"
+	"github.com/JLugagne/agach-mcp/pkg/sse"
 	"github.com/JLugagne/agach-mcp/pkg/websocket"
 	"github.com/gorilla/mux"
 	gorillaws "github.com/gorilla/websocket"
@@ -102,17 +103,21 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 
 	logger.Info("WebSocket hub initialized")
 
+	// Initialize SSE hub
+	sseHub := sse.NewHub()
+
 	// Initialize controller
 	ctrl := controller.NewController(logger)
 
 	// Initialize command handlers
 	projectCommands := commands.NewProjectCommandsHandler(appInstance, ctrl, hub)
 	roleCommands := commands.NewRoleCommandsHandler(appInstance, ctrl, hub)
-	taskCommands := commands.NewTaskCommandsHandler(appInstance, ctrl, hub)
+	taskCommands := commands.NewTaskCommandsHandler(appInstance, ctrl, hub, sseHub)
 	commentCommands := commands.NewCommentCommandsHandler(appInstance, ctrl, hub)
 	imageCommands := commands.NewImageCommandsHandler(appInstance, ctrl)
 	seenCommands := commands.NewSeenCommandsHandler(appInstance, ctrl, hub)
 	columnCommands := commands.NewColumnCommandsHandler(appInstance, ctrl)
+	projectRoleCommands := commands.NewProjectRoleCommandsHandler(appInstance, appInstance, ctrl)
 
 	// Initialize query handlers
 	projectQueries := queries.NewProjectQueriesHandler(appInstance, ctrl)
@@ -122,6 +127,9 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	dependencyQueries := queries.NewDependencyQueriesHandler(appInstance, ctrl)
 	toolUsageQueries := queries.NewToolUsageQueriesHandler(appInstance, ctrl)
 	timelineQueries := queries.NewTimelineQueriesHandler(appInstance, ctrl)
+	projectRoleQueries := queries.NewProjectRoleQueriesHandler(appInstance, ctrl)
+	coldStartStatsQueries := queries.NewColdStartStatsQueriesHandler(appInstance, ctrl)
+	sseHandler := queries.NewSSEHandler(sseHub)
 
 	// Register routes
 	projectCommands.RegisterRoutes(router)
@@ -131,6 +139,7 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	imageCommands.RegisterRoutes(router)
 	seenCommands.RegisterRoutes(router)
 	columnCommands.RegisterRoutes(router)
+	projectRoleCommands.RegisterRoutes(router)
 	projectQueries.RegisterRoutes(router)
 	roleQueries.RegisterRoutes(router)
 	taskQueries.RegisterRoutes(router)
@@ -138,6 +147,9 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	dependencyQueries.RegisterRoutes(router)
 	toolUsageQueries.RegisterRoutes(router)
 	timelineQueries.RegisterRoutes(router)
+	projectRoleQueries.RegisterRoutes(router)
+	coldStartStatsQueries.RegisterRoutes(router)
+	sseHandler.RegisterRoutes(router)
 
 	// WebSocket endpoint
 	upgrader := gorillaws.Upgrader{

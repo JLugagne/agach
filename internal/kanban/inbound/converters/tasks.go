@@ -57,6 +57,7 @@ func ToPublicTask(task domain.Task) pkgkanban.TaskResponse {
 		CacheReadTokens:   task.CacheReadTokens,
 		CacheWriteTokens:  task.CacheWriteTokens,
 		Model:                task.Model,
+		SessionID:            task.SessionID,
 		SeenAt:               task.SeenAt,
 		StartedAt:            task.StartedAt,
 		DurationSeconds:      task.DurationSeconds,

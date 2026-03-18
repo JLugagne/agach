@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS columns (
     position INTEGER NOT NULL,
     wip_limit INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    CHECK(slug IN ('todo', 'in_progress', 'done', 'blocked'))
+    CHECK(slug IN ('backlog', 'todo', 'in_progress', 'done', 'blocked'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_columns_slug ON columns(slug);

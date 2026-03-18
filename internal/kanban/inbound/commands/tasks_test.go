@@ -28,7 +28,7 @@ func newTestTaskHandler(t *testing.T, mock *servicetest.MockCommands) *commands.
 	ctrl := controller.NewController(logger)
 	hub := websocket.NewHub(logger)
 	go hub.Run()
-	return commands.NewTaskCommandsHandler(mock, ctrl, hub)
+	return commands.NewTaskCommandsHandler(mock, ctrl, hub, nil)
 }
 
 func TestCreateTask_Success(t *testing.T) {
@@ -38,7 +38,7 @@ func TestCreateTask_Success(t *testing.T) {
 	now := time.Now()
 
 	mock := &servicetest.MockCommands{
-		CreateTaskFunc: func(ctx context.Context, pid domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error) {
+		CreateTaskFunc: func(ctx context.Context, pid domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error) {
 			assert.Equal(t, projectID, pid)
 			assert.Equal(t, "Fix the bug", title)
 			assert.Equal(t, "A brief summary", summary)
@@ -116,7 +116,7 @@ func TestCreateTask_DomainError(t *testing.T) {
 	projectID := domain.NewProjectID()
 
 	mock := &servicetest.MockCommands{
-		CreateTaskFunc: func(ctx context.Context, pid domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error) {
+		CreateTaskFunc: func(ctx context.Context, pid domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error) {
 			return domain.Task{}, domain.ErrSummaryRequired
 		},
 	}
@@ -469,4 +469,204 @@ func TestRejectWontDo_Success(t *testing.T) {
 	data, ok := resp["data"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "won't do rejected", data["message"])
+}
+
+func TestUpdateTask_Success(t *testing.T) {
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	mock := &servicetest.MockCommands{
+		UpdateTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error {
+			assert.Equal(t, projectID, pid)
+			assert.Equal(t, taskID, tid)
+			require.NotNil(t, title)
+			assert.Equal(t, "Updated title", *title)
+			return nil
+		},
+	}
+
+	handler := newTestTaskHandler(t, mock)
+	router := mux.NewRouter()
+	handler.RegisterRoutes(router)
+
+	body := `{"title": "Updated title"}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/projects/"+string(projectID)+"/tasks/"+string(taskID), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, "success", resp["status"])
+}
+
+func TestUpdateTask_DomainError(t *testing.T) {
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	mock := &servicetest.MockCommands{
+		UpdateTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error {
+			return domain.ErrTaskNotFound
+		},
+	}
+
+	handler := newTestTaskHandler(t, mock)
+	router := mux.NewRouter()
+	handler.RegisterRoutes(router)
+
+	body := `{"title": "Updated title"}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/projects/"+string(projectID)+"/tasks/"+string(taskID), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, "fail", resp["status"])
+}
+
+func TestWontDo_Success(t *testing.T) {
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	mock := &servicetest.MockCommands{
+		RequestWontDoFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, reason, requestedBy string) error {
+			assert.Equal(t, projectID, pid)
+			assert.Equal(t, taskID, tid)
+			return nil
+		},
+		ApproveWontDoFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) error {
+			return nil
+		},
+	}
+
+	handler := newTestTaskHandler(t, mock)
+	router := mux.NewRouter()
+	handler.RegisterRoutes(router)
+
+	reason := strings.Repeat("x", 50)
+	body := `{"wont_do_reason": "` + reason + `", "wont_do_requested_by": "human"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/"+string(projectID)+"/tasks/"+string(taskID)+"/wont-do", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, "success", resp["status"])
+
+	data, ok := resp["data"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "task marked as won't do", data["message"])
+}
+
+func TestMoveTaskToProject_Success(t *testing.T) {
+	sourceProjectID := domain.NewProjectID()
+	targetProjectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	mock := &servicetest.MockCommands{
+		MoveTaskToProjectFunc: func(ctx context.Context, srcPID domain.ProjectID, tid domain.TaskID, dstPID domain.ProjectID) error {
+			assert.Equal(t, sourceProjectID, srcPID)
+			assert.Equal(t, taskID, tid)
+			assert.Equal(t, targetProjectID, dstPID)
+			return nil
+		},
+	}
+
+	handler := newTestTaskHandler(t, mock)
+	router := mux.NewRouter()
+	handler.RegisterRoutes(router)
+
+	body := `{"target_project_id": "` + string(targetProjectID) + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/"+string(sourceProjectID)+"/tasks/"+string(taskID)+"/move-to-project", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, "success", resp["status"])
+
+	data, ok := resp["data"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "task moved to project", data["message"])
+}
+
+func TestReorderTask_Success(t *testing.T) {
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	mock := &servicetest.MockCommands{
+		ReorderTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, newPosition int) error {
+			assert.Equal(t, projectID, pid)
+			assert.Equal(t, taskID, tid)
+			assert.Equal(t, 2, newPosition)
+			return nil
+		},
+	}
+
+	handler := newTestTaskHandler(t, mock)
+	router := mux.NewRouter()
+	handler.RegisterRoutes(router)
+
+	body := `{"position": 2}`
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/"+string(projectID)+"/tasks/"+string(taskID)+"/reorder", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, "success", resp["status"])
+
+	data, ok := resp["data"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "task reordered", data["message"])
+}
+
+func TestUpdateTaskSession_Success(t *testing.T) {
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	mock := &servicetest.MockCommands{
+		UpdateTaskSessionIDFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, sessionID string) error {
+			assert.Equal(t, projectID, pid)
+			assert.Equal(t, taskID, tid)
+			assert.Equal(t, "sess-abc123", sessionID)
+			return nil
+		},
+	}
+
+	handler := newTestTaskHandler(t, mock)
+	router := mux.NewRouter()
+	handler.RegisterRoutes(router)
+
+	body := `{"session_id": "sess-abc123"}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/projects/"+string(projectID)+"/tasks/"+string(taskID)+"/session", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, "success", resp["status"])
 }

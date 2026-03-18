@@ -221,9 +221,11 @@ func (s *Server) registerAllTools() {
 
 	// Role management
 	s.addTool("list_roles",
-		"Lists all configured roles in the system",
-		map[string]any{},
-		nil,
+		"Lists all configured roles for a project",
+		map[string]any{
+			"project_id": map[string]any{"type": "string", "description": "The project ID"},
+		},
+		[]string{"project_id"},
 		s.toolHandler.listRoles,
 	)
 
@@ -253,7 +255,7 @@ func (s *Server) registerAllTools() {
 
 	// Task management
 	s.addTool("create_task",
-		"Creates a new task in the 'todo' column",
+		"Creates a new task. Tasks start in 'backlog' by default. Use start_in='todo' only when the task has no dependencies and is immediately ready to be picked up. The typical workflow is: create tasks in backlog, add dependencies, then move to todo when ready.",
 		map[string]any{
 			"project_id":       map[string]any{"type": "string", "description": "The project ID"},
 			"title":            map[string]any{"type": "string", "description": "Task title"},
@@ -267,30 +269,55 @@ func (s *Server) registerAllTools() {
 			"tags":             map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 			"estimated_effort": map[string]any{"type": "string", "enum": []string{"XS", "S", "M", "L", "XL"}},
 			"depends_on":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"start_in":         map[string]any{"type": "string", "enum": []string{"backlog", "todo"}, "description": "Which column the task starts in. Default 'backlog'. Use 'todo' only for tasks with no dependencies that are immediately ready."},
 		},
 		[]string{"project_id", "title", "summary", "created_by_role"},
 		s.toolHandler.createTask,
 	)
 
+	s.addTool("bulk_create_tasks",
+		"Creates multiple tasks at once. Tasks start in 'backlog' by default. Use start_in='todo' per task only for tasks with no dependencies that are immediately ready. Returns the id and title of each created task.",
+		map[string]any{
+			"project_id": map[string]any{"type": "string", "description": "The project ID"},
+			"tasks": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"title":            map[string]any{"type": "string"},
+						"summary":          map[string]any{"type": "string"},
+						"description":      map[string]any{"type": "string"},
+						"priority":         map[string]any{"type": "string", "enum": []string{"critical", "high", "medium", "low"}},
+						"created_by_role":  map[string]any{"type": "string"},
+						"created_by_agent": map[string]any{"type": "string"},
+						"assigned_role":    map[string]any{"type": "string"},
+						"context_files":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"tags":             map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"estimated_effort": map[string]any{"type": "string", "enum": []string{"XS", "S", "M", "L", "XL"}},
+						"depends_on":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Task IDs this task depends on (can reference IDs from earlier tasks in this batch)"},
+						"start_in":         map[string]any{"type": "string", "enum": []string{"backlog", "todo"}, "description": "Which column the task starts in. Default 'backlog'."},
+					},
+					"required": []string{"title", "summary", "created_by_role"},
+				},
+			},
+		},
+		[]string{"project_id", "tasks"},
+		s.toolHandler.bulkCreateTasks,
+	)
+
 	s.addTool("update_task",
 		"Updates task fields",
 		map[string]any{
-			"project_id":         map[string]any{"type": "string"},
-			"task_id":            map[string]any{"type": "string"},
-			"title":              map[string]any{"type": "string"},
-			"description":        map[string]any{"type": "string"},
-			"resolution":         map[string]any{"type": "string"},
-			"assigned_role":      map[string]any{"type": "string"},
-			"priority":           map[string]any{"type": "string", "enum": []string{"critical", "high", "medium", "low"}},
-			"context_files":      map[string]any{"type": "array"},
-			"tags":               map[string]any{"type": "array"},
-			"estimated_effort":   map[string]any{"type": "string"},
-			"input_tokens":            map[string]any{"type": "integer", "description": "Number of input tokens consumed"},
-			"output_tokens":           map[string]any{"type": "integer", "description": "Number of output tokens produced"},
-			"cache_read_tokens":       map[string]any{"type": "integer", "description": "Number of cache read tokens"},
-			"cache_write_tokens":      map[string]any{"type": "integer", "description": "Number of cache write tokens"},
-			"model":                   map[string]any{"type": "string", "description": "Model name used"},
-			"human_estimate_seconds":  map[string]any{"type": "integer", "description": "Agent-provided estimate of how long the task should take, in seconds"},
+			"project_id":       map[string]any{"type": "string"},
+			"task_id":          map[string]any{"type": "string"},
+			"title":            map[string]any{"type": "string"},
+			"description":      map[string]any{"type": "string"},
+			"resolution":       map[string]any{"type": "string"},
+			"assigned_role":    map[string]any{"type": "string"},
+			"priority":         map[string]any{"type": "string", "enum": []string{"critical", "high", "medium", "low"}},
+			"context_files":    map[string]any{"type": "array"},
+			"tags":             map[string]any{"type": "array"},
+			"estimated_effort": map[string]any{"type": "string"},
 		},
 		[]string{"project_id", "task_id"},
 		s.toolHandler.updateTask,
@@ -309,11 +336,11 @@ func (s *Server) registerAllTools() {
 	)
 
 	s.addTool("move_task",
-		"Moves a task to 'todo' or 'in_progress'",
+		"Moves a task to 'todo', 'in_progress', or back to 'backlog'",
 		map[string]any{
 			"project_id":    map[string]any{"type": "string"},
 			"task_id":       map[string]any{"type": "string"},
-			"target_column": map[string]any{"type": "string", "enum": []string{"todo", "in_progress"}},
+			"target_column": map[string]any{"type": "string", "enum": []string{"backlog", "todo", "in_progress"}},
 		},
 		[]string{"project_id", "task_id", "target_column"},
 		s.toolHandler.moveTask,
@@ -327,22 +354,17 @@ func (s *Server) registerAllTools() {
 			"completion_summary": map[string]any{"type": "string"},
 			"files_modified":     map[string]any{"type": "array"},
 			"completed_by_agent": map[string]any{"type": "string"},
-			"input_tokens":           map[string]any{"type": "integer", "description": "Number of input tokens consumed"},
-			"output_tokens":          map[string]any{"type": "integer", "description": "Number of output tokens produced"},
-			"cache_read_tokens":      map[string]any{"type": "integer", "description": "Number of cache read tokens"},
-			"cache_write_tokens":     map[string]any{"type": "integer", "description": "Number of cache write tokens"},
-			"model":                  map[string]any{"type": "string", "description": "Model name used"},
-			"human_estimate_seconds": map[string]any{"type": "integer", "description": "Agent-provided estimate of how long the task should take, in seconds"},
 		},
 		[]string{"project_id", "task_id", "completion_summary", "completed_by_agent"},
 		s.toolHandler.completeTask,
 	)
 
 	s.addTool("get_task",
-		"Returns task details",
+		"Returns the task description and whether it has comments. Use list_comments to fetch the actual comments. Set include_resolution to also get resolution and completion_summary (useful for reviewing parent/dependency tasks).",
 		map[string]any{
-			"project_id": map[string]any{"type": "string"},
-			"task_id":    map[string]any{"type": "string"},
+			"project_id":         map[string]any{"type": "string"},
+			"task_id":            map[string]any{"type": "string"},
+			"include_resolution": map[string]any{"type": "boolean", "description": "If true, also returns resolution and completion_summary fields"},
 		},
 		[]string{"project_id", "task_id"},
 		s.toolHandler.getTask,
@@ -368,10 +390,10 @@ func (s *Server) registerAllTools() {
 	)
 
 	s.addTool("get_next_task",
-		"Returns the highest-priority task ready to be processed (in todo, all dependencies done). Optionally scoped to a sub-project tree.",
+		"Returns the highest-priority ready task in the 'todo' column. A task is ready when it is not blocked, has no unresolved dependencies, and (optionally) matches the requested role. Returns null task if none available.",
 		map[string]any{
-			"project_id":     map[string]any{"type": "string", "description": "The root project ID"},
-			"role":           map[string]any{"type": "string", "description": "Role slug to filter tasks by"},
+			"project_id":    map[string]any{"type": "string", "description": "The project ID"},
+			"role":          map[string]any{"type": "string", "description": "Optional role slug to filter tasks by assigned role"},
 			"sub_project_id": map[string]any{"type": "string", "description": "Optional sub-project ID to scope the search to that sub-project and its descendants"},
 		},
 		[]string{"project_id"},
@@ -404,14 +426,36 @@ func (s *Server) registerAllTools() {
 
 	// Dependencies
 	s.addTool("add_dependency",
-		"Adds a dependency between tasks",
+		"Adds a dependency between tasks. Use move_to_todo=true on the LAST dependency call for a task to signal it is ready to be worked on (moves from backlog to todo).",
 		map[string]any{
 			"project_id":         map[string]any{"type": "string"},
 			"task_id":            map[string]any{"type": "string"},
 			"depends_on_task_id": map[string]any{"type": "string"},
+			"move_to_todo":       map[string]any{"type": "boolean", "description": "If true and the task is in backlog, moves it to todo after adding the dependency. Use on the last dependency to signal the task is ready."},
 		},
 		[]string{"project_id", "task_id", "depends_on_task_id"},
 		s.toolHandler.addDependency,
+	)
+
+	s.addTool("bulk_add_dependencies",
+		"Adds multiple dependencies at once. Use move_to_todo=true per dependency entry to move the task from backlog to todo after adding that dependency (typically on the last dependency for each task).",
+		map[string]any{
+			"project_id": map[string]any{"type": "string"},
+			"dependencies": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"task_id":            map[string]any{"type": "string"},
+						"depends_on_task_id": map[string]any{"type": "string"},
+						"move_to_todo":       map[string]any{"type": "boolean", "description": "If true, moves the task from backlog to todo after adding this dependency."},
+					},
+					"required": []string{"task_id", "depends_on_task_id"},
+				},
+			},
+		},
+		[]string{"project_id", "dependencies"},
+		s.toolHandler.bulkAddDependencies,
 	)
 
 	s.addTool("remove_dependency",
@@ -481,6 +525,21 @@ func (s *Server) registerAllTools() {
 		},
 		[]string{"project_id", "task_id", "target_project_id"},
 		s.toolHandler.moveTaskToProject,
+	)
+
+	s.addTool("report_tokens",
+		"Reports token usage for a task. Call this after completing work to record consumption metrics.",
+		map[string]any{
+			"project_id":  map[string]any{"type": "string", "description": "The project ID"},
+			"task_id":     map[string]any{"type": "string", "description": "The task ID"},
+			"input":       map[string]any{"type": "integer", "description": "Input tokens consumed"},
+			"output":      map[string]any{"type": "integer", "description": "Output tokens consumed"},
+			"cache_read":  map[string]any{"type": "integer", "description": "Cache read tokens"},
+			"cache_write": map[string]any{"type": "integer", "description": "Cache write tokens"},
+			"model":       map[string]any{"type": "string", "description": "Model used (e.g. claude-sonnet-4-20250514)"},
+		},
+		[]string{"project_id", "task_id", "input", "output"},
+		s.toolHandler.reportTokens,
 	)
 
 	// Board

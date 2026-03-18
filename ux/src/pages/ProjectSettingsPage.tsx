@@ -107,7 +107,7 @@ export default function ProjectSettingsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center">
-        <Loader2 className="animate-spin text-[#555555]" size={24} />
+        <Loader2 className="animate-spin text-[var(--text-dim)]" size={24} />
       </div>
     );
   }
@@ -115,7 +115,7 @@ export default function ProjectSettingsPage() {
   if (!project) {
     return (
       <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center">
-        <p className="text-[#555555]">Project not found</p>
+        <p className="text-[var(--text-dim)]">Project not found</p>
       </div>
     );
   }
@@ -124,10 +124,10 @@ export default function ProjectSettingsPage() {
     <div className="flex flex-col h-full">
       <div className="px-6 py-4 border-b border-[#1E1E1E]">
         <h3 className="font-heading text-sm text-[#F0F0F0]">Project Definition</h3>
-        <p className="text-xs text-[#555555] mt-0.5">Read-only view of project data</p>
+        <p className="text-xs text-[var(--text-dim)] mt-0.5">Read-only view of project data</p>
       </div>
       <div className="flex-1 overflow-auto p-6">
-        <pre className="font-mono text-xs text-[#888888] whitespace-pre-wrap leading-relaxed">
+        <pre className="font-mono text-xs text-[var(--text-muted)] whitespace-pre-wrap leading-relaxed">
           {JSON.stringify(projectInfo, null, 2)}
         </pre>
       </div>
@@ -140,24 +140,24 @@ export default function ProjectSettingsPage() {
 
       {/* Name */}
       <div className="mb-5">
-        <label className="block text-xs font-mono text-[#555555] mb-1.5">Name</label>
+        <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Name</label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[#333333] focus:outline-none focus:border-[#00C896]/50"
+          className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
         />
       </div>
 
       {/* Description */}
       <div className="mb-6">
-        <label className="block text-xs font-mono text-[#555555] mb-1.5">Description</label>
+        <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Description</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Describe this project..."
           rows={5}
-          className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[#333333] focus:outline-none focus:border-[#00C896]/50 resize-y"
+          className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y"
         />
       </div>
 
@@ -176,13 +176,13 @@ export default function ProjectSettingsPage() {
       {columns.length > 0 && (
         <div className="mb-12">
           <h2 className="font-heading text-lg text-[#F0F0F0] mb-4">Column WIP Limits</h2>
-          <p className="text-xs text-[#888888] mb-4">
+          <p className="text-xs text-[var(--text-muted)] mb-4">
             Set to 0 for no limit. Agents will be prevented from moving tasks into a column that has reached its limit.
           </p>
           <div className="grid grid-cols-2 gap-4 mb-4">
             {columns.map((col) => (
               <div key={col.slug}>
-                <label className="block text-xs font-mono text-[#555555] mb-1.5">
+                <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">
                   {col.name}
                 </label>
                 <input
@@ -216,7 +216,7 @@ export default function ProjectSettingsPage() {
           <AlertTriangle size={18} className="text-[#FF3B30] mt-0.5 shrink-0" />
           <div className="flex-1">
             <h3 className="text-sm text-[#F0F0F0] font-medium mb-1">Delete this project</h3>
-            <p className="text-xs text-[#888888] mb-4">
+            <p className="text-xs text-[var(--text-muted)] mb-4">
               Once you delete a project, there is no going back. All tasks, comments, and data will
               be permanently removed.
             </p>

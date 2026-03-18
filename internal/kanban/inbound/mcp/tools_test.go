@@ -21,7 +21,7 @@ type MockCommands struct {
 	CreateRoleFunc           func(ctx context.Context, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error)
 	UpdateRoleFunc           func(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error
 	DeleteRoleFunc           func(ctx context.Context, roleID domain.RoleID) error
-	CreateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error)
+	CreateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error)
 	UpdateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error
 	UpdateTaskFilesFunc      func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error
 	DeleteTaskFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
@@ -43,6 +43,7 @@ type MockCommands struct {
 	UpdateColumnWIPLimitFunc func(ctx context.Context, projectID domain.ProjectID, columnSlug domain.ColumnSlug, wipLimit int) error
 	MoveTaskToProjectFunc    func(ctx context.Context, sourceProjectID domain.ProjectID, taskID domain.TaskID, targetProjectID domain.ProjectID) error
 	IncrementToolUsageFunc   func(ctx context.Context, projectID domain.ProjectID, toolName string) error
+	UpdateTaskSessionIDFunc  func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
 }
 
 func (m *MockCommands) CreateProject(ctx context.Context, name, description, workDir, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
@@ -87,11 +88,11 @@ func (m *MockCommands) DeleteRole(ctx context.Context, roleID domain.RoleID) err
 	return m.DeleteRoleFunc(ctx, roleID)
 }
 
-func (m *MockCommands) CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error) {
+func (m *MockCommands) CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error) {
 	if m.CreateTaskFunc == nil {
 		panic("CreateTaskFunc not defined")
 	}
-	return m.CreateTaskFunc(ctx, projectID, title, summary, description, priority, createdByRole, createdByAgent, assignedRole, contextFiles, tags, estimatedEffort)
+	return m.CreateTaskFunc(ctx, projectID, title, summary, description, priority, createdByRole, createdByAgent, assignedRole, contextFiles, tags, estimatedEffort, startInBacklog)
 }
 
 func (m *MockCommands) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error {
@@ -241,6 +242,25 @@ func (m *MockCommands) IncrementToolUsage(ctx context.Context, projectID domain.
 	return m.IncrementToolUsageFunc(ctx, projectID, toolName)
 }
 
+func (m *MockCommands) UpdateTaskSessionID(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error {
+	if m.UpdateTaskSessionIDFunc == nil {
+		panic("UpdateTaskSessionIDFunc not defined")
+	}
+	return m.UpdateTaskSessionIDFunc(ctx, projectID, taskID, sessionID)
+}
+
+func (m *MockCommands) CreateProjectRole(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error) {
+	panic("CreateProjectRoleFunc not defined")
+}
+
+func (m *MockCommands) UpdateProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error {
+	panic("UpdateProjectRoleFunc not defined")
+}
+
+func (m *MockCommands) DeleteProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error {
+	panic("DeleteProjectRoleFunc not defined")
+}
+
 // MockQueries is a mock implementation of service.Queries for testing
 type MockQueries struct {
 	GetProjectFunc                 func(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error)
@@ -253,15 +273,19 @@ type MockQueries struct {
 	GetRoleFunc                    func(ctx context.Context, roleID domain.RoleID) (*domain.Role, error)
 	GetRoleBySlugFunc              func(ctx context.Context, slug string) (*domain.Role, error)
 	ListRolesFunc                  func(ctx context.Context) ([]domain.Role, error)
+	ListProjectRolesFunc           func(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error)
+	GetProjectRoleBySlugFunc       func(ctx context.Context, projectID domain.ProjectID, slug string) (*domain.Role, error)
 	GetTaskFunc                    func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (*domain.Task, error)
 	ListTasksFunc                  func(ctx context.Context, projectID domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error)
 	GetNextTaskFunc                func(ctx context.Context, projectID domain.ProjectID, role string, subProjectID *domain.ProjectID) (*domain.Task, error)
+	GetNextTasksFunc               func(ctx context.Context, projectID domain.ProjectID, role string, count int, subProjectID *domain.ProjectID) ([]domain.Task, error)
 	GetDependencyContextFunc       func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.DependencyContext, error)
 	GetColumnFunc                  func(ctx context.Context, projectID domain.ProjectID, columnID domain.ColumnID) (*domain.Column, error)
 	GetColumnBySlugFunc            func(ctx context.Context, projectID domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error)
 	ListColumnsFunc                func(ctx context.Context, projectID domain.ProjectID) ([]domain.Column, error)
 	GetCommentFunc                 func(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID) (*domain.Comment, error)
 	ListCommentsFunc               func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, limit, offset int) ([]domain.Comment, error)
+	CountCommentsFunc              func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (int, error)
 	ListDependenciesFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.TaskDependency, error)
 	GetDependencyTasksFunc         func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.Task, error)
 	GetDependentTasksFunc          func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.Task, error)
@@ -340,6 +364,20 @@ func (m *MockQueries) ListRoles(ctx context.Context) ([]domain.Role, error) {
 	return m.ListRolesFunc(ctx)
 }
 
+func (m *MockQueries) ListProjectRoles(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error) {
+	if m.ListProjectRolesFunc == nil {
+		panic("ListProjectRolesFunc not defined")
+	}
+	return m.ListProjectRolesFunc(ctx, projectID)
+}
+
+func (m *MockQueries) GetProjectRoleBySlug(ctx context.Context, projectID domain.ProjectID, slug string) (*domain.Role, error) {
+	if m.GetProjectRoleBySlugFunc == nil {
+		panic("GetProjectRoleBySlugFunc not defined")
+	}
+	return m.GetProjectRoleBySlugFunc(ctx, projectID, slug)
+}
+
 func (m *MockQueries) GetTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (*domain.Task, error) {
 	if m.GetTaskFunc == nil {
 		panic("GetTaskFunc not defined")
@@ -359,6 +397,13 @@ func (m *MockQueries) GetNextTask(ctx context.Context, projectID domain.ProjectI
 		panic("GetNextTaskFunc not defined")
 	}
 	return m.GetNextTaskFunc(ctx, projectID, role, subProjectID)
+}
+
+func (m *MockQueries) GetNextTasks(ctx context.Context, projectID domain.ProjectID, role string, count int, subProjectID *domain.ProjectID) ([]domain.Task, error) {
+	if m.GetNextTasksFunc == nil {
+		panic("GetNextTasksFunc not defined")
+	}
+	return m.GetNextTasksFunc(ctx, projectID, role, count, subProjectID)
 }
 
 func (m *MockQueries) GetDependencyContext(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.DependencyContext, error) {
@@ -403,6 +448,13 @@ func (m *MockQueries) ListComments(ctx context.Context, projectID domain.Project
 	return m.ListCommentsFunc(ctx, projectID, taskID, limit, offset)
 }
 
+func (m *MockQueries) CountComments(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (int, error) {
+	if m.CountCommentsFunc == nil {
+		return 0, nil
+	}
+	return m.CountCommentsFunc(ctx, projectID, taskID)
+}
+
 func (m *MockQueries) ListDependencies(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.TaskDependency, error) {
 	if m.ListDependenciesFunc == nil {
 		panic("ListDependenciesFunc not defined")
@@ -445,6 +497,10 @@ func (m *MockQueries) GetTimeline(ctx context.Context, projectID domain.ProjectI
 	return m.GetTimelineFunc(ctx, projectID, days)
 }
 
+func (m *MockQueries) GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error) {
+	panic("GetColdStartStats not defined")
+}
+
 // Test cases
 
 func TestToolHandler_CreateProject(t *testing.T) {
@@ -481,7 +537,7 @@ func TestToolHandler_CreateTask(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	mockCmds := &MockCommands{
-		CreateTaskFunc: func(ctx context.Context, pID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error) {
+		CreateTaskFunc: func(ctx context.Context, pID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error) {
 			assert.Equal(t, projectID, pID)
 			assert.Equal(t, "Implement feature", title)
 			assert.Equal(t, "Brief summary", summary)
@@ -575,8 +631,11 @@ func TestToolHandler_RequestWontDo(t *testing.T) {
 }
 
 func TestToolHandler_ListRoles(t *testing.T) {
+	projectID := domain.NewProjectID()
+
 	mockQueries := &MockQueries{
-		ListRolesFunc: func(ctx context.Context) ([]domain.Role, error) {
+		ListProjectRolesFunc: func(ctx context.Context, pID domain.ProjectID) ([]domain.Role, error) {
+			assert.Equal(t, projectID, pID)
 			return []domain.Role{
 				{
 					ID:          domain.NewRoleID(),

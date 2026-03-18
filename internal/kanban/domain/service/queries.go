@@ -19,15 +19,20 @@ type Queries interface {
 	GetProjectInfo(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectInfo, error)
 	ListProjectsByWorkDir(ctx context.Context, workDir string) ([]domain.ProjectWithSummary, error)
 
-	// Role queries
+	// Role queries (global)
 	GetRole(ctx context.Context, roleID domain.RoleID) (*domain.Role, error)
 	GetRoleBySlug(ctx context.Context, slug string) (*domain.Role, error)
 	ListRoles(ctx context.Context) ([]domain.Role, error)
+
+	// Role queries (per-project)
+	ListProjectRoles(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error)
+	GetProjectRoleBySlug(ctx context.Context, projectID domain.ProjectID, slug string) (*domain.Role, error)
 
 	// Task queries
 	GetTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (*domain.Task, error)
 	ListTasks(ctx context.Context, projectID domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error)
 	GetNextTask(ctx context.Context, projectID domain.ProjectID, role string, subProjectID *domain.ProjectID) (*domain.Task, error)
+	GetNextTasks(ctx context.Context, projectID domain.ProjectID, role string, count int, subProjectID *domain.ProjectID) ([]domain.Task, error)
 	GetDependencyContext(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.DependencyContext, error)
 
 	// Column queries
@@ -38,6 +43,7 @@ type Queries interface {
 	// Comment queries
 	GetComment(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID) (*domain.Comment, error)
 	ListComments(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, limit, offset int) ([]domain.Comment, error)
+	CountComments(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (int, error)
 
 	// Dependency queries
 	ListDependencies(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.TaskDependency, error)
@@ -53,4 +59,7 @@ type Queries interface {
 
 	// Timeline queries
 	GetTimeline(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error)
+
+	// Cold start stats queries
+	GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error)
 }

@@ -172,7 +172,7 @@ func TestToolHandler_CreateTask_BroadcastsEvent(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	mockCmds := &MockCommands{
-		CreateTaskFunc: func(ctx context.Context, pID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string) (domain.Task, error) {
+		CreateTaskFunc: func(ctx context.Context, pID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error) {
 			return domain.Task{
 				ID:       taskID,
 				Title:    title,
@@ -184,7 +184,7 @@ func TestToolHandler_CreateTask_BroadcastsEvent(t *testing.T) {
 
 	_, recorder := newToolHandlerWithRecorder(mockCmds, &MockQueries{})
 
-	task, err := mockCmds.CreateTaskFunc(context.Background(), projectID, "Implement auth", "Auth summary", "", domain.PriorityHigh, "architect", "", "", nil, nil, "")
+	task, err := mockCmds.CreateTaskFunc(context.Background(), projectID, "Implement auth", "Auth summary", "", domain.PriorityHigh, "architect", "", "", nil, nil, "", true)
 	require.NoError(t, err)
 
 	// Replicate the ToolHandler broadcast

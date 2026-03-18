@@ -1,10 +1,10 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { LayoutGrid, Users, Settings, Plus, AlertTriangle, Sun, Moon, BarChart3 } from 'lucide-react';
-import { listSubProjects, getProject } from '../lib/api';
+import { LayoutGrid, Users, Settings, Plus, AlertTriangle, Sun, Moon, BarChart3, Inbox } from 'lucide-react';
+import { listSubProjects, getProject, getProjectSummary } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useTheme } from './ThemeContext';
-import type { ProjectWithSummary, ProjectResponse } from '../lib/types';
+import type { ProjectWithSummary, ProjectResponse, ProjectSummaryResponse } from '../lib/types';
 
 interface LayoutProps {
   children: ReactNode;
@@ -18,6 +18,7 @@ export function Layout({ children }: LayoutProps) {
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [parentProject, setParentProject] = useState<ProjectResponse | null>(null);
   const [subProjects, setSubProjects] = useState<ProjectWithSummary[]>([]);
+  const [projectSummary, setProjectSummary] = useState<ProjectSummaryResponse | null>(null);
   // Track which sub-projects had updates since the user last visited them
   const [updatedSubProjects, setUpdatedSubProjects] = useState<Set<string>>(new Set());
   // The parent project ID to use for fetching sub-projects
@@ -29,6 +30,7 @@ export function Layout({ children }: LayoutProps) {
       setParentProject(null);
       setSubProjects([]);
       setParentId(null);
+      setProjectSummary(null);
       return;
     }
 
@@ -45,6 +47,7 @@ export function Layout({ children }: LayoutProps) {
         setParentProject(null);
       }
     }).catch(() => {});
+    getProjectSummary(projectId).then(setProjectSummary).catch(() => setProjectSummary(null));
   }, [projectId]);
 
   // Update document title based on breadcrumb
@@ -80,8 +83,11 @@ export function Layout({ children }: LayoutProps) {
         if (!eventProjectId) return;
         const type = event.type || '';
         if (!type.startsWith('task_') && !type.startsWith('comment_')) return;
-        // Only mark if event is for a sibling sub-project, not the one we're viewing
-        if (eventProjectId === projectId) return;
+        // Refresh summary if event is for the current project (backlog count may change)
+        if (eventProjectId === projectId) {
+          getProjectSummary(projectId).then(setProjectSummary).catch(() => {});
+          return;
+        }
         setSubProjects((sps) => {
           if (sps.some((sp) => sp.id === eventProjectId)) {
             setUpdatedSubProjects((prev) => {
@@ -134,6 +140,21 @@ export function Layout({ children }: LayoutProps) {
                 label="Kanban"
                 active={isActive(`/projects/${projectId}`) || isActive(`/projects/${projectId}/board`)}
                 onClick={() => navigate(`/projects/${projectId}`)}
+              />
+              <NavItem
+                icon={<Inbox size={15} />}
+                label="Backlog"
+                active={isActive(`/projects/${projectId}/backlog`)}
+                onClick={() => navigate(`/projects/${projectId}/backlog`)}
+                badge={(() => {
+                  const own = projectSummary?.backlog_count ?? 0;
+                  // When at root project (no parentId), add children's backlog counts
+                  const childrenCount = !parentId
+                    ? subProjects.reduce((sum, sp) => sum + ((sp.task_summary ?? sp.summary)?.backlog_count ?? 0), 0)
+                    : 0;
+                  const total = own + childrenCount;
+                  return total > 0 ? total : undefined;
+                })()}
               />
               <NavItem
                 icon={<Users size={15} />}
@@ -269,7 +290,7 @@ export function Layout({ children }: LayoutProps) {
   );
 }
 
-function NavItem({ icon, label, active, onClick }: { icon: ReactNode; label: string; active: boolean; onClick: () => void }) {
+function NavItem({ icon, label, active, onClick, badge }: { icon: ReactNode; label: string; active: boolean; onClick: () => void; badge?: number }) {
   return (
     <button
       onClick={onClick}
@@ -278,9 +299,14 @@ function NavItem({ icon, label, active, onClick }: { icon: ReactNode; label: str
       }`}
     >
       <span className={active ? 'text-[var(--nav-text-active)]' : 'text-[var(--text-secondary)]'}>{icon}</span>
-      <span className="text-[13px] font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>
+      <span className="text-[13px] font-medium flex-1" style={{ fontFamily: 'Inter, sans-serif' }}>
         {label}
       </span>
+      {badge !== undefined && (
+        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[var(--border-primary)] text-[var(--text-muted)]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+          {badge}
+        </span>
+      )}
     </button>
   );
 }

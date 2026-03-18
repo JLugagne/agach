@@ -37,6 +37,7 @@ type ProjectResponse struct {
 
 // ProjectSummaryResponse represents project task summary
 type ProjectSummaryResponse struct {
+	BacklogCount    int `json:"backlog_count"`
 	TodoCount       int `json:"todo_count"`
 	InProgressCount int `json:"in_progress_count"`
 	DoneCount       int `json:"done_count"`
@@ -45,7 +46,7 @@ type ProjectSummaryResponse struct {
 
 // CreateRoleRequest represents a request to create a role
 type CreateRoleRequest struct {
-	Slug        string   `json:"slug" validate:"required,min=1,max=50,alphanum"`
+	Slug        string   `json:"slug" validate:"required,min=1,max=50,slug"`
 	Name        string   `json:"name" validate:"required,min=1,max=100"`
 	Icon        string   `json:"icon" validate:"max=10"`
 	Color       string   `json:"color" validate:"omitempty,hexcolor"`
@@ -109,13 +110,17 @@ type UpdateTaskRequest struct {
 	OutputTokens         *int      `json:"output_tokens,omitempty"`
 	CacheReadTokens      *int      `json:"cache_read_tokens,omitempty"`
 	CacheWriteTokens     *int      `json:"cache_write_tokens,omitempty"`
-	Model                *string   `json:"model,omitempty"`
-	HumanEstimateSeconds *int      `json:"human_estimate_seconds,omitempty"`
+	Model                     *string   `json:"model,omitempty"`
+	ColdStartInputTokens      *int      `json:"cold_start_input_tokens,omitempty"`
+	ColdStartOutputTokens     *int      `json:"cold_start_output_tokens,omitempty"`
+	ColdStartCacheReadTokens  *int      `json:"cold_start_cache_read_tokens,omitempty"`
+	ColdStartCacheWriteTokens *int      `json:"cold_start_cache_write_tokens,omitempty"`
+	HumanEstimateSeconds      *int      `json:"human_estimate_seconds,omitempty"`
 }
 
 // MoveTaskRequest represents a request to move a task
 type MoveTaskRequest struct {
-	TargetColumn string `json:"target_column" validate:"required,oneof=todo in_progress done blocked"`
+	TargetColumn string `json:"target_column" validate:"required,oneof=backlog todo in_progress done blocked"`
 	Reason       string `json:"reason" validate:"max=1000"`
 }
 
@@ -193,6 +198,7 @@ type TaskResponse struct {
 	CacheReadTokens   int        `json:"cache_read_tokens"`
 	CacheWriteTokens  int        `json:"cache_write_tokens"`
 	Model             string     `json:"model"`
+	SessionID         string     `json:"session_id"`
 	SeenAt               *time.Time `json:"seen_at"`
 	StartedAt            *time.Time `json:"started_at"`
 	DurationSeconds      int        `json:"duration_seconds"`
@@ -281,6 +287,21 @@ type TimelineEntryResponse struct {
 	Date           string `json:"date"`
 	TasksCreated   int    `json:"tasks_created"`
 	TasksCompleted int    `json:"tasks_completed"`
+}
+
+// ColdStartStatResponse represents cold-start token statistics per role in API responses
+type ColdStartStatResponse struct {
+	AssignedRole       string  `json:"assigned_role"`
+	Count              int     `json:"count"`
+	MinInputTokens     int     `json:"min_input_tokens"`
+	MaxInputTokens     int     `json:"max_input_tokens"`
+	AvgInputTokens     float64 `json:"avg_input_tokens"`
+	MinOutputTokens    int     `json:"min_output_tokens"`
+	MaxOutputTokens    int     `json:"max_output_tokens"`
+	AvgOutputTokens    float64 `json:"avg_output_tokens"`
+	MinCacheReadTokens int     `json:"min_cache_read_tokens"`
+	MaxCacheReadTokens int     `json:"max_cache_read_tokens"`
+	AvgCacheReadTokens float64 `json:"avg_cache_read_tokens"`
 }
 
 // Validation errors

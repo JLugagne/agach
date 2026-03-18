@@ -262,6 +262,8 @@ func (r *ProjectRepository) GetSummary(ctx context.Context, id domain.ProjectID)
 				return err
 			}
 			switch slug {
+			case "backlog":
+				summary.BacklogCount = count
 			case "todo":
 				summary.TodoCount = count
 			case "in_progress":
