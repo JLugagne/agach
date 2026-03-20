@@ -510,6 +510,10 @@ func (m *MockQueries) GetColdStartStats(ctx context.Context, projectID domain.Pr
 	panic("GetColdStartStats not defined")
 }
 
+func (m *MockQueries) GetWIPSlots(ctx context.Context, projectID domain.ProjectID) (*domain.WIPSlotsInfo, error) {
+	return nil, nil
+}
+
 // Test cases
 
 func TestToolHandler_CreateProject(t *testing.T) {

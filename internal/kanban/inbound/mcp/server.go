@@ -475,6 +475,15 @@ func (s *Server) registerAllTools() {
 		s.toolHandler.listComments,
 	)
 
+	s.addTool("get_wip_slots",
+		"Returns the number of free WIP slots for the in_progress column. free_slots is -1 when the column has no WIP limit (unlimited).",
+		map[string]any{
+			"project_id": map[string]any{"type": "string", "description": "The project ID"},
+		},
+		[]string{"project_id"},
+		s.toolHandler.getWIPSlots,
+	)
+
 	// Board
 	s.addTool("get_board",
 		"Returns a lightweight board overview: task counts per column and sub-projects with their summaries. Use list_tasks or get_next_task for actual task data.",

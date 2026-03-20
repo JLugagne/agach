@@ -42,7 +42,7 @@ func (m *MockProjectRepository) Create(ctx context.Context, project domain.Proje
 
 func (m *MockProjectRepository) FindByID(ctx context.Context, id domain.ProjectID) (*domain.Project, error) {
 	if m.FindByIDFunc == nil {
-		panic("called not defined FindByIDFunc")
+		return &domain.Project{ID: id}, nil
 	}
 	return m.FindByIDFunc(ctx, id)
 }

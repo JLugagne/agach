@@ -7,10 +7,12 @@ import {
   Trash2,
   Pencil,
   Check,
+  Star,
 } from 'lucide-react';
 import {
   listRoles, createRole, updateRole, deleteRole,
   listProjectRoles, createProjectRole, updateProjectRole, deleteProjectRole,
+  getProject, updateProject,
 } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type { RoleResponse, CreateRoleRequest, UpdateRoleRequest } from '../lib/types';
@@ -32,6 +34,7 @@ export default function RolesPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<RoleResponse | null>(null);
+  const [defaultRole, setDefaultRole] = useState<string>('');
 
   const fetchRoles = useCallback(async () => {
     try {
@@ -44,9 +47,31 @@ export default function RolesPage() {
     }
   }, [projectId]);
 
+  const fetchDefaultRole = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const project = await getProject(projectId);
+      setDefaultRole(project.default_role ?? '');
+    } catch {
+      // ignore
+    }
+  }, [projectId]);
+
+  const handleSetDefault = async (slug: string) => {
+    if (!projectId) return;
+    const newDefault = defaultRole === slug ? '' : slug;
+    setDefaultRole(newDefault);
+    try {
+      await updateProject(projectId, { default_role: newDefault });
+    } catch {
+      setDefaultRole(defaultRole);
+    }
+  };
+
   useEffect(() => {
     fetchRoles();
-  }, [fetchRoles]);
+    fetchDefaultRole();
+  }, [fetchRoles, fetchDefaultRole]);
 
   useWebSocket(
     useCallback(
@@ -124,7 +149,13 @@ export default function RolesPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {roles.map((role) => (
-              <RoleCard key={role.id} role={role} onClick={() => openEdit(role)} />
+              <RoleCard
+                key={role.id}
+                role={role}
+                isDefault={defaultRole === role.slug}
+                onSetDefault={projectId ? () => handleSetDefault(role.slug) : undefined}
+                onClick={() => openEdit(role)}
+              />
             ))}
           </div>
         )}
@@ -144,46 +175,82 @@ export default function RolesPage() {
   );
 }
 
-function RoleCard({ role, onClick }: { role: RoleResponse; onClick: () => void }) {
+function RoleCard({
+  role,
+  isDefault,
+  onSetDefault,
+  onClick,
+}: {
+  role: RoleResponse;
+  isDefault: boolean;
+  onSetDefault?: () => void;
+  onClick: () => void;
+}) {
   return (
-    <button
-      onClick={onClick}
-      className="rounded-lg bg-[#111111] border border-[#1E1E1E] p-5 text-left hover:border-[#252525] transition-colors cursor-pointer w-full"
+    <div
+      className={`rounded-lg bg-[#111111] border p-5 text-left transition-colors w-full ${
+        isDefault ? 'border-[#00C896]/40' : 'border-[#1E1E1E] hover:border-[#252525]'
+      }`}
     >
       <div className="flex items-start gap-3 mb-3">
-        <span className="text-xl">{role.icon || '\u2B22'}</span>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-heading text-[15px] text-[#F0F0F0] truncate">{role.name}</h3>
+        <button onClick={onClick} className="text-xl cursor-pointer">{role.icon || '\u2B22'}</button>
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={onClick}>
+          <div className="flex items-center gap-2">
+            <h3 className="font-heading text-[15px] text-[#F0F0F0] truncate">{role.name}</h3>
+            {isDefault && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-[#00C896]/10 text-[#00C896] border border-[#00C896]/20 shrink-0">
+                <Star size={9} />
+                default
+              </span>
+            )}
+          </div>
           <p className="font-mono text-[11px] text-[var(--text-dim)]">{role.slug}</p>
         </div>
-        <div
-          className="w-3 h-3 rounded-full shrink-0 mt-1"
-          style={{ backgroundColor: role.color || '#6B7280' }}
-        />
+        <div className="flex items-center gap-2 shrink-0 mt-0.5">
+          {onSetDefault && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onSetDefault(); }}
+              title={isDefault ? 'Unset default' : 'Set as default'}
+              className={`transition-colors ${
+                isDefault
+                  ? 'text-[#00C896] hover:text-[#00C896]/60'
+                  : 'text-[var(--text-dim)] hover:text-[#00C896]'
+              }`}
+            >
+              <Star size={14} fill={isDefault ? 'currentColor' : 'none'} />
+            </button>
+          )}
+          <div
+            className="w-3 h-3 rounded-full"
+            style={{ backgroundColor: role.color || '#6B7280' }}
+          />
+        </div>
       </div>
 
-      {role.description && (
-        <p className="text-xs text-[var(--text-muted)] mb-3 line-clamp-2">{role.description}</p>
-      )}
+      <div onClick={onClick} className="cursor-pointer">
+        {role.description && (
+          <p className="text-xs text-[var(--text-muted)] mb-3 line-clamp-2">{role.description}</p>
+        )}
 
-      {role.tech_stack && role.tech_stack.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {role.tech_stack.slice(0, 4).map((tech) => (
-            <span
-              key={tech}
-              className="px-2 py-0.5 bg-[#1A1A1A] border border-[#252525] rounded text-[10px] font-mono text-[var(--text-muted)]"
-            >
-              {tech}
-            </span>
-          ))}
-          {role.tech_stack.length > 4 && (
-            <span className="px-2 py-0.5 text-[10px] text-[var(--text-dim)]">
-              +{role.tech_stack.length - 4}
-            </span>
-          )}
-        </div>
-      )}
-    </button>
+        {role.tech_stack && role.tech_stack.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {role.tech_stack.slice(0, 4).map((tech) => (
+              <span
+                key={tech}
+                className="px-2 py-0.5 bg-[#1A1A1A] border border-[#252525] rounded text-[10px] font-mono text-[var(--text-muted)]"
+              >
+                {tech}
+              </span>
+            ))}
+            {role.tech_stack.length > 4 && (
+              <span className="px-2 py-0.5 text-[10px] text-[var(--text-dim)]">
+                +{role.tech_stack.length - 4}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
