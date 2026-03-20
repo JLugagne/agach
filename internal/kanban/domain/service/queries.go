@@ -62,4 +62,8 @@ type Queries interface {
 
 	// Cold start stats queries
 	GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error)
+
+	// GetWIPSlots returns the current WIP slot availability for the in_progress column.
+	// FreeSlots is -1 when the column has no limit (wip_limit == 0).
+	GetWIPSlots(ctx context.Context, projectID domain.ProjectID) (*domain.WIPSlotsInfo, error)
 }

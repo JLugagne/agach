@@ -253,6 +253,19 @@ func (h *TaskCommandsHandler) MoveTask(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 
+	if targetColumn != domain.ColumnInProgress {
+		h.hub.Broadcast(websocket.Event{
+			Type:      "wip_slot_available",
+			ProjectID: string(projectID),
+			Data:      map[string]string{"project_id": string(projectID)},
+		})
+		if h.sseHub != nil {
+			if eventBytes, err := json.Marshal(map[string]any{"type": "wip_slot_available", "project_id": string(projectID)}); err == nil {
+				h.sseHub.Publish(string(projectID), string(eventBytes))
+			}
+		}
+	}
+
 	h.controller.SendSuccess(w, r, map[string]string{"message": "task moved"})
 }
 
@@ -313,6 +326,17 @@ func (h *TaskCommandsHandler) CompleteTask(w http.ResponseWriter, r *http.Reques
 			"completed_by_agent": req.CompletedByAgent,
 		},
 	})
+
+	h.hub.Broadcast(websocket.Event{
+		Type:      "wip_slot_available",
+		ProjectID: string(projectID),
+		Data:      map[string]string{"project_id": string(projectID)},
+	})
+	if h.sseHub != nil {
+		if eventBytes, err := json.Marshal(map[string]any{"type": "wip_slot_available", "project_id": string(projectID)}); err == nil {
+			h.sseHub.Publish(string(projectID), string(eventBytes))
+		}
+	}
 
 	h.controller.SendSuccess(w, r, map[string]string{"message": "task completed"})
 }

@@ -631,6 +631,13 @@ func (h *ToolHandler) moveTask(ctx context.Context, args map[string]any) (any, e
 				"target_column": string(targetColumn),
 			},
 		})
+		if targetColumn != domain.ColumnInProgress {
+			h.hub.Broadcast(websocket.Event{
+				Type:      "wip_slot_available",
+				ProjectID: string(projectID),
+				Data:      map[string]string{"project_id": string(projectID)},
+			})
+		}
 	}
 
 	return map[string]any{"success": true}, nil
@@ -675,6 +682,11 @@ func (h *ToolHandler) completeTask(ctx context.Context, args map[string]any) (an
 				"files_modified":     filesModified,
 				"completed_by_agent": completedByAgent,
 			},
+		})
+		h.hub.Broadcast(websocket.Event{
+			Type:      "wip_slot_available",
+			ProjectID: string(projectID),
+			Data:      map[string]string{"project_id": string(projectID)},
 		})
 	}
 
@@ -755,7 +767,7 @@ func (h *ToolHandler) getNextTask(ctx context.Context, args map[string]any) (any
 	if task == nil {
 		return map[string]any{"task": nil, "message": "no task available"}, nil
 	}
-	return map[string]any{
+	result := map[string]any{
 		"id":            string(task.ID),
 		"title":         task.Title,
 		"summary":       task.Summary,
@@ -763,7 +775,11 @@ func (h *ToolHandler) getNextTask(ctx context.Context, args map[string]any) (any
 		"assigned_role": task.AssignedRole,
 		"project_id":    string(projectID),
 		"session_id":    task.SessionID,
-	}, nil
+	}
+	if len(task.ContextFiles) > 0 {
+		result["context_files"] = task.ContextFiles
+	}
+	return result, nil
 }
 
 func (h *ToolHandler) listTasks(ctx context.Context, args map[string]any) (any, error) {
@@ -858,6 +874,11 @@ func (h *ToolHandler) blockTask(ctx context.Context, args map[string]any) (any, 
 				"blocked_reason":   blockedReason,
 				"blocked_by_agent": blockedByAgent,
 			},
+		})
+		h.hub.Broadcast(websocket.Event{
+			Type:      "wip_slot_available",
+			ProjectID: string(projectID),
+			Data:      map[string]string{"project_id": string(projectID)},
 		})
 	}
 
@@ -1201,6 +1222,19 @@ func (h *ToolHandler) moveTaskToProject(ctx context.Context, args map[string]any
 	}
 
 	return map[string]any{"success": true}, nil
+}
+
+func (h *ToolHandler) getWIPSlots(ctx context.Context, args map[string]any) (any, error) {
+	projectIDVal, ok := args["project_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("project_id is required and must be a string")
+	}
+	projectID := domain.ProjectID(projectIDVal)
+	info, err := h.queries.GetWIPSlots(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	return info, nil
 }
 
 func (h *ToolHandler) getBoard(ctx context.Context, args map[string]any) (any, error) {

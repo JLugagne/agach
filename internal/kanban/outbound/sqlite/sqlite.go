@@ -66,6 +66,9 @@ var backlogColumnMigration string
 //go:embed migrations/017_project_default_role.sql
 var projectDefaultRoleMigration string
 
+//go:embed migrations/018_fix_columns_check_constraint.sql
+var fixColumnsCheckConstraintMigration string
+
 // baseRepository contains shared database connections
 type baseRepository struct {
 	globalDB   *sql.DB
@@ -315,6 +318,13 @@ func (r *baseRepository) getProjectDB(projectID domain.ProjectID) (*sql.DB, erro
 	}
 	// Backlog column (INSERT OR IGNORE — safe to re-run)
 	if err := runMigration(db, backlogColumnMigration); err != nil {
+		db.Close()
+		return nil, err
+	}
+	// Fix columns CHECK constraint: old DBs had CHECK(slug IN ('todo','in_progress','done','blocked'))
+	// which caused INSERT OR IGNORE in migration 016 to silently skip 'backlog'.
+	// This migration rebuilds the table with the correct constraint and inserts backlog if missing.
+	if err := runMigration(db, fixColumnsCheckConstraintMigration); err != nil {
 		db.Close()
 		return nil, err
 	}

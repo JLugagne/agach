@@ -278,6 +278,9 @@ func (m *internalMockQueries) GetTimeline(ctx context.Context, projectID domain.
 func (m *internalMockQueries) GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error) {
 	panic("not used")
 }
+func (m *internalMockQueries) GetWIPSlots(ctx context.Context, projectID domain.ProjectID) (*domain.WIPSlotsInfo, error) {
+	return nil, nil
+}
 
 // newInternalToolHandler creates a ToolHandler with the given recorder wired as
 // the broadcaster, using the provided commands mock and a no-op queries stub.
@@ -444,7 +447,7 @@ func TestCompleteTask_EmitsBroadcast(t *testing.T) {
 	require.NoError(t, err)
 
 	events := recorder.recorded()
-	require.Len(t, events, 1, "exactly one event should be broadcast after completeTask")
+	require.Len(t, events, 2, "exactly two events should be broadcast after completeTask")
 
 	event := events[0]
 	assert.Equal(t, "task_completed", event.Type)
@@ -455,6 +458,10 @@ func TestCompleteTask_EmitsBroadcast(t *testing.T) {
 	assert.Equal(t, string(taskID), data["task_id"])
 	assert.Equal(t, "Done: implemented all the tests", data["completion_summary"])
 	assert.Equal(t, "agent-go-1", data["completed_by_agent"])
+
+	event2 := events[1]
+	assert.Equal(t, "wip_slot_available", event2.Type)
+	assert.Equal(t, string(projectID), event2.ProjectID)
 }
 
 // TestBlockTask_EmitsBroadcast tests that the blockTask handler emits a
@@ -482,7 +489,7 @@ func TestBlockTask_EmitsBroadcast(t *testing.T) {
 	require.NoError(t, err)
 
 	events := recorder.recorded()
-	require.Len(t, events, 1, "exactly one event should be broadcast after blockTask")
+	require.Len(t, events, 2, "exactly two events should be broadcast after blockTask")
 
 	event := events[0]
 	assert.Equal(t, "task_blocked", event.Type)
@@ -493,6 +500,83 @@ func TestBlockTask_EmitsBroadcast(t *testing.T) {
 	assert.Equal(t, string(taskID), data["task_id"])
 	assert.Equal(t, "Waiting for design approval", data["blocked_reason"])
 	assert.Equal(t, "agent-pm-1", data["blocked_by_agent"])
+
+	event2 := events[1]
+	assert.Equal(t, "wip_slot_available", event2.Type)
+	assert.Equal(t, string(projectID), event2.ProjectID)
+}
+
+// TestMoveTask_ToBacklog_EmitsWIPSlotAvailable verifies that moving a task to
+// a column other than in_progress broadcasts both task_moved and
+// wip_slot_available events.
+func TestMoveTask_ToBacklog_EmitsWIPSlotAvailable(t *testing.T) {
+	ctx := context.Background()
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	cmds := &internalMockCommands{
+		moveTaskFn: func(_ context.Context, pID domain.ProjectID, tID domain.TaskID, slug domain.ColumnSlug) error {
+			assert.Equal(t, projectID, pID)
+			assert.Equal(t, taskID, tID)
+			assert.Equal(t, domain.ColumnSlug("backlog"), slug)
+			return nil
+		},
+	}
+
+	recorder := &internalRecorder{}
+	handler := newInternalToolHandler(cmds, recorder)
+
+	_, err := handler.moveTask(ctx, map[string]interface{}{
+		"project_id":    string(projectID),
+		"task_id":       string(taskID),
+		"target_column": "backlog",
+	})
+	require.NoError(t, err)
+
+	events := recorder.recorded()
+	require.Len(t, events, 2, "expected task_moved + wip_slot_available when moving out of in_progress")
+
+	assert.Equal(t, "task_moved", events[0].Type)
+	assert.Equal(t, string(projectID), events[0].ProjectID)
+
+	assert.Equal(t, "wip_slot_available", events[1].Type)
+	assert.Equal(t, string(projectID), events[1].ProjectID)
+}
+
+// TestMoveTask_ToInProgress_DoesNotEmitWIPSlotAvailable verifies that moving a
+// task INTO in_progress emits only task_moved — no wip_slot_available.
+func TestMoveTask_ToInProgress_DoesNotEmitWIPSlotAvailable(t *testing.T) {
+	ctx := context.Background()
+	projectID := domain.NewProjectID()
+	taskID := domain.NewTaskID()
+
+	cmds := &internalMockCommands{
+		moveTaskFn: func(_ context.Context, pID domain.ProjectID, tID domain.TaskID, slug domain.ColumnSlug) error {
+			assert.Equal(t, domain.ColumnSlug("in_progress"), slug)
+			return nil
+		},
+	}
+
+	recorder := &internalRecorder{}
+	handler := newInternalToolHandler(cmds, recorder)
+
+	_, err := handler.moveTask(ctx, map[string]interface{}{
+		"project_id":    string(projectID),
+		"task_id":       string(taskID),
+		"target_column": "in_progress",
+	})
+	require.NoError(t, err)
+
+	events := recorder.recorded()
+	require.Len(t, events, 1, "expected only task_moved when moving into in_progress")
+
+	assert.Equal(t, "task_moved", events[0].Type)
+	assert.Equal(t, string(projectID), events[0].ProjectID)
+
+	for _, e := range events {
+		assert.NotEqual(t, "wip_slot_available", e.Type,
+			"must NOT emit wip_slot_available when target is in_progress")
+	}
 }
 
 // TestRequestWontDo_EmitsBroadcast tests that the requestWontDo handler emits

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2, ArrowRight, ChevronDown } from 'lucide-react';
+import { Loader2, ArrowRight, ArrowRightToLine, ChevronDown } from 'lucide-react';
 import { listTasks, moveTask, listSubProjects, getProjectSummary, listColumns } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type { TaskWithDetailsResponse, ProjectWithSummary, ProjectSummaryResponse, ColumnWithTasksResponse } from '../lib/types';
@@ -16,6 +16,7 @@ export default function BacklogPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [columns, setColumns] = useState<ColumnWithTasksResponse[]>([]);
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
+  const [movingAll, setMovingAll] = useState(false);
 
   const fetchTasks = useCallback(async () => {
     if (!projectId) return;
@@ -94,6 +95,20 @@ export default function BacklogPage() {
     }
   };
 
+  const handleMoveAllToTodo = async () => {
+    if (!projectId || filteredTasks.length === 0) return;
+    setMovingAll(true);
+    try {
+      await Promise.all(filteredTasks.map((t) => moveTask(projectId, t.id, { target_column: 'todo' })));
+      fetchTasks();
+      fetchSummary();
+    } catch {
+      // error handled silently
+    } finally {
+      setMovingAll(false);
+    }
+  };
+
   // Filter by selected sub-project
   const filteredTasks = useMemo(() => {
     if (!selectedSubProject) return tasks;
@@ -132,8 +147,26 @@ export default function BacklogPage() {
           </span>
         </div>
 
-        {/* Sub-project filter */}
-        {subProjects.length > 0 && (
+        <div className="flex items-center gap-3">
+          {/* Move all to Todo */}
+          {filteredTasks.length > 0 && (
+            <button
+              onClick={handleMoveAllToTodo}
+              disabled={movingAll}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-md bg-[var(--primary)] text-white hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+              style={{ fontFamily: 'Inter, sans-serif' }}
+            >
+              {movingAll ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <ArrowRightToLine size={12} />
+              )}
+              Move all to Todo
+            </button>
+          )}
+
+          {/* Sub-project filter */}
+          {subProjects.length > 0 && (
           <div className="relative">
             <select
               value={selectedSubProject}
@@ -157,6 +190,7 @@ export default function BacklogPage() {
             <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
           </div>
         )}
+        </div>
       </div>
 
       {/* Task list */}

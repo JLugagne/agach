@@ -296,3 +296,10 @@ type TimelineEntry struct {
 	TasksCreated   int    `json:"tasks_created"`
 	TasksCompleted int    `json:"tasks_completed"`
 }
+
+// WIPSlotsInfo holds free WIP slot information for the in_progress column.
+type WIPSlotsInfo struct {
+	WIPLimit   int `json:"wip_limit"`   // 0 = unlimited
+	InProgress int `json:"in_progress"` // current in_progress task count
+	FreeSlots  int `json:"free_slots"`  // -1 = unlimited; >=0 = available slots
+}
