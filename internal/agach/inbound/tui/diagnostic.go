@@ -21,11 +21,12 @@ type diagnosticUpdateMsg domain.DiagnosticUpdate
 
 // DiagnosticModel shows cold-start token measurements for each agent
 type DiagnosticModel struct {
-	app     *tuiApp
-	results []domain.DiagnosticResult
-	done    bool
-	cancel  context.CancelFunc
-	cursor  int
+	app        *tuiApp
+	results    []domain.DiagnosticResult
+	done       bool
+	cancel     context.CancelFunc
+	cursor     int
+	detailScroll int // vertical scroll offset in detail panel
 }
 
 func newDiagnosticModel(app *tuiApp) *DiagnosticModel {
@@ -71,11 +72,22 @@ func (m *DiagnosticModel) HandleMsg(msg tcellapp.Msg) (tcellapp.Screen, tcellapp
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
+				m.detailScroll = 0
 			}
 		case "down", "j":
 			if m.cursor < len(m.results)-1 {
 				m.cursor++
+				m.detailScroll = 0
 			}
+		case "pgup":
+			if m.detailScroll > 0 {
+				m.detailScroll -= 10
+				if m.detailScroll < 0 {
+					m.detailScroll = 0
+				}
+			}
+		case "pgdn":
+			m.detailScroll += 10
 		}
 	}
 	return m, nil
@@ -97,8 +109,8 @@ func (m *DiagnosticModel) Draw(s tcell.Screen, w, h int) {
 		return
 	}
 
-	// Layout: left table | right detail panel
-	detailW := 40
+	// Layout: left table | right detail panel (fixed width)
+	detailW := 50
 	tableW := w - detailW - 3 // 3 for separator + margins
 	if tableW < 60 {
 		// Not enough space for detail panel — full-width table
@@ -221,18 +233,17 @@ func (m *DiagnosticModel) Draw(s tcell.Screen, w, h int) {
 
 	// Footer
 	if m.done {
-		tcellapp.DrawFooterBar(s, h-1, w, "[j/k] navigate  [esc/q] back")
+		tcellapp.DrawFooterBar(s, h-1, w, "[j/k] navigate  [pgup/pgdn] scroll  [esc/q] back")
 	} else {
-		tcellapp.DrawFooterBar(s, h-1, w, "[j/k] navigate  [esc] cancel  ·  running probes...")
+		tcellapp.DrawFooterBar(s, h-1, w, "[j/k] navigate  [pgup/pgdn] scroll  [esc] cancel  ·  running probes...")
 	}
 }
 
 func (m *DiagnosticModel) drawDetail(s tcell.Screen, x, y, w, maxH int, r domain.DiagnosticResult) {
 	surfBg := tcell.StyleDefault.Background(tcellapp.ColorSurface)
+	headerStyle := surfBg.Bold(true).Foreground(tcellapp.ColorAccent)
 	labelStyle := surfBg.Foreground(tcellapp.ColorMuted)
 	valStyle := surfBg.Foreground(tcellapp.ColorNormal)
-	headerStyle := surfBg.Bold(true).Foreground(tcellapp.ColorAccent)
-	dimStyle := surfBg.Foreground(tcellapp.ColorDimmer)
 
 	cy := y
 
@@ -242,143 +253,200 @@ func (m *DiagnosticModel) drawDetail(s tcell.Screen, x, y, w, maxH int, r domain
 		name = "(baseline)"
 	}
 	tcellapp.DrawText(s, x, cy, headerStyle, name)
-	cy += 2
+	cy++
 
 	if r.Status != domain.DiagnosticDone {
-		tcellapp.DrawText(s, x, cy, dimStyle, string(r.Status))
+		tcellapp.DrawText(s, x, cy, labelStyle, string(r.Status))
 		return
 	}
 
-	// Token breakdown
-	tcellapp.DrawText(s, x, cy, labelStyle, "Tokens")
-	cy++
-	nonCached := r.InputTokens - r.CacheReadInputTokens - r.CacheCreationInputTokens
-	lines := []struct{ label, value string }{
-		{"  Total input", tcellapp.FormatTokens(r.InputTokens)},
-		{"  Non-cached", tcellapp.FormatTokens(nonCached)},
-		{"  Cache read", tcellapp.FormatTokens(r.CacheReadInputTokens)},
-		{"  Cache create", tcellapp.FormatTokens(r.CacheCreationInputTokens)},
-		{"  Output", tcellapp.FormatTokens(r.OutputTokens)},
-	}
-	for _, l := range lines {
-		if cy >= y+maxH {
-			return
-		}
-		tcellapp.DrawText(s, x, cy, dimStyle, l.label)
-		tcellapp.DrawText(s, x+w-len([]rune(l.value))-1, cy, valStyle, l.value)
-		cy++
-	}
-	cy++
-
-	// Cost & model
-	if r.CostUSD > 0 {
-		if cy >= y+maxH {
-			return
-		}
-		tcellapp.DrawText(s, x, cy, labelStyle, "Cost")
-		cost := fmt.Sprintf("$%.4f", r.CostUSD)
-		tcellapp.DrawText(s, x+w-len(cost)-1, cy, valStyle, cost)
-		cy++
-	}
-	if r.Model != "" {
-		if cy >= y+maxH {
-			return
-		}
-		tcellapp.DrawText(s, x, cy, labelStyle, "Model")
-		model := tcellapp.Truncate(r.Model, w-8)
-		tcellapp.DrawText(s, x+w-len([]rune(model))-1, cy, valStyle, model)
-		cy++
-	}
-	if r.Duration > 0 {
-		if cy >= y+maxH {
-			return
-		}
-		tcellapp.DrawText(s, x, cy, labelStyle, "Duration")
-		dur := diagFormatDuration(r.Duration)
-		tcellapp.DrawText(s, x+w-len(dur)-1, cy, valStyle, dur)
-		cy++
-	}
-	cy++
-
-	// Tools breakdown
-	if cy >= y+maxH {
+	if r.ContextRaw == "" {
+		tcellapp.DrawText(s, x, cy, labelStyle, "fetching context...")
 		return
 	}
-	tcellapp.DrawText(s, x, cy, labelStyle, "Tools")
-	cy++
-	toolLines := []struct{ label, value string }{
-		{"  System", fmt.Sprintf("%d", r.SystemToolCount)},
-		{"  MCP", fmt.Sprintf("%d", r.MCPToolCount)},
+
+	// Parse markdown tables from /context output into display lines
+	lines := diagParseContext(r.ContextRaw)
+
+	// Clamp scroll
+	visibleLines := maxH
+	maxScroll := len(lines) - visibleLines
+	if maxScroll < 0 {
+		maxScroll = 0
 	}
-	for _, l := range toolLines {
-		if cy >= y+maxH {
-			return
-		}
-		tcellapp.DrawText(s, x, cy, dimStyle, l.label)
-		tcellapp.DrawText(s, x+w-len(l.value)-1, cy, valStyle, l.value)
-		cy++
+	if m.detailScroll > maxScroll {
+		m.detailScroll = maxScroll
 	}
 
-	// MCP tool list
-	if len(r.MCPTools) > 0 {
-		cy++
-		if cy >= y+maxH {
-			return
-		}
-		tcellapp.DrawText(s, x, cy, labelStyle, "MCP Tools")
-		cy++
-		for _, t := range r.MCPTools {
-			if cy >= y+maxH {
-				return
-			}
-			// Strip mcp__ prefix for readability
-			short := t
-			if idx := strings.Index(t, "__"); idx >= 0 {
-				parts := strings.SplitN(t[idx+2:], "__", 2)
-				if len(parts) == 2 {
-					short = parts[0] + "/" + parts[1]
-				} else {
-					short = t[idx+2:]
+	start := m.detailScroll
+	for i := start; i < len(lines) && cy < y+maxH; i++ {
+		dl := lines[i]
+		switch dl.kind {
+		case diagLineHeader:
+			tcellapp.DrawText(s, x, cy, headerStyle, tcellapp.Truncate(dl.text, w-1))
+		case diagLineLabel:
+			tcellapp.DrawText(s, x, cy, labelStyle, tcellapp.Truncate(dl.text, w-1))
+		case diagLineKV:
+			tcellapp.DrawText(s, x, cy, labelStyle, dl.text)
+			if dl.value != "" {
+				vx := x + w - len([]rune(dl.value)) - 1
+				if vx > x+len([]rune(dl.text)) {
+					tcellapp.DrawText(s, vx, cy, valStyle, dl.value)
 				}
 			}
-			tcellapp.DrawText(s, x+2, cy, dimStyle, tcellapp.Truncate(short, w-3))
-			cy++
+		case diagLineEmpty:
+			// blank line
+		}
+		cy++
+	}
+}
+
+type diagLineKind int
+
+const (
+	diagLineEmpty  diagLineKind = iota
+	diagLineHeader              // section header (bold accent)
+	diagLineLabel               // bold key text (e.g. "Model:")
+	diagLineKV                  // left-aligned label, right-aligned value
+)
+
+type diagLine struct {
+	kind  diagLineKind
+	text  string
+	value string // right-aligned (for diagLineKV)
+}
+
+// diagParseContext converts the markdown /context output into display lines.
+func diagParseContext(raw string) []diagLine {
+	var out []diagLine
+	lines := strings.Split(raw, "\n")
+
+	var currentSection string // track which section we're in
+	var mcpTotal int          // accumulate MCP tool token total
+
+	for i := 0; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+
+		// Skip empty
+		if line == "" {
+			// Emit MCP total before the blank line after MCP Tools section
+			if currentSection == "mcp" && mcpTotal > 0 {
+				out = append(out, diagLine{kind: diagLineKV, text: "  Total", value: tcellapp.FormatTokens(mcpTotal)})
+				mcpTotal = 0
+				currentSection = ""
+			}
+			out = append(out, diagLine{kind: diagLineEmpty})
+			continue
+		}
+
+		// Section headers: ### or ##
+		if strings.HasPrefix(line, "##") {
+			// Emit MCP total if switching away
+			if currentSection == "mcp" && mcpTotal > 0 {
+				out = append(out, diagLine{kind: diagLineKV, text: "  Total", value: tcellapp.FormatTokens(mcpTotal)})
+				mcpTotal = 0
+			}
+			title := strings.TrimLeft(line, "# ")
+			if strings.Contains(strings.ToLower(title), "mcp tool") {
+				currentSection = "mcp"
+			} else {
+				currentSection = ""
+			}
+			out = append(out, diagLine{kind: diagLineHeader, text: title})
+			continue
+		}
+
+		// Bold key-value: **Key:** value
+		if strings.HasPrefix(line, "**") {
+			line = strings.ReplaceAll(line, "**", "")
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				out = append(out, diagLine{kind: diagLineKV, text: strings.TrimSpace(parts[0]), value: strings.TrimSpace(parts[1])})
+			} else {
+				out = append(out, diagLine{kind: diagLineLabel, text: line})
+			}
+			continue
+		}
+
+		// Table rows: | col1 | col2 | col3 |
+		if strings.HasPrefix(line, "|") {
+			// Skip separator rows (|---|---|)
+			if strings.Contains(line, "---") {
+				continue
+			}
+			cells := diagParseTableRow(line)
+			if len(cells) == 0 {
+				continue
+			}
+			// Skip header rows (detected by matching known headers)
+			lower0 := strings.ToLower(cells[0])
+			if lower0 == "category" || lower0 == "tool" || lower0 == "agent type" || lower0 == "type" || lower0 == "skill" {
+				continue
+			}
+			label := "  " + cells[0]
+			value := ""
+			if len(cells) >= 3 {
+				last := cells[len(cells)-1]
+				if strings.Contains(last, "%") {
+					// Category table: Category | Tokens | Percentage → use tokens (col 1)
+					value = cells[1]
+				} else {
+					// MCP/agent/memory tables: Name | Server/Type | Tokens → use last
+					value = last
+				}
+			} else if len(cells) == 2 {
+				value = cells[1]
+			}
+
+			// Accumulate MCP total
+			if currentSection == "mcp" {
+				if n := diagParseTokenCount(value); n > 0 {
+					mcpTotal += n
+				}
+			}
+
+			out = append(out, diagLine{kind: diagLineKV, text: label, value: value})
+			continue
 		}
 	}
 
-	// Agent list
-	if len(r.Agents) > 0 {
-		cy++
-		if cy >= y+maxH {
-			return
-		}
-		tcellapp.DrawText(s, x, cy, labelStyle, fmt.Sprintf("Agents (%d)", r.AgentCount))
-		cy++
-		for _, a := range r.Agents {
-			if cy >= y+maxH {
-				return
-			}
-			tcellapp.DrawText(s, x+2, cy, dimStyle, tcellapp.Truncate(a, w-3))
-			cy++
-		}
+	// Emit trailing MCP total if file ends without blank line
+	if currentSection == "mcp" && mcpTotal > 0 {
+		out = append(out, diagLine{kind: diagLineKV, text: "  Total", value: tcellapp.FormatTokens(mcpTotal)})
 	}
 
-	// Skills list
-	if len(r.Skills) > 0 {
-		cy++
-		if cy >= y+maxH {
-			return
-		}
-		tcellapp.DrawText(s, x, cy, labelStyle, fmt.Sprintf("Skills (%d)", r.SkillCount))
-		cy++
-		for _, sk := range r.Skills {
-			if cy >= y+maxH {
-				return
-			}
-			tcellapp.DrawText(s, x+2, cy, dimStyle, tcellapp.Truncate(sk, w-3))
-			cy++
+	return out
+}
+
+// diagParseTokenCount parses a token count string like "107", "4.1k", "19.4k"
+func diagParseTokenCount(s string) int {
+	s = strings.TrimSpace(s)
+	s = strings.ReplaceAll(s, ",", "")
+	s = strings.ReplaceAll(s, "%", "")
+
+	multiplier := 1.0
+	if strings.HasSuffix(s, "k") {
+		multiplier = 1000
+		s = s[:len(s)-1]
+	}
+
+	var f float64
+	if _, err := fmt.Sscanf(s, "%f", &f); err != nil {
+		return 0
+	}
+	return int(f * multiplier)
+}
+
+func diagParseTableRow(line string) []string {
+	parts := strings.Split(line, "|")
+	var cells []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			cells = append(cells, p)
 		}
 	}
+	return cells
 }
 
 func diagDrawCell(s tcell.Screen, x, y, width int, style tcell.Style, text string) int {

@@ -475,21 +475,6 @@ func (s *Server) registerAllTools() {
 		s.toolHandler.listComments,
 	)
 
-	s.addTool("report_tokens",
-		"Reports token usage for a task. Call this after completing work to record consumption metrics.",
-		map[string]any{
-			"project_id":  map[string]any{"type": "string", "description": "The project ID"},
-			"task_id":     map[string]any{"type": "string", "description": "The task ID"},
-			"input":       map[string]any{"type": "integer", "description": "Input tokens consumed"},
-			"output":      map[string]any{"type": "integer", "description": "Output tokens consumed"},
-			"cache_read":  map[string]any{"type": "integer", "description": "Cache read tokens"},
-			"cache_write": map[string]any{"type": "integer", "description": "Cache write tokens"},
-			"model":       map[string]any{"type": "string", "description": "Model used (e.g. claude-sonnet-4-20250514)"},
-		},
-		[]string{"project_id", "task_id", "input", "output"},
-		s.toolHandler.reportTokens,
-	)
-
 	// Board
 	s.addTool("get_board",
 		"Returns a lightweight board overview: task counts per column and sub-projects with their summaries. Use list_tasks or get_next_task for actual task data.",

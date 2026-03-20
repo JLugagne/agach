@@ -37,6 +37,9 @@ type DiagnosticResult struct {
 	Agents          []string
 	SkillCount      int
 	Skills          []string
+
+	// From /context command
+	ContextRaw string
 }
 
 // DiagnosticUpdate is sent as results come in from RunDiagnostic

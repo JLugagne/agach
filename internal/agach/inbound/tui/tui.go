@@ -73,6 +73,7 @@ func (r *RootScreen) handleWelcome(msg tcellapp.Msg) (tcellapp.Screen, tcellapp.
 		monitor := newMonitorModel(r.app, ps.project)
 		r.monitor = monitor
 		r.current = screenMonitor
+		setTerminalTitle(ps.project.Name + " - agach")
 		return r, r.monitor.Init()
 	}
 
@@ -90,6 +91,7 @@ func (r *RootScreen) handleWelcome(msg tcellapp.Msg) (tcellapp.Screen, tcellapp.
 func (r *RootScreen) handleMonitor(msg tcellapp.Msg) (tcellapp.Screen, tcellapp.Cmd) {
 	if _, ok := msg.(backToWelcomeMsg); ok {
 		r.current = screenWelcome
+		setTerminalTitle("agach")
 		return r, r.welcome.Init()
 	}
 
@@ -118,6 +120,10 @@ func (r *RootScreen) Draw(s tcell.Screen, w, h int) {
 	case screenDiagnostic:
 		r.diagnostic.Draw(s, w, h)
 	}
+}
+
+func setTerminalTitle(title string) {
+	fmt.Fprintf(os.Stdout, "\033]0;%s\007", title)
 }
 
 // Run starts the TUI

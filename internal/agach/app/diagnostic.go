@@ -109,6 +109,7 @@ func runDiagnosticProbe(ctx context.Context, workDir, agentSlug string) (domain.
 
 	var run domain.TaskRun
 	result := domain.DiagnosticResult{AgentSlug: agentSlug}
+	var sessionID string
 
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
@@ -119,10 +120,15 @@ func runDiagnosticProbe(ctx context.Context, workDir, agentSlug string) (domain.
 
 		// Parse init event for metadata
 		var rawType struct {
-			Type string `json:"type"`
+			Type      string `json:"type"`
+			SessionID string `json:"session_id"`
 		}
 		if json.Unmarshal([]byte(line), &rawType) != nil {
 			continue
+		}
+
+		if rawType.SessionID != "" && sessionID == "" {
+			sessionID = rawType.SessionID
 		}
 
 		switch rawType.Type {
@@ -169,5 +175,53 @@ func runDiagnosticProbe(ctx context.Context, workDir, agentSlug string) (domain.
 	result.CacheReadInputTokens = run.ColdStartCacheReadInputTokens
 	result.CacheCreationInputTokens = run.ColdStartCacheCreationInputTokens
 
+	// Fetch /context from the session
+	if sessionID != "" && ctx.Err() == nil {
+		if contextRaw, err := fetchSessionContext(ctx, workDir, sessionID); err == nil {
+			result.ContextRaw = contextRaw
+		}
+	}
+
 	return result, nil
+}
+
+// fetchSessionContext resumes a claude session with /context and returns the raw output.
+func fetchSessionContext(ctx context.Context, workDir, sessionID string) (string, error) {
+	cmd := exec.CommandContext(ctx, "claude",
+		"--dangerously-skip-permissions",
+		"--output-format", "stream-json",
+		"--verbose",
+		"--max-turns", "2",
+		"--resume", sessionID,
+		"-p", "/context",
+	)
+	cmd.Dir = workDir
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", fmt.Errorf("stdout pipe: %w", err)
+	}
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("start: %w", err)
+	}
+
+	var contextResult string
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 256*1024), 256*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var ev struct {
+			Type   string `json:"type"`
+			Result string `json:"result"`
+		}
+		if json.Unmarshal([]byte(line), &ev) == nil && ev.Type == "result" && ev.Result != "" {
+			contextResult = ev.Result
+		}
+	}
+
+	_ = cmd.Wait()
+	return contextResult, nil
 }
