@@ -74,7 +74,7 @@ func (h *TaskCommandsHandler) CreateTask(w http.ResponseWriter, r *http.Request)
 		req.ContextFiles,
 		req.Tags,
 		req.EstimatedEffort,
-		false, // HTTP creates always go to todo
+		req.StartInBacklog,
 	)
 	if err != nil {
 		if domain.IsDomainError(err) {

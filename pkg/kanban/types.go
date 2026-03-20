@@ -20,6 +20,7 @@ type CreateProjectRequest struct {
 type UpdateProjectRequest struct {
 	Name        *string `json:"name" validate:"omitempty,min=1,max=200"`
 	Description *string `json:"description" validate:"omitempty,max=5000"`
+	DefaultRole *string `json:"default_role" validate:"omitempty,max=100"`
 }
 
 // ProjectResponse represents a project in API responses
@@ -31,6 +32,7 @@ type ProjectResponse struct {
 	WorkDir        string    `json:"work_dir"`
 	CreatedByRole  string    `json:"created_by_role"`
 	CreatedByAgent string    `json:"created_by_agent"`
+	DefaultRole    string    `json:"default_role"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
@@ -94,6 +96,7 @@ type CreateTaskRequest struct {
 	Tags            []string `json:"tags" validate:"dive,max=50"`
 	EstimatedEffort string   `json:"estimated_effort" validate:"omitempty,oneof=XS S M L XL"`
 	DependsOn       []string `json:"depends_on" validate:"dive,entity_id"`
+	StartInBacklog  bool     `json:"start_in_backlog"`
 }
 
 // UpdateTaskRequest represents a request to update a task

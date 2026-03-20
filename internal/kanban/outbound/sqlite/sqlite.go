@@ -63,6 +63,9 @@ var taskColdStartMigration string
 //go:embed migrations/016_backlog_column.sql
 var backlogColumnMigration string
 
+//go:embed migrations/017_project_default_role.sql
+var projectDefaultRoleMigration string
+
 // baseRepository contains shared database connections
 type baseRepository struct {
 	globalDB   *sql.DB
@@ -176,6 +179,12 @@ func NewRepositories(dataDir string) (*Repositories, error) {
 	if err := runMigration(globalDB, globalIndexesMigration); err != nil {
 		globalDB.Close()
 		return nil, fmt.Errorf("failed to run global indexes migration: %w", err)
+	}
+
+	// Add default_role column to projects
+	if err := runMigration(globalDB, projectDefaultRoleMigration); err != nil && !isDuplicateColumn(err) {
+		globalDB.Close()
+		return nil, fmt.Errorf("failed to run project default role migration: %w", err)
 	}
 
 	base := &baseRepository{

@@ -31,6 +31,7 @@ func NewProjectCommandsHandler(commands service.Commands, ctrl *controller.Contr
 // RegisterRoutes registers project command routes
 func (h *ProjectCommandsHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/projects", h.CreateProject).Methods("POST")
+	router.HandleFunc("/api/projects/{id}", h.UpdateProject).Methods("PATCH")
 	router.HandleFunc("/api/projects/{id}", h.DeleteProject).Methods("DELETE")
 }
 
@@ -62,6 +63,39 @@ func (h *ProjectCommandsHandler) CreateProject(w http.ResponseWriter, r *http.Re
 	})
 
 	h.controller.SendSuccess(w, r, resp)
+}
+
+// UpdateProject updates a project
+func (h *ProjectCommandsHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+	projectID := domain.ProjectID(id)
+
+	var req pkgkanban.UpdateProjectRequest
+	if err := h.controller.DecodeAndValidate(r, &req, pkgkanban.ErrInvalidProjectRequest); err != nil {
+		h.controller.SendFail(w, r, nil, err)
+		return
+	}
+
+	name := ""
+	if req.Name != nil {
+		name = *req.Name
+	}
+	desc := ""
+	if req.Description != nil {
+		desc = *req.Description
+	}
+
+	if err := h.commands.UpdateProject(r.Context(), projectID, name, desc, req.DefaultRole); err != nil {
+		if domain.IsDomainError(err) {
+			h.controller.SendFail(w, r, nil, err)
+		} else {
+			h.controller.SendError(w, r, err)
+		}
+		return
+	}
+
+	h.hub.Broadcast(websocket.Event{Type: "project_updated", Data: map[string]string{"project_id": id}})
+	h.controller.SendSuccess(w, r, map[string]string{"message": "project updated"})
 }
 
 // DeleteProject deletes a project and its SQLite database file

@@ -14,6 +14,7 @@ export interface ProjectResponse {
   work_dir: string;
   created_by_role: string;
   created_by_agent: string;
+  default_role: string;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +46,7 @@ export interface CreateProjectRequest {
 export interface UpdateProjectRequest {
   name?: string;
   description?: string;
+  default_role?: string;
 }
 
 // Roles
@@ -144,6 +146,7 @@ export interface CreateTaskRequest {
   tags?: string[];
   estimated_effort?: string;
   depends_on?: string[];
+  start_in_backlog?: boolean;
 }
 
 export interface UpdateTaskRequest {

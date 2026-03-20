@@ -59,7 +59,7 @@ func (r *internalRecorder) Count() int {
 // internalMockCommands is a minimal mock of service.Commands for internal tests.
 type internalMockCommands struct {
 	createProjectFn   func(context.Context, string, string, string, string, string, *domain.ProjectID) (domain.Project, error)
-	updateProjectFn   func(context.Context, domain.ProjectID, string, string) error
+	updateProjectFn   func(context.Context, domain.ProjectID, string, string, *string) error
 	deleteProjectFn   func(context.Context, domain.ProjectID) error
 	createTaskFn      func(context.Context, domain.ProjectID, string, string, string, domain.Priority, string, string, string, []string, []string, string, bool) (domain.Task, error)
 	updateTaskFn      func(context.Context, domain.ProjectID, domain.TaskID, *string, *string, *string, *string, *string, *domain.Priority, *[]string, *[]string, *domain.TokenUsage, *int) error
@@ -75,8 +75,8 @@ type internalMockCommands struct {
 func (m *internalMockCommands) CreateProject(ctx context.Context, name, description, workDir, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
 	return m.createProjectFn(ctx, name, description, workDir, createdByRole, createdByAgent, parentID)
 }
-func (m *internalMockCommands) UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string) error {
-	return m.updateProjectFn(ctx, projectID, name, description)
+func (m *internalMockCommands) UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string, defaultRole *string) error {
+	return m.updateProjectFn(ctx, projectID, name, description, defaultRole)
 }
 func (m *internalMockCommands) DeleteProject(ctx context.Context, projectID domain.ProjectID) error {
 	return m.deleteProjectFn(ctx, projectID)
@@ -167,6 +167,9 @@ func (m *internalMockCommands) DeleteProjectRole(ctx context.Context, projectID 
 	panic("not used in this test")
 }
 func (m *internalMockCommands) UpdateTaskSessionID(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error {
+	panic("not used in this test")
+}
+func (m *internalMockCommands) BulkCreateTasks(ctx context.Context, projectID domain.ProjectID, inputs []service.BulkTaskInput) ([]domain.Task, error) {
 	panic("not used in this test")
 }
 
@@ -537,7 +540,7 @@ func TestUpdateProject_EmitsBroadcast(t *testing.T) {
 	projectID := domain.NewProjectID()
 
 	cmds := &internalMockCommands{
-		updateProjectFn: func(_ context.Context, pID domain.ProjectID, name, description string) error {
+		updateProjectFn: func(_ context.Context, pID domain.ProjectID, name, description string, defaultRole *string) error {
 			return nil
 		},
 	}
@@ -633,14 +636,17 @@ func TestUpdateTask_EmitsBroadcast(t *testing.T) {
 	assert.Equal(t, string(taskID), data["task_id"])
 }
 
-// TestUpdateTaskFiles_EmitsBroadcast tests that the updateTaskFiles handler
-// emits a "task_updated" event.
-func TestUpdateTaskFiles_EmitsBroadcast(t *testing.T) {
+// TestUpdateTask_FilesModified_EmitsBroadcast tests that the updateTask handler
+// with files_modified emits a "task_updated" event.
+func TestUpdateTask_FilesModified_EmitsBroadcast(t *testing.T) {
 	ctx := context.Background()
 	projectID := domain.NewProjectID()
 	taskID := domain.NewTaskID()
 
 	cmds := &internalMockCommands{
+		updateTaskFn: func(_ context.Context, _ domain.ProjectID, _ domain.TaskID, _, _, _, _, _ *string, _ *domain.Priority, _, _ *[]string, _ *domain.TokenUsage, _ *int) error {
+			return nil
+		},
 		updateTaskFilesFn: func(_ context.Context, pID domain.ProjectID, tID domain.TaskID, filesModified, contextFiles *[]string) error {
 			return nil
 		},
@@ -649,7 +655,7 @@ func TestUpdateTaskFiles_EmitsBroadcast(t *testing.T) {
 	recorder := &internalRecorder{}
 	handler := newInternalToolHandler(cmds, recorder)
 
-	_, err := handler.updateTaskFiles(ctx, map[string]interface{}{
+	_, err := handler.updateTask(ctx, map[string]interface{}{
 		"project_id":     string(projectID),
 		"task_id":        string(taskID),
 		"files_modified": []interface{}{"main.go"},

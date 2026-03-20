@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
+	"github.com/JLugagne/agach-mcp/internal/kanban/domain/service"
 )
 
 // MockCommands is a function-based mock implementation of the service.Commands interface.
@@ -18,7 +19,7 @@ import (
 //	}
 type MockCommands struct {
 	CreateProjectFunc        func(ctx context.Context, name, description, workDir, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
-	UpdateProjectFunc        func(ctx context.Context, projectID domain.ProjectID, name, description string) error
+	UpdateProjectFunc        func(ctx context.Context, projectID domain.ProjectID, name, description string, defaultRole *string) error
 	DeleteProjectFunc        func(ctx context.Context, projectID domain.ProjectID) error
 	CreateRoleFunc           func(ctx context.Context, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error)
 	UpdateRoleFunc           func(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error
@@ -27,6 +28,7 @@ type MockCommands struct {
 	UpdateProjectRoleFunc    func(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error
 	DeleteProjectRoleFunc    func(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error
 	CreateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error)
+	BulkCreateTasksFunc      func(ctx context.Context, projectID domain.ProjectID, inputs []service.BulkTaskInput) ([]domain.Task, error)
 	UpdateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error
 	UpdateTaskFilesFunc      func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error
 	DeleteTaskFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
@@ -58,11 +60,11 @@ func (m *MockCommands) CreateProject(ctx context.Context, name, description, wor
 	return m.CreateProjectFunc(ctx, name, description, workDir, createdByRole, createdByAgent, parentID)
 }
 
-func (m *MockCommands) UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string) error {
+func (m *MockCommands) UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string, defaultRole *string) error {
 	if m.UpdateProjectFunc == nil {
 		panic("called not defined UpdateProjectFunc")
 	}
-	return m.UpdateProjectFunc(ctx, projectID, name, description)
+	return m.UpdateProjectFunc(ctx, projectID, name, description, defaultRole)
 }
 
 func (m *MockCommands) DeleteProject(ctx context.Context, projectID domain.ProjectID) error {
@@ -119,6 +121,13 @@ func (m *MockCommands) CreateTask(ctx context.Context, projectID domain.ProjectI
 		panic("called not defined CreateTaskFunc")
 	}
 	return m.CreateTaskFunc(ctx, projectID, title, summary, description, priority, createdByRole, createdByAgent, assignedRole, contextFiles, tags, estimatedEffort, startInBacklog)
+}
+
+func (m *MockCommands) BulkCreateTasks(ctx context.Context, projectID domain.ProjectID, inputs []service.BulkTaskInput) ([]domain.Task, error) {
+	if m.BulkCreateTasksFunc == nil {
+		panic("called not defined BulkCreateTasksFunc")
+	}
+	return m.BulkCreateTasksFunc(ctx, projectID, inputs)
 }
 
 func (m *MockCommands) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error {

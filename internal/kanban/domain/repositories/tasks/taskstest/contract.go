@@ -25,6 +25,7 @@ import (
 //		},
 //	}
 type MockTaskRepository struct {
+	BulkCreateFunc                func(ctx context.Context, projectID domain.ProjectID, tasks []domain.Task) error
 	CreateFunc                    func(ctx context.Context, projectID domain.ProjectID, task domain.Task) error
 	FindByIDFunc                  func(ctx context.Context, projectID domain.ProjectID, id domain.TaskID) (*domain.Task, error)
 	ListFunc                      func(ctx context.Context, projectID domain.ProjectID, filters tasksrepo.TaskFilters) ([]domain.TaskWithDetails, error)
@@ -41,6 +42,13 @@ type MockTaskRepository struct {
 	GetTimelineFunc               func(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error)
 	UpdateSessionIDFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
 	GetColdStartStatsFunc         func(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error)
+}
+
+func (m *MockTaskRepository) BulkCreate(ctx context.Context, projectID domain.ProjectID, tasks []domain.Task) error {
+	if m.BulkCreateFunc == nil {
+		panic("called not defined BulkCreateFunc")
+	}
+	return m.BulkCreateFunc(ctx, projectID, tasks)
 }
 
 func (m *MockTaskRepository) Create(ctx context.Context, projectID domain.ProjectID, task domain.Task) error {

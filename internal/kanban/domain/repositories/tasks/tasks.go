@@ -59,6 +59,10 @@ type TaskRepository interface {
 
 	// GetColdStartStats returns aggregated cold-start token statistics grouped by assigned role.
 	GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error)
+
+	// BulkCreate creates multiple tasks atomically within a single transaction.
+	// If any insert fails, no tasks are created.
+	BulkCreate(ctx context.Context, projectID domain.ProjectID, tasks []domain.Task) error
 }
 
 // TaskFilters defines optional filters for listing tasks

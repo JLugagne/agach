@@ -235,8 +235,12 @@ func (h *ToolHandler) updateProject(ctx context.Context, args map[string]any) (a
 	projectID := domain.ProjectID(projectIDVal)
 	name, _ := args["name"].(string)
 	description, _ := args["description"].(string)
+	var defaultRole *string
+	if v, ok := args["default_role"].(string); ok {
+		defaultRole = &v
+	}
 
-	err := h.commands.UpdateProject(ctx, projectID, name, description)
+	err := h.commands.UpdateProject(ctx, projectID, name, description, defaultRole)
 	if err != nil {
 		return nil, err
 	}
@@ -434,13 +438,7 @@ func (h *ToolHandler) bulkCreateTasks(ctx context.Context, args map[string]any) 
 		return nil, fmt.Errorf("tasks is required and must be a non-empty array")
 	}
 
-	type createdTask struct {
-		ID    string `json:"id"`
-		Title string `json:"title"`
-	}
-
-	results := make([]createdTask, 0, len(tasksRaw))
-
+	inputs := make([]service.BulkTaskInput, 0, len(tasksRaw))
 	for i, raw := range tasksRaw {
 		t, ok := raw.(map[string]any)
 		if !ok {
@@ -473,7 +471,12 @@ func (h *ToolHandler) bulkCreateTasks(ctx context.Context, args map[string]any) 
 
 		contextFiles := parseStringArray(t["context_files"])
 		tags := parseStringArray(t["tags"])
-		dependsOn := parseStringArray(t["depends_on"])
+		dependsOnStrs := parseStringArray(t["depends_on"])
+
+		dependsOn := make([]domain.TaskID, len(dependsOnStrs))
+		for j, id := range dependsOnStrs {
+			dependsOn[j] = domain.TaskID(id)
+		}
 
 		// Determine start column: backlog (default) or todo
 		startInBacklog := true
@@ -481,17 +484,34 @@ func (h *ToolHandler) bulkCreateTasks(ctx context.Context, args map[string]any) 
 			startInBacklog = false
 		}
 
-		task, err := h.commands.CreateTask(ctx, projectID, title, summary, description, priority, createdByRole, createdByAgent, assignedRole, contextFiles, tags, estimatedEffort, startInBacklog)
-		if err != nil {
-			return nil, fmt.Errorf("tasks[%d]: %w", i, err)
-		}
+		inputs = append(inputs, service.BulkTaskInput{
+			Title:           title,
+			Summary:         summary,
+			Description:     description,
+			Priority:        priority,
+			CreatedByRole:   createdByRole,
+			CreatedByAgent:  createdByAgent,
+			AssignedRole:    assignedRole,
+			ContextFiles:    contextFiles,
+			Tags:            tags,
+			EstimatedEffort: estimatedEffort,
+			StartInBacklog:  startInBacklog,
+			DependsOn:       dependsOn,
+		})
+	}
 
-		for _, depID := range dependsOn {
-			if err := h.commands.AddDependency(ctx, projectID, task.ID, domain.TaskID(depID)); err != nil {
-				return nil, fmt.Errorf("tasks[%d] dependency %s: %w", i, depID, err)
-			}
-		}
+	createdTasks, err := h.commands.BulkCreateTasks(ctx, projectID, inputs)
+	if err != nil {
+		return nil, err
+	}
 
+	type createdTask struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	}
+
+	results := make([]createdTask, 0, len(createdTasks))
+	for _, task := range createdTasks {
 		if h.hub != nil {
 			h.hub.Broadcast(websocket.Event{
 				Type:      "task_created",
@@ -499,7 +519,6 @@ func (h *ToolHandler) bulkCreateTasks(ctx context.Context, args map[string]any) 
 				Data:      task,
 			})
 		}
-
 		results = append(results, createdTask{ID: string(task.ID), Title: task.Title})
 	}
 
@@ -521,6 +540,7 @@ func (h *ToolHandler) updateTask(ctx context.Context, args map[string]any) (any,
 	var title, description, assignedRole, estimatedEffort, resolution *string
 	var priority *domain.Priority
 	var contextFiles, tags *[]string
+	var filesModified *[]string
 
 	if v, ok := args["title"].(string); ok {
 		title = &v
@@ -549,48 +569,20 @@ func (h *ToolHandler) updateTask(ctx context.Context, args map[string]any) (any,
 		t := parseStringArray(args["tags"])
 		tags = &t
 	}
+	if args["files_modified"] != nil {
+		fm := parseStringArray(args["files_modified"])
+		filesModified = &fm
+	}
 
 	err := h.commands.UpdateTask(ctx, projectID, taskID, title, description, assignedRole, estimatedEffort, resolution, priority, contextFiles, tags, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// Broadcast task_updated event
-	if h.hub != nil {
-		h.hub.Broadcast(websocket.Event{
-			Type:      "task_updated",
-			ProjectID: string(projectID),
-			Data:      map[string]string{"task_id": string(taskID)},
-		})
+	// Handle files_modified update if provided
+	if filesModified != nil {
+		err = h.commands.UpdateTaskFiles(ctx, projectID, taskID, filesModified, nil)
 	}
-
-	return map[string]any{"success": true}, nil
-}
-
-func (h *ToolHandler) updateTaskFiles(ctx context.Context, args map[string]any) (any, error) {
-	projectIDVal, ok := args["project_id"].(string)
-	if !ok {
-		return nil, fmt.Errorf("project_id is required and must be a string")
-	}
-	projectID := domain.ProjectID(projectIDVal)
-	taskIDVal, ok := args["task_id"].(string)
-	if !ok {
-		return nil, fmt.Errorf("task_id is required and must be a string")
-	}
-	taskID := domain.TaskID(taskIDVal)
-
-	var filesModified, contextFiles *[]string
-
-	if args["files_modified"] != nil {
-		fm := parseStringArray(args["files_modified"])
-		filesModified = &fm
-	}
-	if args["context_files"] != nil {
-		cf := parseStringArray(args["context_files"])
-		contextFiles = &cf
-	}
-
-	err := h.commands.UpdateTaskFiles(ctx, projectID, taskID, filesModified, contextFiles)
 	if err != nil {
 		return nil, err
 	}

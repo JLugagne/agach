@@ -111,7 +111,7 @@ func (a *App) CreateProject(ctx context.Context, name, description, workDir, cre
 	return project, nil
 }
 
-func (a *App) UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string) error {
+func (a *App) UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string, defaultRole *string) error {
 	logger := a.logger.WithContext(ctx).WithField("projectID", projectID)
 
 	project, err := a.projects.FindByID(ctx, projectID)
@@ -128,6 +128,9 @@ func (a *App) UpdateProject(ctx context.Context, projectID domain.ProjectID, nam
 	}
 	if description != "" {
 		project.Description = description
+	}
+	if defaultRole != nil {
+		project.DefaultRole = *defaultRole
 	}
 	project.UpdatedAt = time.Now()
 
