@@ -100,6 +100,100 @@ func (r *TaskRepository) Create(ctx context.Context, projectID domain.ProjectID,
 	})
 }
 
+// BulkCreate creates multiple tasks atomically within a single transaction.
+// If any insert fails, no tasks are created.
+func (r *TaskRepository) BulkCreate(ctx context.Context, projectID domain.ProjectID, tasks []domain.Task) error {
+	return r.withProjectDB(ctx, projectID, func(db *sql.DB) error {
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+
+		query := `
+			INSERT INTO tasks (
+				id, column_id, title, summary, description, priority, priority_score, position,
+				created_by_role, created_by_agent, assigned_role, is_blocked, blocked_reason,
+				blocked_at, blocked_by_agent, wont_do_requested, wont_do_reason, wont_do_requested_by,
+				wont_do_requested_at, completion_summary, completed_by_agent, completed_at,
+				files_modified, resolution, context_files, tags, estimated_effort, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, model,
+				cold_start_input_tokens, cold_start_output_tokens, cold_start_cache_read_tokens, cold_start_cache_write_tokens,
+				created_at, updated_at,
+				seen_at, started_at, duration_seconds, human_estimate_seconds, session_id
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`
+
+		for _, task := range tasks {
+			contextFilesJSON, err := json.Marshal(task.ContextFiles)
+			if err != nil {
+				return err
+			}
+			tagsJSON, err := json.Marshal(task.Tags)
+			if err != nil {
+				return err
+			}
+			filesModifiedJSON, err := json.Marshal(task.FilesModified)
+			if err != nil {
+				return err
+			}
+
+			_, err = tx.ExecContext(ctx, query,
+				string(task.ID),
+				string(task.ColumnID),
+				task.Title,
+				task.Summary,
+				task.Description,
+				task.Priority,
+				task.PriorityScore,
+				task.Position,
+				task.CreatedByRole,
+				task.CreatedByAgent,
+				task.AssignedRole,
+				boolToInt(task.IsBlocked),
+				task.BlockedReason,
+				timeToNullTime(task.BlockedAt),
+				task.BlockedByAgent,
+				boolToInt(task.WontDoRequested),
+				task.WontDoReason,
+				task.WontDoRequestedBy,
+				timeToNullTime(task.WontDoRequestedAt),
+				task.CompletionSummary,
+				task.CompletedByAgent,
+				timeToNullTime(task.CompletedAt),
+				string(filesModifiedJSON),
+				task.Resolution,
+				string(contextFilesJSON),
+				string(tagsJSON),
+				task.EstimatedEffort,
+				task.InputTokens,
+				task.OutputTokens,
+				task.CacheReadTokens,
+				task.CacheWriteTokens,
+				task.Model,
+				task.ColdStartInputTokens,
+				task.ColdStartOutputTokens,
+				task.ColdStartCacheReadTokens,
+				task.ColdStartCacheWriteTokens,
+				task.CreatedAt,
+				task.UpdatedAt,
+				timeToNullTime(task.SeenAt),
+				timeToNullTime(task.StartedAt),
+				task.DurationSeconds,
+				task.HumanEstimateSeconds,
+				task.SessionID,
+			)
+			if err != nil {
+				if isSQLiteConstraintError(err, "PRIMARY KEY") {
+					return errors.Join(domain.ErrTaskAlreadyExists, err)
+				}
+				return err
+			}
+		}
+
+		return tx.Commit()
+	})
+}
+
 // FindByID retrieves a task by ID from a project database
 func (r *TaskRepository) FindByID(ctx context.Context, projectID domain.ProjectID, id domain.TaskID) (*domain.Task, error) {
 	var task *domain.Task

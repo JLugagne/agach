@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2, AlertTriangle } from 'lucide-react';
-import { getProject, updateProject, deleteProject, getProjectInfo, listColumns, updateColumnWIPLimit } from '../lib/api';
+import { getProject, updateProject, deleteProject, getProjectInfo, listColumns, updateColumnWIPLimit, listProjectRoles } from '../lib/api';
 import SettingsLayout from '../components/settings/SettingsLayout';
 import DeleteConfirmModal from '../components/ui/DeleteConfirmModal';
-import type { ProjectResponse, ColumnResponse } from '../lib/types';
+import type { ProjectResponse, ColumnResponse, RoleResponse } from '../lib/types';
 
 export default function ProjectSettingsPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -18,6 +18,8 @@ export default function ProjectSettingsPage() {
   const [saved, setSaved] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [defaultRole, setDefaultRole] = useState<string>('');
+  const [roles, setRoles] = useState<RoleResponse[]>([]);
   const [columns, setColumns] = useState<ColumnResponse[]>([]);
   const [wipLimits, setWipLimits] = useState<Record<string, number>>({});
   const [wipSaving, setWipSaving] = useState(false);
@@ -35,6 +37,8 @@ export default function ProjectSettingsPage() {
       setProjectInfo(info as unknown);
       setName(p.name);
       setDescription(p.description);
+      setDefaultRole(p.default_role ?? '');
+      listProjectRoles(projectId).then(setRoles).catch(() => {});
       setColumns(cols);
       const limits: Record<string, number> = {};
       for (const col of cols) {
@@ -60,6 +64,7 @@ export default function ProjectSettingsPage() {
       await updateProject(projectId, {
         name: name.trim(),
         description: description.trim(),
+        default_role: defaultRole,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -159,6 +164,21 @@ export default function ProjectSettingsPage() {
           rows={5}
           className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y"
         />
+      </div>
+
+      {/* Default Role */}
+      <div className="mb-6">
+        <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Default Role</label>
+        <select
+          value={defaultRole}
+          onChange={(e) => setDefaultRole(e.target.value)}
+          className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] focus:outline-none focus:border-[#00C896]/50"
+        >
+          <option value="">None (Unassigned)</option>
+          {roles.map((r) => (
+            <option key={r.id} value={r.slug}>{r.icon ? r.icon + ' ' : ''}{r.name}</option>
+          ))}
+        </select>
       </div>
 
       {/* Save button */}

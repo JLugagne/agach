@@ -303,7 +303,7 @@ func (m *MonitorModel) HandleMsg(msg tcellapp.Msg) (tcellapp.Screen, tcellapp.Cm
 		m.height = msg.Height
 		if m.viewingMessages && m.msgPanel != nil {
 			m.msgPanel.width = m.width
-			_, msgH := m.splitHeights()
+			_, msgH := m.splitHeights(msg.Height)
 			m.msgPanel.height = msgH
 		}
 		return m, nil
@@ -605,7 +605,7 @@ func (m *MonitorModel) settingsSubProjValue() string {
 
 // openMessagesPanel creates/resets the messages panel for the focused worker
 func (m *MonitorModel) openMessagesPanel() {
-	_, msgH := m.splitHeights()
+	_, msgH := m.splitHeights(m.height)
 	panel := newMessagesPanel(m.focusedWorker, m.width, msgH)
 	for _, lm := range m.msgBuffers[m.focusedWorker] {
 		panel.addMessage(lm)
@@ -617,8 +617,8 @@ func (m *MonitorModel) openMessagesPanel() {
 // splitHeights returns (workersH, messagesH) for the split layout.
 // contentH = total rows between stats bar and footer.
 // Layout: workersH rows + 1 separator row + msgH rows = contentH.
-func (m *MonitorModel) splitHeights() (int, int) {
-	contentH := m.height - 5 - 1 // minus header(1) + stats(4) + footer(1)
+func (m *MonitorModel) splitHeights(totalH int) (int, int) {
+	contentH := totalH - 5 - 1 // minus header(1) + stats(4) + footer(1)
 	if contentH < 4 {
 		contentH = 4
 	}
@@ -682,7 +682,7 @@ func (m *MonitorModel) Draw(s tcell.Screen, w, h int) {
 		m.drawPastTasks(s, contentY, w, contentH)
 	} else if m.viewingMessages && m.msgPanel != nil {
 		// Split layout: workers on top, messages on bottom
-		workersH, msgH := m.splitHeights()
+		workersH, msgH := m.splitHeights(h)
 
 		m.drawWorkersCompact(s, 0, contentY, w, workersH)
 
@@ -1042,7 +1042,7 @@ func (m *MonitorModel) drawWorkersCompact(s tcell.Screen, ox, oy, w, h int) {
 			t := wk.Current
 
 			// Right-align token summary
-			tokenSummary := fmt.Sprintf("^%s v%s x%d",
+			tokenSummary := fmt.Sprintf("↑%s ↓%s x%d",
 				tcellapp.FormatTokens(t.InputTokens),
 				tcellapp.FormatTokens(t.OutputTokens),
 				t.Exchanges)
@@ -1124,7 +1124,7 @@ func (m *MonitorModel) drawWorkerCard(s tcell.Screen, wk domain.WorkerState, foc
 		t := wk.Current
 
 		// Right-align token summary
-		tokenSummary := fmt.Sprintf("^%s v%s x%d",
+		tokenSummary := fmt.Sprintf("↑%s ↓%s x%d",
 			tcellapp.FormatTokens(t.InputTokens),
 			tcellapp.FormatTokens(t.OutputTokens),
 			t.Exchanges)
@@ -1254,7 +1254,7 @@ func (m *MonitorModel) drawCompletedPanel(s tcell.Screen, ox, oy, w, h int) {
 			for col := panelX; col < panelX+panelW; col++ {
 				s.SetContent(col, row, ' ', nil, bg)
 			}
-			tokenLine := fmt.Sprintf("    ^%s v%s  r:%s w:%s  x%d",
+			tokenLine := fmt.Sprintf("    ↑%s ↓%s  r:%s w:%s  x%d",
 				tcellapp.FormatTokens(t.InputTokens),
 				tcellapp.FormatTokens(t.OutputTokens),
 				tcellapp.FormatTokens(t.CacheReadInputTokens),

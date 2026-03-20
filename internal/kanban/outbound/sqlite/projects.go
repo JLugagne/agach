@@ -15,8 +15,8 @@ import (
 // Create creates a new project in the global database
 func (r *ProjectRepository) Create(ctx context.Context, project domain.Project) error {
 	query := `
-		INSERT INTO projects (id, parent_id, name, description, work_dir, created_by_role, created_by_agent, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO projects (id, parent_id, name, description, work_dir, default_role, created_by_role, created_by_agent, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	var parentID *string
@@ -31,6 +31,7 @@ func (r *ProjectRepository) Create(ctx context.Context, project domain.Project) 
 		project.Name,
 		project.Description,
 		project.WorkDir,
+		project.DefaultRole,
 		project.CreatedByRole,
 		project.CreatedByAgent,
 		project.CreatedAt,
@@ -50,7 +51,7 @@ func (r *ProjectRepository) Create(ctx context.Context, project domain.Project) 
 // FindByID retrieves a project by ID from the global database
 func (r *ProjectRepository) FindByID(ctx context.Context, id domain.ProjectID) (*domain.Project, error) {
 	query := `
-		SELECT id, parent_id, name, description, work_dir, created_by_role, created_by_agent, created_at, updated_at
+		SELECT id, parent_id, name, description, work_dir, default_role, created_by_role, created_by_agent, created_at, updated_at
 		FROM projects
 		WHERE id = ?
 	`
@@ -65,6 +66,7 @@ func (r *ProjectRepository) FindByID(ctx context.Context, id domain.ProjectID) (
 		&project.Name,
 		&project.Description,
 		&project.WorkDir,
+		&project.DefaultRole,
 		&project.CreatedByRole,
 		&project.CreatedByAgent,
 		&createdAt,
@@ -96,14 +98,14 @@ func (r *ProjectRepository) List(ctx context.Context, parentID *domain.ProjectID
 
 	if parentID == nil {
 		query = `
-			SELECT id, parent_id, name, description, work_dir, created_by_role, created_by_agent, created_at, updated_at
+			SELECT id, parent_id, name, description, work_dir, default_role, created_by_role, created_by_agent, created_at, updated_at
 			FROM projects
 			WHERE parent_id IS NULL
 			ORDER BY created_at DESC
 		`
 	} else {
 		query = `
-			SELECT id, parent_id, name, description, work_dir, created_by_role, created_by_agent, created_at, updated_at
+			SELECT id, parent_id, name, description, work_dir, default_role, created_by_role, created_by_agent, created_at, updated_at
 			FROM projects
 			WHERE parent_id = ?
 			ORDER BY created_at DESC
@@ -124,13 +126,14 @@ func (r *ProjectRepository) List(ctx context.Context, parentID *domain.ProjectID
 func (r *ProjectRepository) Update(ctx context.Context, project domain.Project) error {
 	query := `
 		UPDATE projects
-		SET name = ?, description = ?, updated_at = ?
+		SET name = ?, description = ?, default_role = ?, updated_at = ?
 		WHERE id = ?
 	`
 
 	result, err := r.globalDB.ExecContext(ctx, query,
 		project.Name,
 		project.Description,
+		project.DefaultRole,
 		time.Now(),
 		string(project.ID),
 	)
@@ -156,18 +159,18 @@ func (r *ProjectRepository) GetTree(ctx context.Context, id domain.ProjectID) ([
 	query := `
 		WITH RECURSIVE project_tree AS (
 			-- Base case: the requested project
-			SELECT id, parent_id, name, description, work_dir, created_by_role, created_by_agent, created_at, updated_at
+			SELECT id, parent_id, name, description, work_dir, default_role, created_by_role, created_by_agent, created_at, updated_at
 			FROM projects
 			WHERE id = ?
 
 			UNION ALL
 
 			-- Recursive case: all children
-			SELECT p.id, p.parent_id, p.name, p.description, p.work_dir, p.created_by_role, p.created_by_agent, p.created_at, p.updated_at
+			SELECT p.id, p.parent_id, p.name, p.description, p.work_dir, p.default_role, p.created_by_role, p.created_by_agent, p.created_at, p.updated_at
 			FROM projects p
 			INNER JOIN project_tree pt ON p.parent_id = pt.id
 		)
-		SELECT id, parent_id, name, description, work_dir, created_by_role, created_by_agent, created_at, updated_at
+		SELECT id, parent_id, name, description, work_dir, default_role, created_by_role, created_by_agent, created_at, updated_at
 		FROM project_tree
 		ORDER BY created_at ASC
 	`
@@ -288,7 +291,7 @@ func (r *ProjectRepository) GetSummary(ctx context.Context, id domain.ProjectID)
 // ListByWorkDir retrieves all projects matching the given work_dir
 func (r *ProjectRepository) ListByWorkDir(ctx context.Context, workDir string) ([]domain.Project, error) {
 	query := `
-		SELECT id, parent_id, name, description, work_dir, created_by_role, created_by_agent, created_at, updated_at
+		SELECT id, parent_id, name, description, work_dir, default_role, created_by_role, created_by_agent, created_at, updated_at
 		FROM projects
 		WHERE work_dir = ?
 		ORDER BY created_at DESC
@@ -331,6 +334,7 @@ func (r *ProjectRepository) scanProjects(rows *sql.Rows) ([]domain.Project, erro
 			&project.Name,
 			&project.Description,
 			&project.WorkDir,
+			&project.DefaultRole,
 			&project.CreatedByRole,
 			&project.CreatedByAgent,
 			&createdAt,

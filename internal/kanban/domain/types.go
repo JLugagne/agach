@@ -116,6 +116,7 @@ type Project struct {
 	Name           string     `json:"name"`
 	Description    string     `json:"description"`
 	WorkDir        string     `json:"work_dir"`
+	DefaultRole    string     `json:"default_role"`
 	CreatedByRole  string     `json:"created_by_role"`
 	CreatedByAgent string     `json:"created_by_agent"`
 	CreatedAt      time.Time  `json:"created_at"`

@@ -8,6 +8,7 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
+	"github.com/JLugagne/agach-mcp/internal/kanban/domain/service"
 	"github.com/sirupsen/logrus"
 )
 
@@ -84,6 +85,123 @@ func (a *App) CreateTask(ctx context.Context, projectID domain.ProjectID, title,
 
 	logger.WithField("taskID", task.ID).Info("task created successfully")
 	return task, nil
+}
+
+func (a *App) BulkCreateTasks(ctx context.Context, projectID domain.ProjectID, inputs []service.BulkTaskInput) ([]domain.Task, error) {
+	logger := a.logger.WithContext(ctx).WithField("projectID", projectID)
+
+	if len(inputs) == 0 {
+		return nil, nil
+	}
+
+	// Verify project exists
+	project, err := a.projects.FindByID(ctx, projectID)
+	if err != nil {
+		logger.WithError(err).Error("failed to find project")
+		return nil, errors.Join(domain.ErrProjectNotFound, err)
+	}
+	if project == nil {
+		return nil, domain.ErrProjectNotFound
+	}
+
+	// Validate all inputs and fetch columns once
+	backlogColumn, err := a.columns.FindBySlug(ctx, projectID, domain.ColumnBacklog)
+	if err != nil {
+		return nil, errors.Join(domain.ErrColumnNotFound, err)
+	}
+	if backlogColumn == nil {
+		return nil, domain.ErrColumnNotFound
+	}
+	todoColumn, err := a.columns.FindBySlug(ctx, projectID, domain.ColumnTodo)
+	if err != nil {
+		return nil, errors.Join(domain.ErrColumnNotFound, err)
+	}
+	if todoColumn == nil {
+		return nil, domain.ErrColumnNotFound
+	}
+
+	// Validate required fields before any inserts
+	for i, input := range inputs {
+		if input.Title == "" {
+			return nil, fmt.Errorf("inputs[%d]: %w", i, domain.ErrTaskTitleRequired)
+		}
+		if input.Summary == "" {
+			return nil, fmt.Errorf("inputs[%d]: %w", i, domain.ErrSummaryRequired)
+		}
+	}
+
+	// Get starting positions for each column
+	backlogSlug := domain.ColumnBacklog
+	todoSlug := domain.ColumnTodo
+	backlogTasks, err := a.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &backlogSlug})
+	if err != nil {
+		return nil, err
+	}
+	todoTasks, err := a.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &todoSlug})
+	if err != nil {
+		return nil, err
+	}
+	backlogPos := len(backlogTasks)
+	todoPos := len(todoTasks)
+
+	// Build domain.Task objects
+	now := time.Now()
+	domainTasks := make([]domain.Task, 0, len(inputs))
+	for _, input := range inputs {
+		priority := input.Priority
+		if priority == "" {
+			priority = domain.PriorityMedium
+		}
+
+		var columnID domain.ColumnID
+		var position int
+		if input.StartInBacklog {
+			columnID = backlogColumn.ID
+			position = backlogPos
+			backlogPos++
+		} else {
+			columnID = todoColumn.ID
+			position = todoPos
+			todoPos++
+		}
+
+		domainTasks = append(domainTasks, domain.Task{
+			ID:              domain.NewTaskID(),
+			ColumnID:        columnID,
+			Title:           input.Title,
+			Summary:         input.Summary,
+			Description:     input.Description,
+			Priority:        priority,
+			PriorityScore:   getPriorityScore(priority),
+			Position:        position,
+			CreatedByRole:   input.CreatedByRole,
+			CreatedByAgent:  input.CreatedByAgent,
+			AssignedRole:    input.AssignedRole,
+			ContextFiles:    input.ContextFiles,
+			Tags:            input.Tags,
+			EstimatedEffort: input.EstimatedEffort,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		})
+	}
+
+	// Insert all tasks atomically
+	if err := a.tasks.BulkCreate(ctx, projectID, domainTasks); err != nil {
+		logger.WithError(err).Error("failed to bulk create tasks")
+		return nil, err
+	}
+
+	// Add dependencies (outside the creation transaction — returns first error)
+	for i, input := range inputs {
+		for _, depID := range input.DependsOn {
+			if err := a.AddDependency(ctx, projectID, domainTasks[i].ID, depID); err != nil {
+				return nil, fmt.Errorf("task %s dependency %s: %w", domainTasks[i].ID, depID, err)
+			}
+		}
+	}
+
+	logger.WithField("count", len(domainTasks)).Info("tasks bulk created successfully")
+	return domainTasks, nil
 }
 
 func (a *App) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error {

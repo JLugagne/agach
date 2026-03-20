@@ -8,6 +8,7 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
+	"github.com/JLugagne/agach-mcp/internal/kanban/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/kanban/inbound/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,7 @@ import (
 // MockCommands is a mock implementation of service.Commands for testing
 type MockCommands struct {
 	CreateProjectFunc        func(ctx context.Context, name, description, workDir, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
-	UpdateProjectFunc        func(ctx context.Context, projectID domain.ProjectID, name, description string) error
+	UpdateProjectFunc        func(ctx context.Context, projectID domain.ProjectID, name, description string, defaultRole *string) error
 	DeleteProjectFunc        func(ctx context.Context, projectID domain.ProjectID) error
 	CreateRoleFunc           func(ctx context.Context, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error)
 	UpdateRoleFunc           func(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error
@@ -44,6 +45,7 @@ type MockCommands struct {
 	MoveTaskToProjectFunc    func(ctx context.Context, sourceProjectID domain.ProjectID, taskID domain.TaskID, targetProjectID domain.ProjectID) error
 	IncrementToolUsageFunc   func(ctx context.Context, projectID domain.ProjectID, toolName string) error
 	UpdateTaskSessionIDFunc  func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
+	BulkCreateTasksFunc      func(ctx context.Context, projectID domain.ProjectID, inputs []service.BulkTaskInput) ([]domain.Task, error)
 }
 
 func (m *MockCommands) CreateProject(ctx context.Context, name, description, workDir, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
@@ -53,11 +55,11 @@ func (m *MockCommands) CreateProject(ctx context.Context, name, description, wor
 	return m.CreateProjectFunc(ctx, name, description, workDir, createdByRole, createdByAgent, parentID)
 }
 
-func (m *MockCommands) UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string) error {
+func (m *MockCommands) UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string, defaultRole *string) error {
 	if m.UpdateProjectFunc == nil {
 		panic("UpdateProjectFunc not defined")
 	}
-	return m.UpdateProjectFunc(ctx, projectID, name, description)
+	return m.UpdateProjectFunc(ctx, projectID, name, description, defaultRole)
 }
 
 func (m *MockCommands) DeleteProject(ctx context.Context, projectID domain.ProjectID) error {
@@ -247,6 +249,13 @@ func (m *MockCommands) UpdateTaskSessionID(ctx context.Context, projectID domain
 		panic("UpdateTaskSessionIDFunc not defined")
 	}
 	return m.UpdateTaskSessionIDFunc(ctx, projectID, taskID, sessionID)
+}
+
+func (m *MockCommands) BulkCreateTasks(ctx context.Context, projectID domain.ProjectID, inputs []service.BulkTaskInput) ([]domain.Task, error) {
+	if m.BulkCreateTasksFunc == nil {
+		panic("BulkCreateTasksFunc not defined")
+	}
+	return m.BulkCreateTasksFunc(ctx, projectID, inputs)
 }
 
 func (m *MockCommands) CreateProjectRole(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error) {

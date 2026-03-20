@@ -156,18 +156,12 @@ func (s *Server) addTool(name, description string, schema map[string]any, requir
 
 // registerAllTools registers all MCP tools with the SDK server
 func (s *Server) registerAllTools() {
-	// Project management tools
+	// Project management
 	s.addTool("list_projects",
 		"Lists all root projects or direct children of a parent project. Optionally filter by work_dir.",
 		map[string]any{
-			"parent_id": map[string]any{
-				"type":        "string",
-				"description": "Optional parent project ID. If omitted, lists root projects.",
-			},
-			"work_dir": map[string]any{
-				"type":        "string",
-				"description": "Optional absolute path to filter projects by working directory.",
-			},
+			"parent_id": map[string]any{"type": "string", "description": "Optional parent project ID. If omitted, lists root projects."},
+			"work_dir":  map[string]any{"type": "string", "description": "Optional absolute path to filter projects by working directory."},
 		},
 		nil,
 		s.toolHandler.listProjects,
@@ -176,10 +170,7 @@ func (s *Server) registerAllTools() {
 	s.addTool("get_project_info",
 		"Returns detailed information about a project including stats and breadcrumb",
 		map[string]any{
-			"project_id": map[string]any{
-				"type":        "string",
-				"description": "The project ID",
-			},
+			"project_id": map[string]any{"type": "string", "description": "The project ID"},
 		},
 		[]string{"project_id"},
 		s.toolHandler.getProjectInfo,
@@ -200,11 +191,12 @@ func (s *Server) registerAllTools() {
 	)
 
 	s.addTool("update_project",
-		"Updates project name or description",
+		"Updates project name, description, or default role",
 		map[string]any{
-			"project_id":  map[string]any{"type": "string", "description": "The project ID to update"},
-			"name":        map[string]any{"type": "string", "description": "New project name"},
-			"description": map[string]any{"type": "string", "description": "New project description"},
+			"project_id":   map[string]any{"type": "string", "description": "The project ID to update"},
+			"name":         map[string]any{"type": "string", "description": "New project name"},
+			"description":  map[string]any{"type": "string", "description": "New project description"},
+			"default_role": map[string]any{"type": "string", "description": "Default role slug auto-assigned to new tasks; empty string to clear"},
 		},
 		[]string{"project_id"},
 		s.toolHandler.updateProject,
@@ -254,29 +246,8 @@ func (s *Server) registerAllTools() {
 	)
 
 	// Task management
-	s.addTool("create_task",
-		"Creates a new task. Tasks start in 'backlog' by default. Use start_in='todo' only when the task has no dependencies and is immediately ready to be picked up. The typical workflow is: create tasks in backlog, add dependencies, then move to todo when ready.",
-		map[string]any{
-			"project_id":       map[string]any{"type": "string", "description": "The project ID"},
-			"title":            map[string]any{"type": "string", "description": "Task title"},
-			"summary":          map[string]any{"type": "string", "description": "Brief summary (required)"},
-			"description":      map[string]any{"type": "string", "description": "Detailed description"},
-			"priority":         map[string]any{"type": "string", "enum": []string{"critical", "high", "medium", "low"}},
-			"created_by_role":  map[string]any{"type": "string"},
-			"created_by_agent": map[string]any{"type": "string"},
-			"assigned_role":    map[string]any{"type": "string"},
-			"context_files":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"tags":             map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"estimated_effort": map[string]any{"type": "string", "enum": []string{"XS", "S", "M", "L", "XL"}},
-			"depends_on":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"start_in":         map[string]any{"type": "string", "enum": []string{"backlog", "todo"}, "description": "Which column the task starts in. Default 'backlog'. Use 'todo' only for tasks with no dependencies that are immediately ready."},
-		},
-		[]string{"project_id", "title", "summary", "created_by_role"},
-		s.toolHandler.createTask,
-	)
-
-	s.addTool("bulk_create_tasks",
-		"Creates multiple tasks at once. Tasks start in 'backlog' by default. Use start_in='todo' per task only for tasks with no dependencies that are immediately ready. Returns the id and title of each created task.",
+	s.addTool("create_tasks",
+		"Creates one or more tasks. Tasks start in 'backlog' by default. Use start_in='todo' only when the task has no dependencies and is immediately ready. Returns id and title of each created task.",
 		map[string]any{
 			"project_id": map[string]any{"type": "string", "description": "The project ID"},
 			"tasks": map[string]any{
@@ -306,57 +277,22 @@ func (s *Server) registerAllTools() {
 	)
 
 	s.addTool("update_task",
-		"Updates task fields",
+		"Updates task fields including metadata and file lists. Pass only the fields you want to change.",
 		map[string]any{
-			"project_id":       map[string]any{"type": "string"},
-			"task_id":          map[string]any{"type": "string"},
+			"project_id":       map[string]any{"type": "string", "description": "The project ID"},
+			"task_id":          map[string]any{"type": "string", "description": "The task ID"},
 			"title":            map[string]any{"type": "string"},
 			"description":      map[string]any{"type": "string"},
 			"resolution":       map[string]any{"type": "string"},
 			"assigned_role":    map[string]any{"type": "string"},
 			"priority":         map[string]any{"type": "string", "enum": []string{"critical", "high", "medium", "low"}},
-			"context_files":    map[string]any{"type": "array"},
-			"tags":             map[string]any{"type": "array"},
-			"estimated_effort": map[string]any{"type": "string"},
+			"context_files":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Files relevant for understanding the task"},
+			"files_modified":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Files the agent has modified"},
+			"tags":             map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"estimated_effort": map[string]any{"type": "string", "enum": []string{"XS", "S", "M", "L", "XL"}},
 		},
 		[]string{"project_id", "task_id"},
 		s.toolHandler.updateTask,
-	)
-
-	s.addTool("update_task_files",
-		"Updates the list of files linked to a task. Accepts files_modified (files the agent has changed) and context_files (files relevant for understanding the task). Can be called independently during work or alongside move/block/complete operations.",
-		map[string]any{
-			"project_id":     map[string]any{"type": "string", "description": "The project ID"},
-			"task_id":        map[string]any{"type": "string", "description": "The task ID"},
-			"files_modified": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "List of file paths the agent has modified"},
-			"context_files":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "List of file paths relevant to understanding the task"},
-		},
-		[]string{"project_id", "task_id"},
-		s.toolHandler.updateTaskFiles,
-	)
-
-	s.addTool("move_task",
-		"Moves a task to 'todo', 'in_progress', or back to 'backlog'",
-		map[string]any{
-			"project_id":    map[string]any{"type": "string"},
-			"task_id":       map[string]any{"type": "string"},
-			"target_column": map[string]any{"type": "string", "enum": []string{"backlog", "todo", "in_progress"}},
-		},
-		[]string{"project_id", "task_id", "target_column"},
-		s.toolHandler.moveTask,
-	)
-
-	s.addTool("complete_task",
-		"Marks a task as done",
-		map[string]any{
-			"project_id":         map[string]any{"type": "string"},
-			"task_id":            map[string]any{"type": "string"},
-			"completion_summary": map[string]any{"type": "string"},
-			"files_modified":     map[string]any{"type": "array"},
-			"completed_by_agent": map[string]any{"type": "string"},
-		},
-		[]string{"project_id", "task_id", "completion_summary", "completed_by_agent"},
-		s.toolHandler.completeTask,
 	)
 
 	s.addTool("get_task",
@@ -392,12 +328,36 @@ func (s *Server) registerAllTools() {
 	s.addTool("get_next_task",
 		"Returns the highest-priority ready task in the 'todo' column. A task is ready when it is not blocked, has no unresolved dependencies, and (optionally) matches the requested role. Returns null task if none available.",
 		map[string]any{
-			"project_id":    map[string]any{"type": "string", "description": "The project ID"},
-			"role":          map[string]any{"type": "string", "description": "Optional role slug to filter tasks by assigned role"},
+			"project_id":     map[string]any{"type": "string", "description": "The project ID"},
+			"role":           map[string]any{"type": "string", "description": "Optional role slug to filter tasks by assigned role"},
 			"sub_project_id": map[string]any{"type": "string", "description": "Optional sub-project ID to scope the search to that sub-project and its descendants"},
 		},
 		[]string{"project_id"},
 		s.toolHandler.getNextTask,
+	)
+
+	s.addTool("move_task",
+		"Moves a task to 'todo', 'in_progress', or back to 'backlog'",
+		map[string]any{
+			"project_id":    map[string]any{"type": "string"},
+			"task_id":       map[string]any{"type": "string"},
+			"target_column": map[string]any{"type": "string", "enum": []string{"backlog", "todo", "in_progress"}},
+		},
+		[]string{"project_id", "task_id", "target_column"},
+		s.toolHandler.moveTask,
+	)
+
+	s.addTool("complete_task",
+		"Marks a task as done",
+		map[string]any{
+			"project_id":         map[string]any{"type": "string"},
+			"task_id":            map[string]any{"type": "string"},
+			"completion_summary": map[string]any{"type": "string"},
+			"files_modified":     map[string]any{"type": "array"},
+			"completed_by_agent": map[string]any{"type": "string"},
+		},
+		[]string{"project_id", "task_id", "completion_summary", "completed_by_agent"},
+		s.toolHandler.completeTask,
 	)
 
 	s.addTool("block_task",
@@ -424,21 +384,31 @@ func (s *Server) registerAllTools() {
 		s.toolHandler.requestWontDo,
 	)
 
-	// Dependencies
-	s.addTool("add_dependency",
-		"Adds a dependency between tasks. Use move_to_todo=true on the LAST dependency call for a task to signal it is ready to be worked on (moves from backlog to todo).",
+	s.addTool("reorder_task",
+		"Changes the position of a task within its current column (manual reordering within the same priority level)",
 		map[string]any{
-			"project_id":         map[string]any{"type": "string"},
-			"task_id":            map[string]any{"type": "string"},
-			"depends_on_task_id": map[string]any{"type": "string"},
-			"move_to_todo":       map[string]any{"type": "boolean", "description": "If true and the task is in backlog, moves it to todo after adding the dependency. Use on the last dependency to signal the task is ready."},
+			"project_id": map[string]any{"type": "string", "description": "The project ID"},
+			"task_id":    map[string]any{"type": "string", "description": "The task ID to reorder"},
+			"position":   map[string]any{"type": "integer", "description": "The new 0-based position within the column"},
 		},
-		[]string{"project_id", "task_id", "depends_on_task_id"},
-		s.toolHandler.addDependency,
+		[]string{"project_id", "task_id", "position"},
+		s.toolHandler.reorderTask,
 	)
 
-	s.addTool("bulk_add_dependencies",
-		"Adds multiple dependencies at once. Use move_to_todo=true per dependency entry to move the task from backlog to todo after adding that dependency (typically on the last dependency for each task).",
+	s.addTool("move_task_to_project",
+		"Moves a task from one sub-project to another. The task lands in the 'todo' column of the target project. Comments and dependencies are NOT moved. Blocking/won't-do flags are reset. Source and target projects must share the same parent (siblings) or have a direct parent-child relationship.",
+		map[string]any{
+			"project_id":        map[string]any{"type": "string", "description": "The source project ID"},
+			"task_id":           map[string]any{"type": "string", "description": "The task ID to move"},
+			"target_project_id": map[string]any{"type": "string", "description": "The destination project ID"},
+		},
+		[]string{"project_id", "task_id", "target_project_id"},
+		s.toolHandler.moveTaskToProject,
+	)
+
+	// Dependencies
+	s.addTool("add_dependencies",
+		"Adds one or more dependencies between tasks. Use move_to_todo=true on the last entry for a task to signal it is ready to be worked on (moves from backlog to todo).",
 		map[string]any{
 			"project_id": map[string]any{"type": "string"},
 			"dependencies": map[string]any{
@@ -503,28 +473,6 @@ func (s *Server) registerAllTools() {
 		},
 		[]string{"project_id", "task_id"},
 		s.toolHandler.listComments,
-	)
-
-	s.addTool("reorder_task",
-		"Changes the position of a task within its current column (manual reordering within the same priority level)",
-		map[string]any{
-			"project_id": map[string]any{"type": "string", "description": "The project ID"},
-			"task_id":    map[string]any{"type": "string", "description": "The task ID to reorder"},
-			"position":   map[string]any{"type": "integer", "description": "The new 0-based position within the column"},
-		},
-		[]string{"project_id", "task_id", "position"},
-		s.toolHandler.reorderTask,
-	)
-
-	s.addTool("move_task_to_project",
-		"Moves a task from one sub-project to another. The task lands in the 'todo' column of the target project. Comments and dependencies are NOT moved. Blocking/won't-do flags are reset. Source and target projects must share the same parent (siblings) or have a direct parent-child relationship.",
-		map[string]any{
-			"project_id":        map[string]any{"type": "string", "description": "The source project ID"},
-			"task_id":           map[string]any{"type": "string", "description": "The task ID to move"},
-			"target_project_id": map[string]any{"type": "string", "description": "The destination project ID"},
-		},
-		[]string{"project_id", "task_id", "target_project_id"},
-		s.toolHandler.moveTaskToProject,
 	)
 
 	s.addTool("report_tokens",

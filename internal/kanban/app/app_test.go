@@ -149,7 +149,7 @@ func TestApp_UpdateProject_Success(t *testing.T) {
 		return nil
 	}
 
-	err := a.UpdateProject(ctx, projectID, "New Name", "New Description")
+	err := a.UpdateProject(ctx, projectID, "New Name", "New Description", nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "New Name", updatedProject.Name)
@@ -167,11 +167,102 @@ func TestApp_UpdateProject_NotFound_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	err := a.UpdateProject(ctx, projectID, "New Name", "New Description")
+	err := a.UpdateProject(ctx, projectID, "New Name", "New Description", nil)
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
 	assert.ErrorIs(t, err, domain.ErrProjectNotFound)
+}
+
+func TestApp_UpdateProject_SetsDefaultRole(t *testing.T) {
+	ctx := context.Background()
+	a, mockProjects, _, _, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	existingProject := &domain.Project{
+		ID:   projectID,
+		Name: "Test Project",
+	}
+
+	mockProjects.FindByIDFunc = func(ctx context.Context, id domain.ProjectID) (*domain.Project, error) {
+		if id == projectID {
+			return existingProject, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	var updatedProject domain.Project
+	mockProjects.UpdateFunc = func(ctx context.Context, project domain.Project) error {
+		updatedProject = project
+		return nil
+	}
+
+	role := "go-developer"
+	err := a.UpdateProject(ctx, projectID, "Test Project", "", &role)
+
+	require.NoError(t, err)
+	assert.Equal(t, "go-developer", updatedProject.DefaultRole)
+}
+
+func TestApp_UpdateProject_ClearsDefaultRole(t *testing.T) {
+	ctx := context.Background()
+	a, mockProjects, _, _, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	existingProject := &domain.Project{
+		ID:          projectID,
+		Name:        "Test Project",
+		DefaultRole: "go-developer",
+	}
+
+	mockProjects.FindByIDFunc = func(ctx context.Context, id domain.ProjectID) (*domain.Project, error) {
+		if id == projectID {
+			return existingProject, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	var updatedProject domain.Project
+	mockProjects.UpdateFunc = func(ctx context.Context, project domain.Project) error {
+		updatedProject = project
+		return nil
+	}
+
+	role := ""
+	err := a.UpdateProject(ctx, projectID, "Test Project", "", &role)
+
+	require.NoError(t, err)
+	assert.Equal(t, "", updatedProject.DefaultRole)
+}
+
+func TestApp_UpdateProject_NilDefaultRole_DoesNotChange(t *testing.T) {
+	ctx := context.Background()
+	a, mockProjects, _, _, _, _, _ := setupTestApp()
+
+	projectID := domain.NewProjectID()
+	existingProject := &domain.Project{
+		ID:          projectID,
+		Name:        "Test Project",
+		DefaultRole: "go-developer",
+	}
+
+	mockProjects.FindByIDFunc = func(ctx context.Context, id domain.ProjectID) (*domain.Project, error) {
+		if id == projectID {
+			return existingProject, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	var updatedProject domain.Project
+	mockProjects.UpdateFunc = func(ctx context.Context, project domain.Project) error {
+		updatedProject = project
+		return nil
+	}
+
+	err := a.UpdateProject(ctx, projectID, "Test Project", "", nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "go-developer", updatedProject.DefaultRole)
 }
 
 func TestApp_DeleteProject_Success(t *testing.T) {

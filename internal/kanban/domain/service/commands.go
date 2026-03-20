@@ -6,11 +6,27 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
 )
 
+// BulkTaskInput holds per-task input for a bulk create operation.
+type BulkTaskInput struct {
+	Title           string
+	Summary         string
+	Description     string
+	Priority        domain.Priority
+	CreatedByRole   string
+	CreatedByAgent  string
+	AssignedRole    string
+	ContextFiles    []string
+	Tags            []string
+	EstimatedEffort string
+	StartInBacklog  bool
+	DependsOn       []domain.TaskID
+}
+
 // Commands defines write operations for the Kanban system
 type Commands interface {
 	// Project commands
 	CreateProject(ctx context.Context, name, description, workDir, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
-	UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string) error
+	UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string, defaultRole *string) error
 	DeleteProject(ctx context.Context, projectID domain.ProjectID) error
 
 	// Role commands (global)
@@ -25,6 +41,7 @@ type Commands interface {
 
 	// Task commands
 	CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error)
+	BulkCreateTasks(ctx context.Context, projectID domain.ProjectID, inputs []BulkTaskInput) ([]domain.Task, error)
 	UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error
 	UpdateTaskFiles(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error
 	DeleteTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error

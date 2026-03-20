@@ -8,19 +8,21 @@ interface NewTaskModalProps {
   projectId: string;
   onClose: () => void;
   onSuccess: () => void;
+  defaultRole?: string;
 }
 
-export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskModalProps) {
+export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRole }: NewTaskModalProps) {
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
-  const [assignedRole, setAssignedRole] = useState('');
+  const [assignedRole, setAssignedRole] = useState(defaultRole ?? '');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [contextFiles, setContextFiles] = useState<string[]>([]);
   const [fileInput, setFileInput] = useState('');
   const [roles, setRoles] = useState<RoleResponse[]>([]);
+  const [addToBacklog, setAddToBacklog] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [descDragOver, setDescDragOver] = useState(false);
@@ -136,6 +138,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskM
         assigned_role: assignedRole || undefined,
         tags: tags.length > 0 ? tags : undefined,
         context_files: contextFiles.length > 0 ? contextFiles : undefined,
+        start_in_backlog: addToBacklog,
       });
       onSuccess();
     } catch (err) {
@@ -275,6 +278,17 @@ export default function NewTaskModal({ projectId, onClose, onSuccess }: NewTaskM
               </select>
             </div>
           </div>
+
+          {/* Add to backlog */}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={addToBacklog}
+              onChange={(e) => setAddToBacklog(e.target.checked)}
+              className="w-4 h-4 rounded border border-[#1E1E1E] bg-[#0D0D0D] accent-[#00C896]"
+            />
+            <span className="text-[#E0E0E0] text-sm font-['Inter']">Add to backlog</span>
+          </label>
 
           {/* Tags */}
           <div>

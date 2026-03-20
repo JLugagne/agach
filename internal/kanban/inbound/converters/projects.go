@@ -30,6 +30,7 @@ func ToPublicProject(project domain.Project) pkgkanban.ProjectResponse {
 		WorkDir:        project.WorkDir,
 		CreatedByRole:  project.CreatedByRole,
 		CreatedByAgent: project.CreatedByAgent,
+		DefaultRole:    project.DefaultRole,
 		CreatedAt:      project.CreatedAt,
 		UpdatedAt:      project.UpdatedAt,
 	}

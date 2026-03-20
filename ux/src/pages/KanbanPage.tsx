@@ -740,6 +740,7 @@ export default function KanbanPage() {
       {showNewTask && (
         <NewTaskModal
           projectId={projectId}
+          defaultRole={project?.default_role}
           onClose={() => setShowNewTask(false)}
           onSuccess={() => {
             setShowNewTask(false);
