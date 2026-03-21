@@ -8,19 +8,20 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/inbound/commands"
 	"github.com/JLugagne/agach-mcp/internal/kanban/inbound/mcp"
 	"github.com/JLugagne/agach-mcp/internal/kanban/inbound/queries"
-	"github.com/JLugagne/agach-mcp/internal/kanban/outbound/sqlite"
+	"github.com/JLugagne/agach-mcp/internal/kanban/outbound/pg"
 	"github.com/JLugagne/agach-mcp/pkg/controller"
 	"github.com/JLugagne/agach-mcp/pkg/sse"
 	"github.com/JLugagne/agach-mcp/pkg/websocket"
 	"github.com/gorilla/mux"
 	gorillaws "github.com/gorilla/websocket"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
 
 // Config holds the configuration for the Kanban system
 type Config struct {
-	DataDir string
-	Logger  *logrus.Logger
+	Pool   *pgxpool.Pool
+	Logger *logrus.Logger
 }
 
 // RunMCPStdio initializes the Kanban system and runs the MCP server over stdio.
@@ -37,7 +38,7 @@ func RunMCPStdio(ctx context.Context, cfg Config) error {
 
 	logger.Info("Initializing Kanban MCP stdio server")
 
-	repos, err := sqlite.NewRepositories(cfg.DataDir)
+	repos, err := pg.NewRepositories(cfg.Pool)
 	if err != nil {
 		logger.WithError(err).Error("Failed to initialize repositories")
 		return err
@@ -74,8 +75,8 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 
 	logger.Info("Initializing Kanban HTTP system")
 
-	// Initialize SQLite repositories
-	repos, err := sqlite.NewRepositories(cfg.DataDir)
+	// Initialize PostgreSQL repositories
+	repos, err := pg.NewRepositories(cfg.Pool)
 	if err != nil {
 		logger.WithError(err).Error("Failed to initialize repositories")
 		return nil, err
@@ -113,7 +114,7 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	projectCommands := commands.NewProjectCommandsHandler(appInstance, ctrl, hub)
 	roleCommands := commands.NewRoleCommandsHandler(appInstance, ctrl, hub)
 	taskCommands := commands.NewTaskCommandsHandler(appInstance, ctrl, hub, sseHub)
-	commentCommands := commands.NewCommentCommandsHandler(appInstance, ctrl, hub)
+	commentCommands := commands.NewCommentCommandsHandlerWithQueries(appInstance, appInstance, ctrl, hub)
 	imageCommands := commands.NewImageCommandsHandler(appInstance, ctrl)
 	seenCommands := commands.NewSeenCommandsHandler(appInstance, ctrl, hub)
 	columnCommands := commands.NewColumnCommandsHandler(appInstance, ctrl)
@@ -185,7 +186,7 @@ func InitKanbanMCP(cfg Config, router *mux.Router, hub *websocket.Hub) error {
 
 	logger.Info("Initializing Kanban MCP SSE system")
 
-	repos, err := sqlite.NewRepositories(cfg.DataDir)
+	repos, err := pg.NewRepositories(cfg.Pool)
 	if err != nil {
 		logger.WithError(err).Error("Failed to initialize repositories")
 		return err

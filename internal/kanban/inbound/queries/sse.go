@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
 	"github.com/JLugagne/agach-mcp/pkg/sse"
 	"github.com/gorilla/mux"
 )
@@ -22,12 +23,16 @@ func (h *SSEHandler) RegisterRoutes(router *mux.Router) {
 }
 
 func (h *SSEHandler) ServeSSE(w http.ResponseWriter, r *http.Request) {
-	projectID := mux.Vars(r)["id"]
+	rawID := mux.Vars(r)["id"]
+	projectID, err := domain.ParseProjectID(rawID)
+	if err != nil {
+		http.Error(w, `{"status":"fail","data":{"error":"invalid project ID"}}`, http.StatusBadRequest)
+		return
+	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -35,7 +40,7 @@ func (h *SSEHandler) ServeSSE(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ch, unsubscribe := h.sseHub.Subscribe(projectID)
+	ch, unsubscribe := h.sseHub.Subscribe(string(projectID))
 	defer unsubscribe()
 
 	for {

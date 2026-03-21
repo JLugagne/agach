@@ -20,6 +20,10 @@ func (a *App) CreateComment(ctx context.Context, projectID domain.ProjectID, tas
 		return domain.Comment{}, domain.ErrCommentContentRequired
 	}
 
+	if authorType != domain.AuthorTypeAgent && authorType != domain.AuthorTypeHuman {
+		return domain.Comment{}, domain.ErrInvalidCommentData
+	}
+
 	// Verify task exists
 	task, err := a.tasks.FindByID(ctx, projectID, taskID)
 	if err != nil {

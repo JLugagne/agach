@@ -16,6 +16,14 @@ func (a *App) UpdateColumnWIPLimit(ctx context.Context, projectID domain.Project
 		"wipLimit":   wipLimit,
 	})
 
+	if columnSlug != domain.ColumnInProgress {
+		return domain.ErrInvalidColumn
+	}
+
+	if wipLimit < 0 {
+		return domain.ErrInvalidColumn
+	}
+
 	column, err := a.columns.FindBySlug(ctx, projectID, columnSlug)
 	if err != nil {
 		logger.WithError(err).Error("failed to find column")

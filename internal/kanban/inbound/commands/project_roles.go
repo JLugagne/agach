@@ -42,7 +42,7 @@ func (h *ProjectRoleCommandsHandler) CreateProjectRole(w http.ResponseWriter, r 
 		return
 	}
 
-	role, err := h.commands.CreateProjectRole(r.Context(), projectID, req.Slug, req.Name, req.Icon, req.Color, req.Description, req.PromptHint, req.TechStack, req.SortOrder)
+	role, err := h.commands.CreateProjectRole(r.Context(), projectID, req.Slug, req.Name, req.Icon, req.Color, req.Description, req.PromptHint, req.PromptTemplate, req.TechStack, req.SortOrder)
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)
@@ -75,7 +75,7 @@ func (h *ProjectRoleCommandsHandler) UpdateProjectRole(w http.ResponseWriter, r 
 		return
 	}
 
-	var name, icon, color, description, promptHint string
+	var name, icon, color, description, promptHint, promptTemplate string
 	var techStack []string
 	var sortOrder int
 
@@ -94,6 +94,9 @@ func (h *ProjectRoleCommandsHandler) UpdateProjectRole(w http.ResponseWriter, r 
 	if req.PromptHint != nil {
 		promptHint = *req.PromptHint
 	}
+	if req.PromptTemplate != nil {
+		promptTemplate = *req.PromptTemplate
+	}
 	if req.TechStack != nil {
 		techStack = *req.TechStack
 	}
@@ -101,7 +104,7 @@ func (h *ProjectRoleCommandsHandler) UpdateProjectRole(w http.ResponseWriter, r 
 		sortOrder = *req.SortOrder
 	}
 
-	if err := h.commands.UpdateProjectRole(r.Context(), projectID, role.ID, name, icon, color, description, promptHint, techStack, sortOrder); err != nil {
+	if err := h.commands.UpdateProjectRole(r.Context(), projectID, role.ID, name, icon, color, description, promptHint, promptTemplate, techStack, sortOrder); err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)
 		} else {

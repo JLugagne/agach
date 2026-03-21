@@ -7,12 +7,16 @@ import (
 
 // ToPublicComment converts domain.Comment to pkgkanban.CommentResponse
 func ToPublicComment(comment domain.Comment) pkgkanban.CommentResponse {
+	authorType := string(comment.AuthorType)
+	if comment.AuthorType != domain.AuthorTypeAgent && comment.AuthorType != domain.AuthorTypeHuman {
+		authorType = string(domain.AuthorTypeAgent)
+	}
 	return pkgkanban.CommentResponse{
 		ID:         string(comment.ID),
 		TaskID:     string(comment.TaskID),
 		AuthorRole: comment.AuthorRole,
 		AuthorName: comment.AuthorName,
-		AuthorType: string(comment.AuthorType),
+		AuthorType: authorType,
 		Content:    comment.Content,
 		EditedAt:   comment.EditedAt,
 		CreatedAt:  comment.CreatedAt,

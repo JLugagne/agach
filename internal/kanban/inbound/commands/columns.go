@@ -33,10 +33,24 @@ type updateWIPLimitRequest struct {
 	WIPLimit int `json:"wip_limit"`
 }
 
+var validColumnSlugs = map[domain.ColumnSlug]bool{
+	domain.ColumnBacklog:    true,
+	domain.ColumnTodo:       true,
+	domain.ColumnInProgress: true,
+	domain.ColumnDone:       true,
+	domain.ColumnBlocked:    true,
+}
+
 // UpdateWIPLimit updates the WIP limit for a column
 func (h *ColumnCommandsHandler) UpdateWIPLimit(w http.ResponseWriter, r *http.Request) {
 	projectID := domain.ProjectID(mux.Vars(r)["id"])
 	slug := domain.ColumnSlug(mux.Vars(r)["slug"])
+
+	if !validColumnSlugs[slug] {
+		statusCode := http.StatusBadRequest
+		h.controller.SendFail(w, r, &statusCode, &domain.Error{Code: "INVALID_COLUMN_SLUG", Message: "invalid column slug: must be one of backlog, todo, in_progress, done, blocked"})
+		return
+	}
 
 	var req updateWIPLimitRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

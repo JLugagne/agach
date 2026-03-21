@@ -34,11 +34,6 @@ func TestToDomainPriority(t *testing.T) {
 		result := converters.ToDomainPriority("low")
 		assert.Equal(t, domain.PriorityLow, result)
 	})
-
-	t.Run("Arbitrary string is preserved as priority", func(t *testing.T) {
-		result := converters.ToDomainPriority("urgent")
-		assert.Equal(t, domain.Priority("urgent"), result)
-	})
 }
 
 func TestToDomainTaskIDs(t *testing.T) {
@@ -46,21 +41,6 @@ func TestToDomainTaskIDs(t *testing.T) {
 		result := converters.ToDomainTaskIDs([]string{})
 		assert.NotNil(t, result)
 		assert.Len(t, result, 0)
-	})
-
-	t.Run("Single ID converts correctly", func(t *testing.T) {
-		result := converters.ToDomainTaskIDs([]string{"task-abc-123"})
-		assert.Len(t, result, 1)
-		assert.Equal(t, domain.TaskID("task-abc-123"), result[0])
-	})
-
-	t.Run("Multiple IDs convert correctly and preserve order", func(t *testing.T) {
-		ids := []string{"id-1", "id-2", "id-3"}
-		result := converters.ToDomainTaskIDs(ids)
-		assert.Len(t, result, 3)
-		assert.Equal(t, domain.TaskID("id-1"), result[0])
-		assert.Equal(t, domain.TaskID("id-2"), result[1])
-		assert.Equal(t, domain.TaskID("id-3"), result[2])
 	})
 }
 

@@ -2,12 +2,18 @@ package queries
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/kanban/inbound/converters"
 	"github.com/JLugagne/agach-mcp/pkg/controller"
 	"github.com/gorilla/mux"
+)
+
+const (
+	defaultCommentLimit = 100
+	maxCommentLimit     = 500
 )
 
 // CommentQueriesHandler handles comment read operations
@@ -29,12 +35,29 @@ func (h *CommentQueriesHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/comments", h.ListComments).Methods("GET")
 }
 
-// ListComments lists all comments for a task
+// ListComments lists comments for a task with pagination.
 func (h *CommentQueriesHandler) ListComments(w http.ResponseWriter, r *http.Request) {
 	projectID := domain.ProjectID(mux.Vars(r)["id"])
 	taskID := domain.TaskID(mux.Vars(r)["taskId"])
 
-	comments, err := h.queries.ListComments(r.Context(), projectID, taskID, 0, 0)
+	limit := defaultCommentLimit
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			if l > maxCommentLimit {
+				l = maxCommentLimit
+			}
+			limit = l
+		}
+	}
+
+	offset := 0
+	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
+		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+			offset = o
+		}
+	}
+
+	comments, err := h.queries.ListComments(r.Context(), projectID, taskID, limit, offset)
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)

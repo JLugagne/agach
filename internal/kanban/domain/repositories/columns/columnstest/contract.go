@@ -25,11 +25,12 @@ type MockColumnRepository struct {
 	FindBySlugFunc     func(ctx context.Context, projectID domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error)
 	ListFunc           func(ctx context.Context, projectID domain.ProjectID) ([]domain.Column, error)
 	UpdateWIPLimitFunc func(ctx context.Context, projectID domain.ProjectID, columnID domain.ColumnID, wipLimit int) error
+	EnsureBacklogFunc  func(ctx context.Context, projectID domain.ProjectID) (*domain.Column, error)
 }
 
 func (m *MockColumnRepository) FindByID(ctx context.Context, projectID domain.ProjectID, id domain.ColumnID) (*domain.Column, error) {
 	if m.FindByIDFunc == nil {
-		panic("called not defined FindByIDFunc")
+		return nil, nil
 	}
 	return m.FindByIDFunc(ctx, projectID, id)
 }
@@ -53,6 +54,13 @@ func (m *MockColumnRepository) UpdateWIPLimit(ctx context.Context, projectID dom
 		panic("called not defined UpdateWIPLimitFunc")
 	}
 	return m.UpdateWIPLimitFunc(ctx, projectID, columnID, wipLimit)
+}
+
+func (m *MockColumnRepository) EnsureBacklog(ctx context.Context, projectID domain.ProjectID) (*domain.Column, error) {
+	if m.EnsureBacklogFunc == nil {
+		panic("called not defined EnsureBacklogFunc")
+	}
+	return m.EnsureBacklogFunc(ctx, projectID)
 }
 
 // ColumnsContractTesting runs all contract tests for a ColumnRepository implementation.

@@ -1,1 +1,0 @@
-ALTER TABLE projects ADD COLUMN default_role TEXT NOT NULL DEFAULT '';

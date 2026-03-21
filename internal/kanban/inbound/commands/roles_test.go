@@ -35,7 +35,7 @@ func TestCreateRole_Success(t *testing.T) {
 	now := time.Now()
 
 	mock := &servicetest.MockCommands{
-		CreateRoleFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error) {
+		CreateRoleFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
 			assert.Equal(t, "engineer", slug)
 			assert.Equal(t, "Software Engineer", name)
 			return domain.Role{
@@ -107,7 +107,7 @@ func TestCreateRole_ValidationError(t *testing.T) {
 
 func TestCreateRole_DomainError(t *testing.T) {
 	mock := &servicetest.MockCommands{
-		CreateRoleFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error) {
+		CreateRoleFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
 			return domain.Role{}, domain.ErrRoleAlreadyExists
 		},
 	}
@@ -138,7 +138,7 @@ func TestUpdateRole_Success(t *testing.T) {
 	slug := "engineer"
 
 	mock := &servicetest.MockCommands{
-		UpdateRoleFunc: func(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error {
+		UpdateRoleFunc: func(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error {
 			// The handler currently passes slug as roleID (known workaround)
 			assert.Equal(t, domain.RoleID(slug), roleID)
 			assert.Equal(t, "Senior Engineer", name)

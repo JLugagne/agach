@@ -13,14 +13,20 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/JLugagne/agach-mcp/internal/identity"
 	"github.com/JLugagne/agach-mcp/internal/kanban"
+	"github.com/JLugagne/agach-mcp/internal/svrconfig"
+	"github.com/JLugagne/agach-mcp/pkg/controller"
+	"github.com/JLugagne/agach-mcp/pkg/middleware"
 	"github.com/JLugagne/agach-mcp/ux"
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
 
 func main() {
 	mcpMode := flag.Bool("mcp", false, "Run as MCP server over stdio (for Claude Code integration)")
+	configPath := flag.String("config", getEnv("AGACH_CONFIG", "agach-server.yml"), "Path to server config file")
 	flag.Parse()
 
 	logger := logrus.New()
@@ -29,17 +35,36 @@ func main() {
 		FullTimestamp: true,
 	})
 
-	dataDir := getEnv("AGACH_DATA_DIR", "")
+	cfg, err := svrconfig.Load(*configPath)
+	if err != nil {
+		logger.WithError(err).Fatal("Failed to load server config")
+	}
+
+	jwtSecret := []byte(getEnv("AGACH_JWT_SECRET", ""))
+	if len(jwtSecret) < 32 {
+		logger.Fatal("AGACH_JWT_SECRET must be at least 32 bytes")
+	}
+
+	dbURL := getEnv("DATABASE_URL", "")
+	if dbURL == "" {
+		logger.Fatal("DATABASE_URL environment variable is required")
+	}
+
+	pool, err := pgxpool.New(context.Background(), dbURL)
+	if err != nil {
+		logger.WithError(err).Fatal("Failed to connect to database")
+	}
+	defer pool.Close()
 
 	if *mcpMode {
-		runMCP(logger, dataDir)
+		runMCP(logger, pool)
 		return
 	}
 
-	runHTTP(logger, dataDir)
+	runHTTP(logger, pool, cfg, jwtSecret)
 }
 
-func runMCP(logger *logrus.Logger, dataDir string) {
+func runMCP(logger *logrus.Logger, pool *pgxpool.Pool) {
 	// In MCP stdio mode, redirect logs to stderr so they don't interfere with protocol
 	logger.SetOutput(os.Stderr)
 
@@ -55,40 +80,56 @@ func runMCP(logger *logrus.Logger, dataDir string) {
 	}()
 
 	if err := kanban.RunMCPStdio(ctx, kanban.Config{
-		DataDir: dataDir,
-		Logger:  logger,
+		Pool:   pool,
+		Logger: logger,
 	}); err != nil {
 		logger.WithError(err).Error("MCP server exited with error")
 		os.Exit(1)
 	}
 }
 
-func runHTTP(logger *logrus.Logger, dataDir string) {
+func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, jwtSecret []byte) {
 	httpHost := getEnv("AGACH_HOST", "127.0.0.1")
 	httpPort := getEnv("AGACH_PORT", "8322")
 	mcpHost := getEnv("AGACH_MCP_HOST", "127.0.0.1")
 	mcpPort := getEnv("AGACH_MCP_PORT", "8323")
 
 	logger.WithFields(logrus.Fields{
-		"dataDir":  dataDir,
 		"httpAddr": httpHost + ":" + httpPort,
 		"mcpAddr":  mcpHost + ":" + mcpPort,
 	}).Info("Starting Kanban Server")
 
-	// Create HTTP router (for REST API + WebSocket + SPA)
+	// Shared controller and router
+	ctrl := controller.NewController(logger)
 	httpRouter := mux.NewRouter()
 
-	// Health check endpoint
+	// Health check (unauthenticated)
 	httpRouter.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, `{"status":"ok"}`)
 	}).Methods("GET")
 
-	// Initialize Kanban HTTP system (REST API + WebSocket)
+	// Initialize identity system (auth + SSO)
+	identitySystem, err := identity.Init(context.Background(), identity.Config{
+		Logger:    logger,
+		JWTSecret: jwtSecret,
+		SSO:       cfg.SSO,
+	}, pool)
+	if err != nil {
+		logger.WithError(err).Fatal("Failed to initialize identity system")
+	}
+	identitySystem.RegisterRoutes(httpRouter, ctrl)
+
+	// Auth middleware for protected routes
+	requireAuth := middleware.NewRequireAuth(identitySystem.AuthQueries)
+
+	// Initialize Kanban HTTP system under auth middleware
+	kanbanRouter := httpRouter.PathPrefix("").Subrouter()
+	kanbanRouter.Use(requireAuth)
 	hub, err := kanban.InitKanbanHTTP(kanban.Config{
-		DataDir: dataDir,
-		Logger:  logger,
-	}, httpRouter)
+		Pool:   pool,
+		Logger: logger,
+	}, kanbanRouter)
 	if err != nil {
 		logger.WithError(err).Fatal("Failed to initialize Kanban HTTP system")
 	}
@@ -104,8 +145,8 @@ func runHTTP(logger *logrus.Logger, dataDir string) {
 	// Create MCP router and initialize MCP SSE server (shares the HTTP hub)
 	mcpRouter := mux.NewRouter()
 	if err := kanban.InitKanbanMCP(kanban.Config{
-		DataDir: dataDir,
-		Logger:  logger,
+		Pool:   pool,
+		Logger: logger,
 	}, mcpRouter, hub); err != nil {
 		logger.WithError(err).Fatal("Failed to initialize Kanban MCP system")
 	}

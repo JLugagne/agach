@@ -3,7 +3,10 @@ package domain
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // shortID generates an 8-character random hex string (4 bytes of entropy).
@@ -24,6 +27,23 @@ func NewProjectID() ProjectID {
 	return ProjectID(shortID())
 }
 
+// String returns the string representation of a ProjectID
+func (id ProjectID) String() string {
+	return string(id)
+}
+
+// ParseProjectID validates and returns a ProjectID.
+// A valid ID is an 8-character lowercase hex string.
+func ParseProjectID(s string) (ProjectID, error) {
+	if len(s) != 8 {
+		return "", fmt.Errorf("invalid project ID %q: must be 8 hex characters", s)
+	}
+	if _, err := hex.DecodeString(s); err != nil {
+		return "", fmt.Errorf("invalid project ID %q: must be hex characters", s)
+	}
+	return ProjectID(s), nil
+}
+
 // RoleID represents a unique role identifier
 type RoleID string
 
@@ -32,12 +52,22 @@ func NewRoleID() RoleID {
 	return RoleID(shortID())
 }
 
+// String returns the string representation of a RoleID
+func (id RoleID) String() string {
+	return string(id)
+}
+
 // TaskID represents a unique task identifier
 type TaskID string
 
-// NewTaskID generates a new task ID
+// NewTaskID generates a new task ID as a UUID string.
 func NewTaskID() TaskID {
-	return TaskID(shortID())
+	return TaskID(uuid.New().String())
+}
+
+// String returns the string representation of a TaskID
+func (id TaskID) String() string {
+	return string(id)
 }
 
 // ColumnID represents a unique column identifier
@@ -48,6 +78,11 @@ func NewColumnID() ColumnID {
 	return ColumnID(shortID())
 }
 
+// String returns the string representation of a ColumnID
+func (id ColumnID) String() string {
+	return string(id)
+}
+
 // CommentID represents a unique comment identifier
 type CommentID string
 
@@ -56,12 +91,22 @@ func NewCommentID() CommentID {
 	return CommentID(shortID())
 }
 
+// String returns the string representation of a CommentID
+func (id CommentID) String() string {
+	return string(id)
+}
+
 // DependencyID represents a unique dependency identifier
 type DependencyID string
 
 // NewDependencyID generates a new dependency ID
 func NewDependencyID() DependencyID {
 	return DependencyID(shortID())
+}
+
+// String returns the string representation of a DependencyID
+func (id DependencyID) String() string {
+	return string(id)
 }
 
 // Priority represents task priority levels
@@ -125,16 +170,17 @@ type Project struct {
 
 // Role represents an agent role in the system
 type Role struct {
-	ID          RoleID    `json:"id"`
-	Slug        string    `json:"slug"`
-	Name        string    `json:"name"`
-	Icon        string    `json:"icon"`
-	Color       string    `json:"color"`
-	Description string    `json:"description"`
-	TechStack   []string  `json:"tech_stack"`
-	PromptHint  string    `json:"prompt_hint"`
-	SortOrder   int       `json:"sort_order"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID             RoleID    `json:"id"`
+	Slug           string    `json:"slug"`
+	Name           string    `json:"name"`
+	Icon           string    `json:"icon"`
+	Color          string    `json:"color"`
+	Description    string    `json:"description"`
+	TechStack      []string  `json:"tech_stack"`
+	PromptHint     string    `json:"prompt_hint"`
+	PromptTemplate string    `json:"prompt_template"`
+	SortOrder      int       `json:"sort_order"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 // Column represents a kanban column

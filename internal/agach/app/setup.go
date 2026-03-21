@@ -6,10 +6,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	pkgkanban "github.com/JLugagne/agach-mcp/pkg/kanban"
 )
+
+const maxCopyBytes = 512 * 1024 // 512 KB cap for agent/skill .md files
+
+var invalidSlugCharRe = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
 
 // AgentDef holds the parsed frontmatter of a claude agent file
 type AgentDef struct {
@@ -38,7 +43,11 @@ type SetupResult struct {
 // DiscoverAgents returns all agent definitions available:
 // first local (workdir/.claude/agents/), then global (~/.claude/agents/).
 // Local agents override global ones with the same slug.
+// workDir must be an absolute canonical path (filepath.Clean(workDir) == workDir).
 func DiscoverAgents(workDir string) []AgentDef {
+	if !filepath.IsAbs(workDir) || filepath.Clean(workDir) != workDir {
+		return nil
+	}
 	globalDir := filepath.Join(userHomeClaudeDir(), "agents")
 	localDir := filepath.Join(workDir, ".claude", "agents")
 
@@ -114,7 +123,10 @@ func userHomeClaudeDir() string {
 	return filepath.Join(home, ".claude")
 }
 
-// readAgentsDir parses all .md files in dir and returns their AgentDef
+// readAgentsDir parses all .md files in dir and returns their AgentDef.
+// Filenames with invalid slug characters are sanitised: each run of
+// non-alphanumeric/underscore/hyphen characters is replaced with a hyphen.
+// If sanitisation produces an empty or invalid slug the file is skipped.
 func readAgentsDir(dir string, isLocal bool) []AgentDef {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -125,8 +137,13 @@ func readAgentsDir(dir string, isLocal bool) []AgentDef {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 			continue
 		}
+		raw := strings.TrimSuffix(e.Name(), ".md")
+		slug := invalidSlugCharRe.ReplaceAllString(raw, "-")
+		slug = strings.Trim(slug, "-")
+		if !isValidSlug(slug) {
+			continue
+		}
 		path := filepath.Join(dir, e.Name())
-		slug := strings.TrimSuffix(e.Name(), ".md")
 		name, desc := parseAgentFrontmatter(path)
 		defs = append(defs, AgentDef{
 			Slug:        slug,
@@ -236,6 +253,6 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	defer out.Close()
-	_, err = io.Copy(out, in)
+	_, err = io.Copy(out, io.LimitReader(in, maxCopyBytes))
 	return err
 }

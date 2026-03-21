@@ -201,7 +201,7 @@ func TestApp_MoveTask_ToBlocked_SetsBlockedFlag(t *testing.T) {
 
 	mockTasks.FindByIDFunc = func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) (*domain.Task, error) {
 		if pid == projectID && tid == taskID {
-			return &domain.Task{ID: taskID, ColumnID: todoColID, Title: "Task", Summary: "Summary"}, nil
+			return &domain.Task{ID: taskID, ColumnID: todoColID, Title: "Task", Summary: "Summary", BlockedReason: "waiting for dependency"}, nil
 		}
 		return nil, errors.New("not found")
 	}

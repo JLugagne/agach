@@ -2,22 +2,37 @@ package converters
 
 import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
+	"github.com/google/uuid"
 	pkgkanban "github.com/JLugagne/agach-mcp/pkg/kanban"
 )
 
-// ToDomainPriority converts string to domain.Priority
-func ToDomainPriority(priority string) domain.Priority {
-	if priority == "" {
-		return domain.PriorityMedium
-	}
-	return domain.Priority(priority)
+var validPriorities = map[domain.Priority]bool{
+	domain.PriorityCritical: true,
+	domain.PriorityHigh:     true,
+	domain.PriorityMedium:   true,
+	domain.PriorityLow:      true,
 }
 
-// ToDomainTaskIDs converts []string to []domain.TaskID
+// ToDomainPriority converts string to domain.Priority, returning PriorityMedium for invalid/empty values.
+func ToDomainPriority(priority string) domain.Priority {
+	if priority == "" || len(priority) > 20 {
+		return domain.PriorityMedium
+	}
+	p := domain.Priority(priority)
+	if !validPriorities[p] {
+		return domain.PriorityMedium
+	}
+	return p
+}
+
+// ToDomainTaskIDs converts []string to []domain.TaskID, skipping non-UUID entries.
 func ToDomainTaskIDs(ids []string) []domain.TaskID {
-	result := make([]domain.TaskID, len(ids))
-	for i, id := range ids {
-		result[i] = domain.TaskID(id)
+	result := make([]domain.TaskID, 0, len(ids))
+	for _, id := range ids {
+		if _, err := uuid.Parse(id); err != nil {
+			continue
+		}
+		result = append(result, domain.TaskID(id))
 	}
 	return result
 }
@@ -52,15 +67,15 @@ func ToPublicTask(task domain.Task) pkgkanban.TaskResponse {
 		ContextFiles:      task.ContextFiles,
 		Tags:              task.Tags,
 		EstimatedEffort:   task.EstimatedEffort,
-		InputTokens:       task.InputTokens,
-		OutputTokens:      task.OutputTokens,
-		CacheReadTokens:   task.CacheReadTokens,
-		CacheWriteTokens:  task.CacheWriteTokens,
+		InputTokens:       clampInt(task.InputTokens),
+		OutputTokens:      clampInt(task.OutputTokens),
+		CacheReadTokens:   clampInt(task.CacheReadTokens),
+		CacheWriteTokens:  clampInt(task.CacheWriteTokens),
 		Model:                task.Model,
 		SessionID:            task.SessionID,
 		SeenAt:               task.SeenAt,
 		StartedAt:            task.StartedAt,
-		DurationSeconds:      task.DurationSeconds,
+		DurationSeconds:      clampInt(task.DurationSeconds),
 		HumanEstimateSeconds: task.HumanEstimateSeconds,
 		CreatedAt:            task.CreatedAt,
 		UpdatedAt:            task.UpdatedAt,

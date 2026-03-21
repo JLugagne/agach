@@ -325,6 +325,9 @@ func validateTaskInput(task client.NextTaskResult, cfg domain.RunConfig) error {
 }
 
 func buildPrompt(task client.NextTaskResult, cfg domain.RunConfig) string {
+	if !isValidUUID(task.ID) || !isValidUUID(task.ProjectID) || !isValidUUID(cfg.ProjectID) {
+		return ""
+	}
 	if task.SessionID != "" {
 		if task.ProjectID != cfg.ProjectID {
 			return fmt.Sprintf("check status of task %s from sub project %s from agach project %s - if it was done move it to complete, otherwise check for comments and continue working",

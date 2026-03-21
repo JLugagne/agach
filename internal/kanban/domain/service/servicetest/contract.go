@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
+	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/service"
 )
 
@@ -21,11 +22,11 @@ type MockCommands struct {
 	CreateProjectFunc        func(ctx context.Context, name, description, workDir, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
 	UpdateProjectFunc        func(ctx context.Context, projectID domain.ProjectID, name, description string, defaultRole *string) error
 	DeleteProjectFunc        func(ctx context.Context, projectID domain.ProjectID) error
-	CreateRoleFunc           func(ctx context.Context, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error)
-	UpdateRoleFunc           func(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error
+	CreateRoleFunc           func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error)
+	UpdateRoleFunc           func(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error
 	DeleteRoleFunc           func(ctx context.Context, roleID domain.RoleID) error
-	CreateProjectRoleFunc    func(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error)
-	UpdateProjectRoleFunc    func(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error
+	CreateProjectRoleFunc    func(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error)
+	UpdateProjectRoleFunc    func(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error
 	DeleteProjectRoleFunc    func(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error
 	CreateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error)
 	BulkCreateTasksFunc      func(ctx context.Context, projectID domain.ProjectID, inputs []service.BulkTaskInput) ([]domain.Task, error)
@@ -74,18 +75,18 @@ func (m *MockCommands) DeleteProject(ctx context.Context, projectID domain.Proje
 	return m.DeleteProjectFunc(ctx, projectID)
 }
 
-func (m *MockCommands) CreateRole(ctx context.Context, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error) {
+func (m *MockCommands) CreateRole(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
 	if m.CreateRoleFunc == nil {
 		panic("called not defined CreateRoleFunc")
 	}
-	return m.CreateRoleFunc(ctx, slug, name, icon, color, description, promptHint, techStack, sortOrder)
+	return m.CreateRoleFunc(ctx, slug, name, icon, color, description, promptHint, promptTemplate, techStack, sortOrder)
 }
 
-func (m *MockCommands) UpdateRole(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error {
+func (m *MockCommands) UpdateRole(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error {
 	if m.UpdateRoleFunc == nil {
 		panic("called not defined UpdateRoleFunc")
 	}
-	return m.UpdateRoleFunc(ctx, roleID, name, icon, color, description, promptHint, techStack, sortOrder)
+	return m.UpdateRoleFunc(ctx, roleID, name, icon, color, description, promptHint, promptTemplate, techStack, sortOrder)
 }
 
 func (m *MockCommands) DeleteRole(ctx context.Context, roleID domain.RoleID) error {
@@ -95,18 +96,18 @@ func (m *MockCommands) DeleteRole(ctx context.Context, roleID domain.RoleID) err
 	return m.DeleteRoleFunc(ctx, roleID)
 }
 
-func (m *MockCommands) CreateProjectRole(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error) {
+func (m *MockCommands) CreateProjectRole(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
 	if m.CreateProjectRoleFunc == nil {
 		panic("called not defined CreateProjectRoleFunc")
 	}
-	return m.CreateProjectRoleFunc(ctx, projectID, slug, name, icon, color, description, promptHint, techStack, sortOrder)
+	return m.CreateProjectRoleFunc(ctx, projectID, slug, name, icon, color, description, promptHint, promptTemplate, techStack, sortOrder)
 }
 
-func (m *MockCommands) UpdateProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error {
+func (m *MockCommands) UpdateProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error {
 	if m.UpdateProjectRoleFunc == nil {
 		panic("called not defined UpdateProjectRoleFunc")
 	}
-	return m.UpdateProjectRoleFunc(ctx, projectID, roleID, name, icon, color, description, promptHint, techStack, sortOrder)
+	return m.UpdateProjectRoleFunc(ctx, projectID, roleID, name, icon, color, description, promptHint, promptTemplate, techStack, sortOrder)
 }
 
 func (m *MockCommands) DeleteProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error {
@@ -282,4 +283,256 @@ func (m *MockCommands) UpdateTaskSessionID(ctx context.Context, projectID domain
 		panic("called not defined UpdateTaskSessionIDFunc")
 	}
 	return m.UpdateTaskSessionIDFunc(ctx, projectID, taskID, sessionID)
+}
+
+// MockQueries is a function-based mock implementation of the service.Queries interface.
+type MockQueries struct {
+	GetProjectFunc                  func(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error)
+	ListProjectsFunc                func(ctx context.Context) ([]domain.Project, error)
+	ListProjectsWithSummaryFunc     func(ctx context.Context) ([]domain.ProjectWithSummary, error)
+	ListSubProjectsFunc             func(ctx context.Context, parentID domain.ProjectID) ([]domain.Project, error)
+	ListSubProjectsWithSummaryFunc  func(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error)
+	GetProjectSummaryFunc           func(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectSummary, error)
+	GetProjectInfoFunc              func(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectInfo, error)
+	ListProjectsByWorkDirFunc       func(ctx context.Context, workDir string) ([]domain.ProjectWithSummary, error)
+	GetRoleFunc                     func(ctx context.Context, roleID domain.RoleID) (*domain.Role, error)
+	GetRoleBySlugFunc               func(ctx context.Context, slug string) (*domain.Role, error)
+	ListRolesFunc                   func(ctx context.Context) ([]domain.Role, error)
+	ListProjectRolesFunc            func(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error)
+	GetProjectRoleBySlugFunc        func(ctx context.Context, projectID domain.ProjectID, slug string) (*domain.Role, error)
+	GetTaskFunc                     func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (*domain.Task, error)
+	ListTasksFunc                   func(ctx context.Context, projectID domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error)
+	GetNextTaskFunc                 func(ctx context.Context, projectID domain.ProjectID, role string, subProjectID *domain.ProjectID) (*domain.Task, error)
+	GetNextTasksFunc                func(ctx context.Context, projectID domain.ProjectID, role string, count int, subProjectID *domain.ProjectID) ([]domain.Task, error)
+	GetDependencyContextFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.DependencyContext, error)
+	GetColumnFunc                   func(ctx context.Context, projectID domain.ProjectID, columnID domain.ColumnID) (*domain.Column, error)
+	GetColumnBySlugFunc             func(ctx context.Context, projectID domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error)
+	ListColumnsFunc                 func(ctx context.Context, projectID domain.ProjectID) ([]domain.Column, error)
+	GetCommentFunc                  func(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID) (*domain.Comment, error)
+	ListCommentsFunc                func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, limit, offset int) ([]domain.Comment, error)
+	CountCommentsFunc               func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (int, error)
+	ListDependenciesFunc            func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.TaskDependency, error)
+	GetDependencyTasksFunc          func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.Task, error)
+	GetDependentTasksFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.Task, error)
+	GetToolUsageForProjectFunc      func(ctx context.Context, projectID domain.ProjectID) ([]domain.ToolUsageStat, error)
+	GetTimelineFunc                 func(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error)
+	GetColdStartStatsFunc           func(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error)
+	GetWIPSlotsFunc                 func(ctx context.Context, projectID domain.ProjectID) (*domain.WIPSlotsInfo, error)
+}
+
+func (m *MockQueries) GetProject(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error) {
+	if m.GetProjectFunc == nil {
+		panic("called not defined GetProjectFunc")
+	}
+	return m.GetProjectFunc(ctx, projectID)
+}
+
+func (m *MockQueries) ListProjects(ctx context.Context) ([]domain.Project, error) {
+	if m.ListProjectsFunc == nil {
+		panic("called not defined ListProjectsFunc")
+	}
+	return m.ListProjectsFunc(ctx)
+}
+
+func (m *MockQueries) ListProjectsWithSummary(ctx context.Context) ([]domain.ProjectWithSummary, error) {
+	if m.ListProjectsWithSummaryFunc == nil {
+		panic("called not defined ListProjectsWithSummaryFunc")
+	}
+	return m.ListProjectsWithSummaryFunc(ctx)
+}
+
+func (m *MockQueries) ListSubProjects(ctx context.Context, parentID domain.ProjectID) ([]domain.Project, error) {
+	if m.ListSubProjectsFunc == nil {
+		panic("called not defined ListSubProjectsFunc")
+	}
+	return m.ListSubProjectsFunc(ctx, parentID)
+}
+
+func (m *MockQueries) ListSubProjectsWithSummary(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error) {
+	if m.ListSubProjectsWithSummaryFunc == nil {
+		panic("called not defined ListSubProjectsWithSummaryFunc")
+	}
+	return m.ListSubProjectsWithSummaryFunc(ctx, parentID)
+}
+
+func (m *MockQueries) GetProjectSummary(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectSummary, error) {
+	if m.GetProjectSummaryFunc == nil {
+		panic("called not defined GetProjectSummaryFunc")
+	}
+	return m.GetProjectSummaryFunc(ctx, projectID)
+}
+
+func (m *MockQueries) GetProjectInfo(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectInfo, error) {
+	if m.GetProjectInfoFunc == nil {
+		panic("called not defined GetProjectInfoFunc")
+	}
+	return m.GetProjectInfoFunc(ctx, projectID)
+}
+
+func (m *MockQueries) ListProjectsByWorkDir(ctx context.Context, workDir string) ([]domain.ProjectWithSummary, error) {
+	if m.ListProjectsByWorkDirFunc == nil {
+		panic("called not defined ListProjectsByWorkDirFunc")
+	}
+	return m.ListProjectsByWorkDirFunc(ctx, workDir)
+}
+
+func (m *MockQueries) GetRole(ctx context.Context, roleID domain.RoleID) (*domain.Role, error) {
+	if m.GetRoleFunc == nil {
+		panic("called not defined GetRoleFunc")
+	}
+	return m.GetRoleFunc(ctx, roleID)
+}
+
+func (m *MockQueries) GetRoleBySlug(ctx context.Context, slug string) (*domain.Role, error) {
+	if m.GetRoleBySlugFunc == nil {
+		panic("called not defined GetRoleBySlugFunc")
+	}
+	return m.GetRoleBySlugFunc(ctx, slug)
+}
+
+func (m *MockQueries) ListRoles(ctx context.Context) ([]domain.Role, error) {
+	if m.ListRolesFunc == nil {
+		panic("called not defined ListRolesFunc")
+	}
+	return m.ListRolesFunc(ctx)
+}
+
+func (m *MockQueries) ListProjectRoles(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error) {
+	if m.ListProjectRolesFunc == nil {
+		panic("called not defined ListProjectRolesFunc")
+	}
+	return m.ListProjectRolesFunc(ctx, projectID)
+}
+
+func (m *MockQueries) GetProjectRoleBySlug(ctx context.Context, projectID domain.ProjectID, slug string) (*domain.Role, error) {
+	if m.GetProjectRoleBySlugFunc == nil {
+		panic("called not defined GetProjectRoleBySlugFunc")
+	}
+	return m.GetProjectRoleBySlugFunc(ctx, projectID, slug)
+}
+
+func (m *MockQueries) GetTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (*domain.Task, error) {
+	if m.GetTaskFunc == nil {
+		panic("called not defined GetTaskFunc")
+	}
+	return m.GetTaskFunc(ctx, projectID, taskID)
+}
+
+func (m *MockQueries) ListTasks(ctx context.Context, projectID domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error) {
+	if m.ListTasksFunc == nil {
+		panic("called not defined ListTasksFunc")
+	}
+	return m.ListTasksFunc(ctx, projectID, filters)
+}
+
+func (m *MockQueries) GetNextTask(ctx context.Context, projectID domain.ProjectID, role string, subProjectID *domain.ProjectID) (*domain.Task, error) {
+	if m.GetNextTaskFunc == nil {
+		panic("called not defined GetNextTaskFunc")
+	}
+	return m.GetNextTaskFunc(ctx, projectID, role, subProjectID)
+}
+
+func (m *MockQueries) GetNextTasks(ctx context.Context, projectID domain.ProjectID, role string, count int, subProjectID *domain.ProjectID) ([]domain.Task, error) {
+	if m.GetNextTasksFunc == nil {
+		panic("called not defined GetNextTasksFunc")
+	}
+	return m.GetNextTasksFunc(ctx, projectID, role, count, subProjectID)
+}
+
+func (m *MockQueries) GetDependencyContext(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.DependencyContext, error) {
+	if m.GetDependencyContextFunc == nil {
+		panic("called not defined GetDependencyContextFunc")
+	}
+	return m.GetDependencyContextFunc(ctx, projectID, taskID)
+}
+
+func (m *MockQueries) GetColumn(ctx context.Context, projectID domain.ProjectID, columnID domain.ColumnID) (*domain.Column, error) {
+	if m.GetColumnFunc == nil {
+		panic("called not defined GetColumnFunc")
+	}
+	return m.GetColumnFunc(ctx, projectID, columnID)
+}
+
+func (m *MockQueries) GetColumnBySlug(ctx context.Context, projectID domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
+	if m.GetColumnBySlugFunc == nil {
+		panic("called not defined GetColumnBySlugFunc")
+	}
+	return m.GetColumnBySlugFunc(ctx, projectID, slug)
+}
+
+func (m *MockQueries) ListColumns(ctx context.Context, projectID domain.ProjectID) ([]domain.Column, error) {
+	if m.ListColumnsFunc == nil {
+		panic("called not defined ListColumnsFunc")
+	}
+	return m.ListColumnsFunc(ctx, projectID)
+}
+
+func (m *MockQueries) GetComment(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID) (*domain.Comment, error) {
+	if m.GetCommentFunc == nil {
+		return nil, domain.ErrCommentNotFound
+	}
+	return m.GetCommentFunc(ctx, projectID, commentID)
+}
+
+func (m *MockQueries) ListComments(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, limit, offset int) ([]domain.Comment, error) {
+	if m.ListCommentsFunc == nil {
+		panic("called not defined ListCommentsFunc")
+	}
+	return m.ListCommentsFunc(ctx, projectID, taskID, limit, offset)
+}
+
+func (m *MockQueries) CountComments(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (int, error) {
+	if m.CountCommentsFunc == nil {
+		panic("called not defined CountCommentsFunc")
+	}
+	return m.CountCommentsFunc(ctx, projectID, taskID)
+}
+
+func (m *MockQueries) ListDependencies(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.TaskDependency, error) {
+	if m.ListDependenciesFunc == nil {
+		panic("called not defined ListDependenciesFunc")
+	}
+	return m.ListDependenciesFunc(ctx, projectID, taskID)
+}
+
+func (m *MockQueries) GetDependencyTasks(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.Task, error) {
+	if m.GetDependencyTasksFunc == nil {
+		panic("called not defined GetDependencyTasksFunc")
+	}
+	return m.GetDependencyTasksFunc(ctx, projectID, taskID)
+}
+
+func (m *MockQueries) GetDependentTasks(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.Task, error) {
+	if m.GetDependentTasksFunc == nil {
+		panic("called not defined GetDependentTasksFunc")
+	}
+	return m.GetDependentTasksFunc(ctx, projectID, taskID)
+}
+
+func (m *MockQueries) GetToolUsageForProject(ctx context.Context, projectID domain.ProjectID) ([]domain.ToolUsageStat, error) {
+	if m.GetToolUsageForProjectFunc == nil {
+		panic("called not defined GetToolUsageForProjectFunc")
+	}
+	return m.GetToolUsageForProjectFunc(ctx, projectID)
+}
+
+func (m *MockQueries) GetTimeline(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error) {
+	if m.GetTimelineFunc == nil {
+		panic("called not defined GetTimelineFunc")
+	}
+	return m.GetTimelineFunc(ctx, projectID, days)
+}
+
+func (m *MockQueries) GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error) {
+	if m.GetColdStartStatsFunc == nil {
+		panic("called not defined GetColdStartStatsFunc")
+	}
+	return m.GetColdStartStatsFunc(ctx, projectID)
+}
+
+func (m *MockQueries) GetWIPSlots(ctx context.Context, projectID domain.ProjectID) (*domain.WIPSlotsInfo, error) {
+	if m.GetWIPSlotsFunc == nil {
+		panic("called not defined GetWIPSlotsFunc")
+	}
+	return m.GetWIPSlotsFunc(ctx, projectID)
 }

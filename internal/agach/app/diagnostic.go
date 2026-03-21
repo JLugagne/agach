@@ -127,7 +127,7 @@ func runDiagnosticProbe(ctx context.Context, workDir, agentSlug string) (domain.
 			continue
 		}
 
-		if rawType.SessionID != "" && sessionID == "" {
+		if rawType.SessionID != "" && sessionID == "" && isValidSession(rawType.SessionID) {
 			sessionID = rawType.SessionID
 		}
 
