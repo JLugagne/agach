@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { LayoutGrid, Users, Settings, Plus, AlertTriangle, Sun, Moon, BarChart3, Inbox } from 'lucide-react';
+import { LayoutGrid, Users, Settings, Plus, AlertTriangle, Sun, Moon, BarChart3, Inbox, BookOpen } from 'lucide-react';
 import { listSubProjects, getProject, getProjectSummary } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useTheme } from './ThemeContext';
@@ -188,6 +188,12 @@ export function Layout({ children }: LayoutProps) {
                 label="Roles"
                 active={isActive('/roles')}
                 onClick={() => navigate('/roles')}
+              />
+              <NavItem
+                icon={<BookOpen size={15} />}
+                label="Skills"
+                active={isActive('/skills')}
+                onClick={() => navigate('/skills')}
               />
               <NavItem
                 icon={<Settings size={15} />}

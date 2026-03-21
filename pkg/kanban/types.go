@@ -73,16 +73,59 @@ type UpdateRoleRequest struct {
 
 // RoleResponse represents a role in API responses
 type RoleResponse struct {
+	ID             string    `json:"id"`
+	Slug           string    `json:"slug"`
+	Name           string    `json:"name"`
+	Icon           string    `json:"icon"`
+	Color          string    `json:"color"`
+	Description    string    `json:"description"`
+	TechStack      []string  `json:"tech_stack"`
+	PromptHint     string    `json:"prompt_hint"`
+	PromptTemplate string    `json:"prompt_template"`
+	Content        string    `json:"content"`
+	SkillCount     int       `json:"skill_count"`
+	SortOrder      int       `json:"sort_order"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+// CreateSkillRequest represents a request to create a skill
+type CreateSkillRequest struct {
+	Slug        string `json:"slug"        validate:"required,min=1,max=50,slug"`
+	Name        string `json:"name"        validate:"required,min=1,max=100"`
+	Description string `json:"description" validate:"max=2000"`
+	Content     string `json:"content"     validate:"max=100000"`
+	Icon        string `json:"icon"        validate:"max=10"`
+	Color       string `json:"color"       validate:"omitempty,hexcolor"`
+	SortOrder   int    `json:"sort_order"`
+}
+
+// UpdateSkillRequest represents a request to update a skill
+type UpdateSkillRequest struct {
+	Name        *string `json:"name"        validate:"omitempty,min=1,max=100"`
+	Description *string `json:"description" validate:"omitempty,max=2000"`
+	Content     *string `json:"content"     validate:"omitempty,max=100000"`
+	Icon        *string `json:"icon"        validate:"omitempty,max=10"`
+	Color       *string `json:"color"       validate:"omitempty,hexcolor"`
+	SortOrder   *int    `json:"sort_order"`
+}
+
+// SkillResponse represents a skill in API responses
+type SkillResponse struct {
 	ID          string    `json:"id"`
 	Slug        string    `json:"slug"`
 	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Content     string    `json:"content"`
 	Icon        string    `json:"icon"`
 	Color       string    `json:"color"`
-	Description string    `json:"description"`
-	TechStack   []string  `json:"tech_stack"`
-	PromptHint  string    `json:"prompt_hint"`
 	SortOrder   int       `json:"sort_order"`
 	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// AddSkillToAgentRequest represents a request to assign a skill to an agent
+type AddSkillToAgentRequest struct {
+	SkillSlug string `json:"skill_slug" validate:"required,min=1,max=50"`
 }
 
 // CreateTaskRequest represents a request to create a task
@@ -309,6 +352,43 @@ type ColdStartStatResponse struct {
 	AvgCacheReadTokens float64 `json:"avg_cache_read_tokens"`
 }
 
+// TasksByAgentResponse is returned by the ListTasksByAgent endpoint
+type TasksByAgentResponse struct {
+	AgentSlug string         `json:"agent_slug"`
+	TaskCount int            `json:"task_count"`
+	Tasks     []TaskResponse `json:"tasks"`
+}
+
+// CloneRoleRequest represents a request to clone a role
+type CloneRoleRequest struct {
+	NewSlug string `json:"new_slug" validate:"required,min=1,max=50,slug"`
+	NewName string `json:"new_name" validate:"omitempty,max=100"`
+}
+
+// AssignAgentToProjectRequest represents a request to assign an agent to a project
+type AssignAgentToProjectRequest struct {
+	AgentSlug string `json:"agent_slug" validate:"required,min=1,max=50"`
+}
+
+// RemoveAgentFromProjectRequest represents the body for removing an agent from a project.
+// ReassignTo is the target agent slug to reassign tasks to, or empty to clear assignments.
+// If both ReassignTo is empty and ClearAssignment is false, returns ErrAgentHasTasks when tasks exist.
+type RemoveAgentFromProjectRequest struct {
+	ReassignTo      *string `json:"reassign_to"       validate:"omitempty,max=50"`
+	ClearAssignment bool    `json:"clear_assignment"`
+}
+
+// BulkReassignTasksRequest represents a request to reassign tasks between agents
+type BulkReassignTasksRequest struct {
+	OldSlug string `json:"old_slug" validate:"required,min=1,max=50"`
+	NewSlug string `json:"new_slug" validate:"omitempty,max=50"`
+}
+
+// BulkReassignTasksResponse contains the count of updated tasks
+type BulkReassignTasksResponse struct {
+	UpdatedCount int `json:"updated_count"`
+}
+
 // Validation errors
 var (
 	ErrInvalidProjectRequest = &apierror.Error{
@@ -334,5 +414,13 @@ var (
 	ErrInvalidImageRequest = &apierror.Error{
 		Code:    "INVALID_IMAGE_REQUEST",
 		Message: "invalid image request",
+	}
+	ErrInvalidSkillRequest = &apierror.Error{
+		Code:    "INVALID_SKILL_REQUEST",
+		Message: "invalid skill request",
+	}
+	ErrInvalidAgentAssignmentRequest = &apierror.Error{
+		Code:    "INVALID_AGENT_ASSIGNMENT_REQUEST",
+		Message: "invalid agent assignment request",
 	}
 )

@@ -15,6 +15,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dependencies"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/roles"
+	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/skills"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/toolusage"
 	"github.com/google/uuid"
@@ -25,6 +26,9 @@ import (
 //go:embed migrations/001_schema.sql
 var migrationSQL string
 
+//go:embed migrations/002_skills.sql
+var migrationSkillsSQL string
+
 // Repositories holds all PostgreSQL repository implementations.
 type Repositories struct {
 	Projects     projects.ProjectRepository
@@ -34,6 +38,7 @@ type Repositories struct {
 	Comments     comments.CommentRepository
 	Dependencies dependencies.DependencyRepository
 	ToolUsage    toolusage.ToolUsageRepository
+	Skills       skills.SkillRepository
 }
 
 // NewRepositories creates all repository implementations backed by a pgxpool.Pool and runs migrations.
@@ -43,6 +48,9 @@ func NewRepositories(pool *pgxpool.Pool) (*Repositories, error) {
 		defer cancel()
 		if _, err := pool.Exec(ctx, migrationSQL); err != nil {
 			return nil, fmt.Errorf("applying kanban schema migration: %w", err)
+		}
+		if _, err := pool.Exec(ctx, migrationSkillsSQL); err != nil {
+			return nil, fmt.Errorf("applying skills migration: %w", err)
 		}
 	}
 	base := &baseRepository{pool: pool}
@@ -54,6 +62,7 @@ func NewRepositories(pool *pgxpool.Pool) (*Repositories, error) {
 		Comments:     &commentRepository{base},
 		Dependencies: &dependencyRepository{base},
 		ToolUsage:    &toolUsageRepository{base},
+		Skills:       &skillRepository{base},
 	}, nil
 }
 
@@ -369,10 +378,10 @@ type roleRepository struct{ *baseRepository }
 func (r *roleRepository) Create(ctx context.Context, role domain.Role) error {
 	techStackJSON := jsonMarshal(role.TechStack)
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO roles (id, slug, name, icon, color, description, tech_stack, prompt_hint, sort_order, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		INSERT INTO roles (id, slug, name, icon, color, description, tech_stack, prompt_hint, prompt_template, content, sort_order, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
 		string(role.ID), role.Slug, role.Name, role.Icon, role.Color,
-		role.Description, techStackJSON, role.PromptHint, role.SortOrder, role.CreatedAt,
+		role.Description, techStackJSON, role.PromptHint, role.PromptTemplate, role.Content, role.SortOrder, role.CreatedAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -385,21 +394,21 @@ func (r *roleRepository) Create(ctx context.Context, role domain.Role) error {
 
 func (r *roleRepository) FindByID(ctx context.Context, id domain.RoleID) (*domain.Role, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT id, slug, name, icon, color, description, tech_stack, prompt_hint, sort_order, created_at
+		SELECT id, slug, name, icon, color, description, tech_stack, prompt_hint, prompt_template, content, sort_order, created_at
 		FROM roles WHERE id = $1`, string(id))
 	return scanRole(row)
 }
 
 func (r *roleRepository) FindBySlug(ctx context.Context, slug string) (*domain.Role, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT id, slug, name, icon, color, description, tech_stack, prompt_hint, sort_order, created_at
+		SELECT id, slug, name, icon, color, description, tech_stack, prompt_hint, prompt_template, content, sort_order, created_at
 		FROM roles WHERE slug = $1`, slug)
 	return scanRole(row)
 }
 
 func (r *roleRepository) List(ctx context.Context) ([]domain.Role, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, slug, name, icon, color, description, tech_stack, prompt_hint, sort_order, created_at
+		SELECT id, slug, name, icon, color, description, tech_stack, prompt_hint, prompt_template, content, sort_order, created_at
 		FROM roles ORDER BY sort_order ASC, created_at ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("list roles: %w", err)
@@ -411,10 +420,10 @@ func (r *roleRepository) List(ctx context.Context) ([]domain.Role, error) {
 func (r *roleRepository) Update(ctx context.Context, role domain.Role) error {
 	techStackJSON := jsonMarshal(role.TechStack)
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE roles SET slug=$1, name=$2, icon=$3, color=$4, description=$5, tech_stack=$6, prompt_hint=$7, sort_order=$8
-		WHERE id=$9`,
+		UPDATE roles SET slug=$1, name=$2, icon=$3, color=$4, description=$5, tech_stack=$6, prompt_hint=$7, prompt_template=$8, content=$9, sort_order=$10
+		WHERE id=$11`,
 		role.Slug, role.Name, role.Icon, role.Color, role.Description,
-		techStackJSON, role.PromptHint, role.SortOrder, string(role.ID),
+		techStackJSON, role.PromptHint, role.PromptTemplate, role.Content, role.SortOrder, string(role.ID),
 	)
 	if err != nil {
 		return fmt.Errorf("update role: %w", err)
@@ -474,11 +483,11 @@ func (r *roleRepository) CopyGlobalRolesToProject(ctx context.Context, projectID
 func (r *roleRepository) CreateInProject(ctx context.Context, projectID domain.ProjectID, role domain.Role) error {
 	techStackJSON := jsonMarshal(role.TechStack)
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO roles (id, slug, name, icon, color, description, tech_stack, prompt_hint, sort_order, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO roles (id, slug, name, icon, color, description, tech_stack, prompt_hint, prompt_template, content, sort_order, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		ON CONFLICT (slug) DO NOTHING`,
 		string(role.ID), role.Slug, role.Name, role.Icon, role.Color,
-		role.Description, techStackJSON, role.PromptHint, role.SortOrder, role.CreatedAt,
+		role.Description, techStackJSON, role.PromptHint, role.PromptTemplate, role.Content, role.SortOrder, role.CreatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("create role in project: %w", err)
@@ -497,7 +506,7 @@ func (r *roleRepository) CreateInProject(ctx context.Context, projectID domain.P
 
 func (r *roleRepository) FindBySlugInProject(ctx context.Context, projectID domain.ProjectID, slug string) (*domain.Role, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.sort_order, ro.created_at
+		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.prompt_template, ro.content, ro.sort_order, ro.created_at
 		FROM roles ro
 		JOIN project_roles pr ON pr.role_id = ro.id
 		WHERE pr.project_id = $1 AND ro.slug = $2`, string(projectID), slug)
@@ -510,7 +519,7 @@ func (r *roleRepository) FindBySlugInProject(ctx context.Context, projectID doma
 
 func (r *roleRepository) FindByIDInProject(ctx context.Context, projectID domain.ProjectID, id domain.RoleID) (*domain.Role, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.sort_order, ro.created_at
+		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.prompt_template, ro.content, ro.sort_order, ro.created_at
 		FROM roles ro
 		JOIN project_roles pr ON pr.role_id = ro.id
 		WHERE pr.project_id = $1 AND ro.id = $2`, string(projectID), string(id))
@@ -523,7 +532,7 @@ func (r *roleRepository) FindByIDInProject(ctx context.Context, projectID domain
 
 func (r *roleRepository) ListInProject(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.sort_order, ro.created_at
+		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.prompt_template, ro.content, ro.sort_order, ro.created_at
 		FROM roles ro
 		JOIN project_roles pr ON pr.role_id = ro.id
 		WHERE pr.project_id = $1
@@ -550,12 +559,86 @@ func (r *roleRepository) DeleteInProject(ctx context.Context, projectID domain.P
 	return nil
 }
 
+func (r *roleRepository) Clone(ctx context.Context, sourceID domain.RoleID, newSlug, newName string) (domain.Role, error) {
+	source, err := r.FindByID(ctx, sourceID)
+	if err != nil {
+		return domain.Role{}, err
+	}
+	existing, _ := r.FindBySlug(ctx, newSlug)
+	if existing != nil {
+		return domain.Role{}, domain.ErrRoleAlreadyExists
+	}
+	cloned := *source
+	cloned.ID = domain.NewRoleID()
+	cloned.Slug = newSlug
+	if newName != "" {
+		cloned.Name = newName
+	}
+	if err := r.Create(ctx, cloned); err != nil {
+		return domain.Role{}, err
+	}
+	return cloned, nil
+}
+
+func (r *roleRepository) AssignToProject(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error {
+	prID := newID()
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO project_agents (id, project_id, role_id, sort_order)
+		VALUES ($1, $2, $3, 0)`,
+		prID, string(projectID), string(roleID),
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.ErrAgentAlreadyInProject
+		}
+		return fmt.Errorf("assign role to project: %w", err)
+	}
+	return nil
+}
+
+func (r *roleRepository) RemoveFromProject(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM project_agents WHERE project_id=$1 AND role_id=$2`, string(projectID), string(roleID))
+	if err != nil {
+		return fmt.Errorf("remove role from project: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrAgentNotInProject
+	}
+	return nil
+}
+
+func (r *roleRepository) ListByProject(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.prompt_template, ro.content, ro.sort_order, ro.created_at
+		FROM roles ro
+		JOIN project_agents pa ON pa.role_id = ro.id
+		WHERE pa.project_id = $1
+		ORDER BY pa.sort_order ASC, ro.name ASC`, string(projectID))
+	if err != nil {
+		return nil, fmt.Errorf("list roles by project: %w", err)
+	}
+	defer rows.Close()
+	return scanRoles(rows)
+}
+
+func (r *roleRepository) IsAssignedToProject(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM project_agents WHERE project_id=$1 AND role_id=$2)`,
+		string(projectID), string(roleID),
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("is assigned to project: %w", err)
+	}
+	return exists, nil
+}
+
 func scanRole(row pgx.Row) (*domain.Role, error) {
 	var role domain.Role
 	var techStackJSON []byte
 	err := row.Scan(
 		(*string)(&role.ID), &role.Slug, &role.Name, &role.Icon, &role.Color,
-		&role.Description, &techStackJSON, &role.PromptHint, &role.SortOrder, &role.CreatedAt,
+		&role.Description, &techStackJSON, &role.PromptHint, &role.PromptTemplate, &role.Content, &role.SortOrder, &role.CreatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -574,7 +657,7 @@ func scanRoles(rows pgx.Rows) ([]domain.Role, error) {
 		var techStackJSON []byte
 		err := rows.Scan(
 			(*string)(&role.ID), &role.Slug, &role.Name, &role.Icon, &role.Color,
-			&role.Description, &techStackJSON, &role.PromptHint, &role.SortOrder, &role.CreatedAt,
+			&role.Description, &techStackJSON, &role.PromptHint, &role.PromptTemplate, &role.Content, &role.SortOrder, &role.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -1234,6 +1317,30 @@ func (r *taskRepository) BulkCreate(ctx context.Context, projectID domain.Projec
 	return tx.Commit(ctx)
 }
 
+func (r *taskRepository) BulkReassignInProject(ctx context.Context, projectID domain.ProjectID, oldSlug, newSlug string) (int, error) {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE tasks SET assigned_role=$1 WHERE project_id=$2 AND assigned_role=$3`,
+		newSlug, string(projectID), oldSlug,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("bulk reassign tasks: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
+func (r *taskRepository) ListByAssignedRole(ctx context.Context, projectID domain.ProjectID, slug string) ([]domain.Task, error) {
+	filters := tasks.TaskFilters{AssignedRole: &slug}
+	withDetails, err := r.List(ctx, projectID, filters)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.Task, len(withDetails))
+	for i, t := range withDetails {
+		result[i] = t.Task
+	}
+	return result, nil
+}
+
 func (r *taskRepository) SearchTasks(ctx context.Context, projectID domain.ProjectID, query string, limit int) ([]domain.TaskWithDetails, error) {
 	filters := tasks.TaskFilters{
 		Search: query,
@@ -1687,4 +1794,5 @@ var (
 	_ comments.CommentRepository        = (*commentRepository)(nil)
 	_ dependencies.DependencyRepository = (*dependencyRepository)(nil)
 	_ toolusage.ToolUsageRepository     = (*toolUsageRepository)(nil)
+	_ skills.SkillRepository            = (*skillRepository)(nil)
 )

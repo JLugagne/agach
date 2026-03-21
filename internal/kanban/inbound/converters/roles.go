@@ -8,16 +8,18 @@ import (
 // ToPublicRole converts domain.Role to pkgkanban.RoleResponse
 func ToPublicRole(role domain.Role) pkgkanban.RoleResponse {
 	return pkgkanban.RoleResponse{
-		ID:          string(role.ID),
-		Slug:        role.Slug,
-		Name:        role.Name,
-		Icon:        role.Icon,
-		Color:       role.Color,
-		Description: role.Description,
-		TechStack:   role.TechStack,
-		PromptHint:  role.PromptHint,
-		SortOrder:   role.SortOrder,
-		CreatedAt:   role.CreatedAt,
+		ID:             string(role.ID),
+		Slug:           role.Slug,
+		Name:           role.Name,
+		Icon:           role.Icon,
+		Color:          role.Color,
+		Description:    role.Description,
+		TechStack:      role.TechStack,
+		PromptHint:     role.PromptHint,
+		PromptTemplate: role.PromptTemplate,
+		Content:        role.Content,
+		SortOrder:      role.SortOrder,
+		CreatedAt:      role.CreatedAt,
 	}
 }
 

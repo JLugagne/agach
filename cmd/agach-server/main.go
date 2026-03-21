@@ -25,7 +25,6 @@ import (
 )
 
 func main() {
-	mcpMode := flag.Bool("mcp", false, "Run as MCP server over stdio (for Claude Code integration)")
 	configPath := flag.String("config", getEnv("AGACH_CONFIG", "agach-server.yml"), "Path to server config file")
 	flag.Parse()
 
@@ -56,48 +55,14 @@ func main() {
 	}
 	defer pool.Close()
 
-	if *mcpMode {
-		runMCP(logger, pool)
-		return
-	}
-
 	runHTTP(logger, pool, cfg, jwtSecret)
-}
-
-func runMCP(logger *logrus.Logger, pool *pgxpool.Pool) {
-	// In MCP stdio mode, redirect logs to stderr so they don't interfere with protocol
-	logger.SetOutput(os.Stderr)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Handle signals for graceful shutdown
-	go func() {
-		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-		<-quit
-		cancel()
-	}()
-
-	if err := kanban.RunMCPStdio(ctx, kanban.Config{
-		Pool:   pool,
-		Logger: logger,
-	}); err != nil {
-		logger.WithError(err).Error("MCP server exited with error")
-		os.Exit(1)
-	}
 }
 
 func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, jwtSecret []byte) {
 	httpHost := getEnv("AGACH_HOST", "127.0.0.1")
 	httpPort := getEnv("AGACH_PORT", "8322")
-	mcpHost := getEnv("AGACH_MCP_HOST", "127.0.0.1")
-	mcpPort := getEnv("AGACH_MCP_PORT", "8323")
 
-	logger.WithFields(logrus.Fields{
-		"httpAddr": httpHost + ":" + httpPort,
-		"mcpAddr":  mcpHost + ":" + mcpPort,
-	}).Info("Starting Kanban Server")
+	logger.WithField("httpAddr", httpHost+":"+httpPort).Info("Starting Kanban Server")
 
 	// Shared controller and router
 	ctrl := controller.NewController(logger)
@@ -126,11 +91,10 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, j
 	// Initialize Kanban HTTP system under auth middleware
 	kanbanRouter := httpRouter.PathPrefix("").Subrouter()
 	kanbanRouter.Use(requireAuth)
-	hub, err := kanban.InitKanbanHTTP(kanban.Config{
+	if _, err := kanban.InitKanbanHTTP(kanban.Config{
 		Pool:   pool,
 		Logger: logger,
-	}, kanbanRouter)
-	if err != nil {
+	}, kanbanRouter); err != nil {
 		logger.WithError(err).Fatal("Failed to initialize Kanban HTTP system")
 	}
 
@@ -142,15 +106,6 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, j
 	spa := &spaHandler{staticFS: http.FileServer(http.FS(distFS)), fs: distFS}
 	httpRouter.PathPrefix("/").Handler(spa)
 
-	// Create MCP router and initialize MCP SSE server (shares the HTTP hub)
-	mcpRouter := mux.NewRouter()
-	if err := kanban.InitKanbanMCP(kanban.Config{
-		Pool:   pool,
-		Logger: logger,
-	}, mcpRouter, hub); err != nil {
-		logger.WithError(err).Fatal("Failed to initialize Kanban MCP system")
-	}
-
 	// Create HTTP server
 	httpSrv := &http.Server{
 		Addr:         httpHost + ":" + httpPort,
@@ -158,16 +113,6 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, j
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
-	}
-
-	// Create MCP server
-	// No WriteTimeout: SSE/streamable transports use long-lived connections
-	// that must stay open for the entire session.
-	mcpSrv := &http.Server{
-		Addr:        mcpHost + ":" + mcpPort,
-		Handler:     mcpRouter,
-		ReadTimeout: 30 * time.Second,
-		IdleTimeout: 120 * time.Second,
 	}
 
 	// Start HTTP server
@@ -178,20 +123,12 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, j
 		}
 	}()
 
-	// Start MCP server
-	go func() {
-		logger.WithField("addr", mcpSrv.Addr).Info("MCP SSE server listening")
-		if err := mcpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.WithError(err).Fatal("MCP server failed")
-		}
-	}()
-
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Shutting down servers...")
+	logger.Info("Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -200,11 +137,7 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, j
 		logger.WithError(err).Error("HTTP server forced to shutdown")
 	}
 
-	if err := mcpSrv.Shutdown(ctx); err != nil {
-		logger.WithError(err).Error("MCP server forced to shutdown")
-	}
-
-	logger.Info("Servers exited gracefully")
+	logger.Info("Server exited gracefully")
 }
 
 type spaHandler struct {

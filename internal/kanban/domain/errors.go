@@ -195,6 +195,42 @@ var (
 		Message: "no tasks available matching criteria",
 	}
 
+	// Skill errors
+	ErrSkillNotFound = &Error{
+		Code:    "SKILL_NOT_FOUND",
+		Message: "skill not found",
+	}
+	ErrSkillAlreadyExists = &Error{
+		Code:    "SKILL_ALREADY_EXISTS",
+		Message: "skill already exists with this slug",
+	}
+	ErrSkillSlugRequired = &Error{
+		Code:    "SKILL_SLUG_REQUIRED",
+		Message: "skill slug is required",
+	}
+	ErrSkillNameRequired = &Error{
+		Code:    "SKILL_NAME_REQUIRED",
+		Message: "skill name is required",
+	}
+	ErrSkillInUse = &Error{
+		Code:    "SKILL_IN_USE",
+		Message: "skill is still assigned to one or more agents",
+	}
+
+	// Agent-project errors
+	ErrAgentAlreadyInProject = &Error{
+		Code:    "AGENT_ALREADY_IN_PROJECT",
+		Message: "agent is already assigned to this project",
+	}
+	ErrAgentNotInProject = &Error{
+		Code:    "AGENT_NOT_IN_PROJECT",
+		Message: "agent is not assigned to this project",
+	}
+	ErrAgentHasTasks = &Error{
+		Code:    "AGENT_HAS_TASKS",
+		Message: "agent has tasks in this project; reassign or clear before removing",
+	}
+
 	ErrProjectsNotRelated = &Error{
 		Code:    "PROJECTS_NOT_RELATED",
 		Message: "source and target projects must share the same parent (be siblings) or have a direct parent-child relationship",

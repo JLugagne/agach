@@ -10,6 +10,7 @@ import ExportGeminiPage from './pages/ExportGeminiPage';
 import ExportClaudePage from './pages/ExportClaudePage';
 import StatisticsPage from './pages/StatisticsPage';
 import BacklogPage from './pages/BacklogPage';
+import SkillsPage from './pages/SkillsPage';
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
           <Route path="/projects/:projectId/statistics" element={<Layout><StatisticsPage /></Layout>} />
           <Route path="/projects/:projectId/roles" element={<Layout><RolesPage /></Layout>} />
           <Route path="/roles" element={<Layout><RolesPage /></Layout>} />
+          <Route path="/skills" element={<Layout><SkillsPage /></Layout>} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>

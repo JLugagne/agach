@@ -63,6 +63,15 @@ type TaskRepository interface {
 	// BulkCreate creates multiple tasks atomically within a single transaction.
 	// If any insert fails, no tasks are created.
 	BulkCreate(ctx context.Context, projectID domain.ProjectID, tasks []domain.Task) error
+
+	// BulkReassignInProject updates assigned_role from oldSlug to newSlug
+	// for all tasks in a project. If newSlug is empty string, clears assigned_role.
+	// Returns the number of tasks updated.
+	BulkReassignInProject(ctx context.Context, projectID domain.ProjectID, oldSlug, newSlug string) (int, error)
+
+	// ListByAssignedRole returns all tasks in a project that have assigned_role == slug.
+	// Used to check whether an agent can be safely removed.
+	ListByAssignedRole(ctx context.Context, projectID domain.ProjectID, slug string) ([]domain.Task, error)
 }
 
 // TaskFilters defines optional filters for listing tasks

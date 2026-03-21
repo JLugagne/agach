@@ -26,6 +26,8 @@ import (
 //	}
 type MockTaskRepository struct {
 	BulkCreateFunc                func(ctx context.Context, projectID domain.ProjectID, tasks []domain.Task) error
+	BulkReassignInProjectFunc     func(ctx context.Context, projectID domain.ProjectID, oldSlug, newSlug string) (int, error)
+	ListByAssignedRoleFunc        func(ctx context.Context, projectID domain.ProjectID, slug string) ([]domain.Task, error)
 	CreateFunc                    func(ctx context.Context, projectID domain.ProjectID, task domain.Task) error
 	FindByIDFunc                  func(ctx context.Context, projectID domain.ProjectID, id domain.TaskID) (*domain.Task, error)
 	ListFunc                      func(ctx context.Context, projectID domain.ProjectID, filters tasksrepo.TaskFilters) ([]domain.TaskWithDetails, error)
@@ -49,6 +51,20 @@ func (m *MockTaskRepository) BulkCreate(ctx context.Context, projectID domain.Pr
 		panic("called not defined BulkCreateFunc")
 	}
 	return m.BulkCreateFunc(ctx, projectID, tasks)
+}
+
+func (m *MockTaskRepository) BulkReassignInProject(ctx context.Context, projectID domain.ProjectID, oldSlug, newSlug string) (int, error) {
+	if m.BulkReassignInProjectFunc == nil {
+		panic("called not defined BulkReassignInProjectFunc")
+	}
+	return m.BulkReassignInProjectFunc(ctx, projectID, oldSlug, newSlug)
+}
+
+func (m *MockTaskRepository) ListByAssignedRole(ctx context.Context, projectID domain.ProjectID, slug string) ([]domain.Task, error) {
+	if m.ListByAssignedRoleFunc == nil {
+		panic("called not defined ListByAssignedRoleFunc")
+	}
+	return m.ListByAssignedRoleFunc(ctx, projectID, slug)
 }
 
 func (m *MockTaskRepository) Create(ctx context.Context, projectID domain.ProjectID, task domain.Task) error {

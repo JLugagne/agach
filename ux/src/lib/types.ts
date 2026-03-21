@@ -59,8 +59,48 @@ export interface RoleResponse {
   description: string;
   tech_stack: string[];
   prompt_hint: string;
+  prompt_template: string;
+  content: string;
+  skill_count: number;
   sort_order: number;
   created_at: string;
+}
+
+// Skills
+export interface SkillResponse {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  content: string;
+  icon: string;
+  color: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateSkillRequest {
+  slug: string;
+  name: string;
+  description?: string;
+  content?: string;
+  icon?: string;
+  color?: string;
+  sort_order?: number;
+}
+
+export interface UpdateSkillRequest {
+  name?: string;
+  description?: string;
+  content?: string;
+  icon?: string;
+  color?: string;
+  sort_order?: number;
+}
+
+export interface AddSkillToAgentRequest {
+  skill_slug: string;
 }
 
 export interface CreateRoleRequest {
@@ -82,6 +122,11 @@ export interface UpdateRoleRequest {
   tech_stack?: string[];
   prompt_hint?: string;
   sort_order?: number;
+}
+
+export interface CloneRoleRequest {
+  new_slug: string;
+  new_name?: string;
 }
 
 // Tasks
@@ -256,6 +301,31 @@ export interface TimelineEntryResponse {
   date: string;
   tasks_created: number;
   tasks_completed: number;
+}
+
+// Project-agent management
+export interface AssignAgentToProjectRequest {
+  agent_slug: string;
+}
+
+export interface RemoveAgentFromProjectRequest {
+  reassign_to?: string;
+  clear_assignment?: boolean;
+}
+
+export interface BulkReassignTasksRequest {
+  old_slug: string;
+  new_slug: string;
+}
+
+export interface BulkReassignTasksResponse {
+  updated_count: number;
+}
+
+export interface TasksByAgentResponse {
+  agent_slug: string;
+  task_count: number;
+  tasks: TaskResponse[];
 }
 
 // WebSocket

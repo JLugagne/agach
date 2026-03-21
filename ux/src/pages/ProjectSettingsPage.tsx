@@ -1,10 +1,105 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2, AlertTriangle } from 'lucide-react';
-import { getProject, updateProject, deleteProject, getProjectInfo, listColumns, updateColumnWIPLimit, listProjectRoles } from '../lib/api';
+import { getProject, updateProject, deleteProject, getProjectInfo, listColumns, updateColumnWIPLimit, listProjectRoles, listProjectAgents } from '../lib/api';
 import SettingsLayout from '../components/settings/SettingsLayout';
 import DeleteConfirmModal from '../components/ui/DeleteConfirmModal';
-import type { ProjectResponse, ColumnResponse, RoleResponse } from '../lib/types';
+import AddAgentToProjectDialog from '../components/AddAgentToProjectDialog';
+import RemoveAgentDialog from '../components/RemoveAgentDialog';
+import { useWebSocket } from '../hooks/useWebSocket';
+import type { ProjectResponse, ColumnResponse, RoleResponse, WSEvent } from '../lib/types';
+
+function ProjectAgentsSection({ projectId }: { projectId: string }) {
+  const [agents, setAgents] = useState<RoleResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<RoleResponse | null>(null);
+
+  const fetchAgents = useCallback(async () => {
+    try {
+      const data = await listProjectAgents(projectId);
+      setAgents(data ?? []);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => { fetchAgents(); }, [fetchAgents]);
+
+  useWebSocket(useCallback((event: WSEvent) => {
+    if (event.type === 'agent_assigned_to_project' || event.type === 'agent_removed_from_project') {
+      fetchAgents();
+    }
+  }, [fetchAgents]));
+
+  return (
+    <div className="mb-12">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-heading text-lg text-[#F0F0F0]">Project Agents</h2>
+        <button
+          onClick={() => setAddDialogOpen(true)}
+          className="px-3 py-1.5 bg-[#1A1A1A] border border-[#252525] text-sm text-[var(--text-muted)] rounded-md hover:text-[#F0F0F0] hover:border-[#333] transition-colors"
+        >
+          + Add Agent
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-[var(--text-dim)] text-sm">
+          <Loader2 className="animate-spin" size={14} />
+          <span>Loading agents...</span>
+        </div>
+      ) : agents.length === 0 ? (
+        <p className="text-sm text-[var(--text-dim)] italic">No agents assigned yet.</p>
+      ) : (
+        <div className="space-y-1">
+          {agents.map(agent => (
+            <div key={agent.slug} className="flex items-center justify-between py-2 px-3 rounded-md bg-[#111] border border-[#1E1E1E]">
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: agent.color || '#6B7280' }}
+                />
+                <span className="text-sm text-[#F0F0F0]">{agent.name}</span>
+                <span className="text-xs text-[var(--text-dim)] font-mono">{agent.slug}</span>
+              </div>
+              <button
+                onClick={() => setRemoveTarget(agent)}
+                className="text-xs text-[var(--text-dim)] hover:text-[#FF3B30] transition-colors px-2 py-0.5 rounded"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {addDialogOpen && (
+        <AddAgentToProjectDialog
+          projectId={projectId}
+          assignedSlugs={new Set(agents.map(a => a.slug))}
+          onClose={() => setAddDialogOpen(false)}
+          onSuccess={fetchAgents}
+        />
+      )}
+
+      {removeTarget && (
+        <RemoveAgentDialog
+          projectId={projectId}
+          agent={removeTarget}
+          projectAgents={agents}
+          onClose={() => setRemoveTarget(null)}
+          onSuccess={() => {
+            setRemoveTarget(null);
+            fetchAgents();
+          }}
+        />
+      )}
+    </div>
+  );
+}
 
 export default function ProjectSettingsPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -229,6 +324,9 @@ export default function ProjectSettingsPage() {
           </button>
         </div>
       )}
+
+      {/* Project Agents */}
+      {projectId && <ProjectAgentsSection projectId={projectId} />}
 
       {/* Danger Zone */}
       <div className="border border-[#FF3B30]/30 rounded-lg p-5">

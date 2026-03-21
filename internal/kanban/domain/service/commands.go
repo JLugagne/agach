@@ -78,4 +78,51 @@ type Commands interface {
 
 	// Session commands
 	UpdateTaskSessionID(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
+
+	// Agent management commands
+
+	// CloneRole creates a copy of an existing role (global) with a new slug and name.
+	// All fields (description, tech_stack, prompt_hint, prompt_template, content) are copied.
+	// Returns ErrRoleNotFound if sourceSlug does not exist.
+	// Returns ErrRoleAlreadyExists if newSlug is already taken.
+	CloneRole(ctx context.Context, sourceSlug, newSlug, newName string) (domain.Role, error)
+
+	// AssignAgentToProject assigns a global agent (by slug) to a project.
+	// Returns ErrRoleNotFound if slug does not match any global role.
+	// Returns ErrAgentAlreadyInProject if already assigned.
+	AssignAgentToProject(ctx context.Context, projectID domain.ProjectID, agentSlug string) error
+
+	// RemoveAgentFromProject removes an agent from a project.
+	// Returns ErrAgentNotInProject if not assigned.
+	// Returns ErrAgentHasTasks if there are tasks still assigned to this agent in the
+	// project AND reassignTo is nil AND clearAssignment is false.
+	// If reassignTo is non-nil, calls BulkReassignTasks first.
+	// If clearAssignment is true, sets assigned_role to "" for all affected tasks first.
+	RemoveAgentFromProject(ctx context.Context, projectID domain.ProjectID, agentSlug string, reassignTo *string, clearAssignment bool) error
+
+	// BulkReassignTasks sets assigned_role from oldSlug to newSlug for all tasks in a project.
+	// If newSlug is empty string, clears assigned_role.
+	// Returns the count of updated tasks.
+	BulkReassignTasks(ctx context.Context, projectID domain.ProjectID, oldSlug, newSlug string) (int, error)
+
+	// Skill commands
+
+	// CreateSkill creates a new global skill.
+	CreateSkill(ctx context.Context, slug, name, description, content, icon, color string, sortOrder int) (domain.Skill, error)
+
+	// UpdateSkill updates a skill's mutable fields.
+	UpdateSkill(ctx context.Context, skillID domain.SkillID, name, description, content, icon, color string, sortOrder int) error
+
+	// DeleteSkill deletes a skill.
+	// Returns ErrSkillInUse if the skill is assigned to any agent.
+	DeleteSkill(ctx context.Context, skillID domain.SkillID) error
+
+	// AddSkillToAgent assigns a skill to an agent (global role) by slug.
+	// Returns ErrRoleNotFound or ErrSkillNotFound if either does not exist.
+	// Returns ErrSkillAlreadyExists if already assigned.
+	AddSkillToAgent(ctx context.Context, agentSlug, skillSlug string) error
+
+	// RemoveSkillFromAgent removes a skill assignment from an agent.
+	// Returns ErrSkillNotFound if the assignment does not exist.
+	RemoveSkillFromAgent(ctx context.Context, agentSlug, skillSlug string) error
 }

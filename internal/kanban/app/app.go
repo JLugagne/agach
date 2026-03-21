@@ -11,6 +11,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dependencies"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/roles"
+	skillsrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/skills"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/toolusage"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/service"
@@ -26,6 +27,7 @@ type App struct {
 	comments     comments.CommentRepository
 	dependencies dependencies.DependencyRepository
 	toolUsage    toolusage.ToolUsageRepository
+	skills       skillsrepo.SkillRepository
 	logger       *logrus.Logger
 }
 
@@ -38,6 +40,7 @@ type Config struct {
 	Comments     comments.CommentRepository
 	Dependencies dependencies.DependencyRepository
 	ToolUsage    toolusage.ToolUsageRepository
+	Skills       skillsrepo.SkillRepository
 	Logger       *logrus.Logger
 }
 
@@ -55,6 +58,7 @@ func NewApp(cfg Config) *App {
 		comments:     cfg.Comments,
 		dependencies: cfg.Dependencies,
 		toolUsage:    cfg.ToolUsage,
+		skills:       cfg.Skills,
 		logger:       cfg.Logger,
 	}
 }
