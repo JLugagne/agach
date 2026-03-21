@@ -19,4 +19,7 @@ type ColumnRepository interface {
 
 	// UpdateWIPLimit updates the WIP limit for a column
 	UpdateWIPLimit(ctx context.Context, projectID domain.ProjectID, columnID domain.ColumnID, wipLimit int) error
+
+	// EnsureBacklog creates the backlog column if it does not exist and returns it.
+	EnsureBacklog(ctx context.Context, projectID domain.ProjectID) (*domain.Column, error)
 }

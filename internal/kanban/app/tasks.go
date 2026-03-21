@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
@@ -35,14 +36,19 @@ func (a *App) CreateTask(ctx context.Context, projectID domain.ProjectID, title,
 	}
 
 	// Get the target column (backlog or todo)
-	targetSlug := domain.ColumnTodo
+	var targetColumn *domain.Column
 	if startInBacklog {
-		targetSlug = domain.ColumnBacklog
-	}
-	targetColumn, err := a.columns.FindBySlug(ctx, projectID, targetSlug)
-	if err != nil {
-		logger.WithError(err).Error("failed to find target column")
-		return domain.Task{}, errors.Join(domain.ErrColumnNotFound, err)
+		targetColumn, err = a.columns.EnsureBacklog(ctx, projectID)
+		if err != nil {
+			logger.WithError(err).Error("failed to ensure backlog column")
+			return domain.Task{}, errors.Join(domain.ErrColumnNotFound, err)
+		}
+	} else {
+		targetColumn, err = a.columns.FindBySlug(ctx, projectID, domain.ColumnTodo)
+		if err != nil {
+			logger.WithError(err).Error("failed to find todo column")
+			return domain.Task{}, errors.Join(domain.ErrColumnNotFound, err)
+		}
 	}
 	if targetColumn == nil {
 		return domain.Task{}, domain.ErrColumnNotFound
@@ -105,7 +111,7 @@ func (a *App) BulkCreateTasks(ctx context.Context, projectID domain.ProjectID, i
 	}
 
 	// Validate all inputs and fetch columns once
-	backlogColumn, err := a.columns.FindBySlug(ctx, projectID, domain.ColumnBacklog)
+	backlogColumn, err := a.columns.EnsureBacklog(ctx, projectID)
 	if err != nil {
 		return nil, errors.Join(domain.ErrColumnNotFound, err)
 	}
@@ -245,10 +251,13 @@ func (a *App) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID
 		task.Tags = *tags
 	}
 	if tokenUsage != nil {
-		task.InputTokens += tokenUsage.InputTokens
-		task.OutputTokens += tokenUsage.OutputTokens
-		task.CacheReadTokens += tokenUsage.CacheReadTokens
-		task.CacheWriteTokens += tokenUsage.CacheWriteTokens
+		if tokenUsage.InputTokens < 0 || tokenUsage.OutputTokens < 0 || tokenUsage.CacheReadTokens < 0 || tokenUsage.CacheWriteTokens < 0 {
+			return domain.ErrInvalidTaskData
+		}
+		task.InputTokens = addClamped(task.InputTokens, tokenUsage.InputTokens)
+		task.OutputTokens = addClamped(task.OutputTokens, tokenUsage.OutputTokens)
+		task.CacheReadTokens = addClamped(task.CacheReadTokens, tokenUsage.CacheReadTokens)
+		task.CacheWriteTokens = addClamped(task.CacheWriteTokens, tokenUsage.CacheWriteTokens)
 		if tokenUsage.Model != "" {
 			task.Model = tokenUsage.Model
 		}
@@ -395,6 +404,9 @@ func (a *App) MoveTask(ctx context.Context, projectID domain.ProjectID, taskID d
 
 	// Set blocking flags if moving to blocked column
 	if targetColumnSlug == domain.ColumnBlocked {
+		if task.BlockedReason == "" {
+			return domain.ErrBlockedReasonRequired
+		}
 		task.IsBlocked = true
 		if task.BlockedAt == nil {
 			now := time.Now()
@@ -427,7 +439,14 @@ func (a *App) MoveTask(ctx context.Context, projectID domain.ProjectID, taskID d
 			logger.WithError(err).Error("failed to count in-progress tasks")
 			return err
 		}
-		if len(inProgressTasks) >= targetColumn.WIPLimit {
+		// Exclude the task being moved from the count — it already occupies a slot
+		count := 0
+		for _, t := range inProgressTasks {
+			if t.Task.ID != taskID {
+				count++
+			}
+		}
+		if count >= targetColumn.WIPLimit {
 			return domain.ErrWIPLimitExceeded
 		}
 	}
@@ -437,6 +456,19 @@ func (a *App) MoveTask(ctx context.Context, projectID domain.ProjectID, taskID d
 	if err != nil {
 		logger.WithError(err).Error("failed to list target column tasks")
 		return err
+	}
+
+	// Re-verify WIP limit after the second List call to close the TOCTOU window
+	if targetColumnSlug == domain.ColumnInProgress && targetColumn.WIPLimit > 0 {
+		count := 0
+		for _, t := range targetTasks {
+			if t.Task.ID != taskID {
+				count++
+			}
+		}
+		if count >= targetColumn.WIPLimit {
+			return domain.ErrWIPLimitExceeded
+		}
 	}
 
 	task.ColumnID = targetColumn.ID
@@ -496,6 +528,22 @@ func (a *App) CompleteTask(ctx context.Context, projectID domain.ProjectID, task
 	}
 	if task == nil {
 		return domain.ErrTaskNotFound
+	}
+
+	if task.IsBlocked {
+		return domain.ErrTaskBlocked
+	}
+
+	// Verify task is in in_progress column (try FindByID first, fall back to FindBySlug)
+	currentColumn, _ := a.columns.FindByID(ctx, projectID, task.ColumnID)
+	if currentColumn == nil {
+		// FindByID not available; verify via slug lookup
+		inProgressColumn, _ := a.columns.FindBySlug(ctx, projectID, domain.ColumnInProgress)
+		if inProgressColumn != nil && task.ColumnID != inProgressColumn.ID {
+			return domain.ErrInvalidTaskData
+		}
+	} else if currentColumn.Slug != domain.ColumnInProgress {
+		return domain.ErrInvalidTaskData
 	}
 
 	// Get done column
@@ -559,6 +607,14 @@ func (a *App) BlockTask(ctx context.Context, projectID domain.ProjectID, taskID 
 	}
 	if task == nil {
 		return domain.ErrTaskNotFound
+	}
+
+	if blockedReason == "" {
+		return domain.ErrBlockedReasonRequired
+	}
+
+	if task.IsBlocked {
+		return domain.ErrTaskBlocked
 	}
 
 	// Get blocked column
@@ -650,6 +706,14 @@ func (a *App) RequestWontDo(ctx context.Context, projectID domain.ProjectID, tas
 	}
 	if task == nil {
 		return domain.ErrTaskNotFound
+	}
+
+	if wontDoReason == "" {
+		return domain.ErrWontDoReasonRequired
+	}
+
+	if task.WontDoRequested {
+		return domain.ErrInvalidTaskData
 	}
 
 	// Get blocked column
@@ -777,6 +841,18 @@ func (a *App) RejectWontDo(ctx context.Context, projectID domain.ProjectID, task
 	// Verify task has won't-do requested
 	if !task.WontDoRequested {
 		return domain.ErrWontDoNotRequested
+	}
+
+	// Verify task is in blocked column (try FindByID first, fall back to FindBySlug)
+	currentColumn, _ := a.columns.FindByID(ctx, projectID, task.ColumnID)
+	if currentColumn == nil {
+		// FindByID not available; verify via slug lookup
+		blockedColumn, _ := a.columns.FindBySlug(ctx, projectID, domain.ColumnBlocked)
+		if blockedColumn != nil && task.ColumnID != blockedColumn.ID {
+			return domain.ErrTaskNotInBlocked
+		}
+	} else if currentColumn.Slug != domain.ColumnBlocked {
+		return domain.ErrTaskNotInBlocked
 	}
 
 	// Clear won't-do flags
@@ -914,6 +990,19 @@ func (a *App) GetNextTask(ctx context.Context, projectID domain.ProjectID, role 
 
 		for i := range taskList {
 			task := &taskList[i].Task
+
+			// Strictly enforce role filter in-memory.
+			// When role is empty: only unassigned tasks are eligible (no role-stealing).
+			// When role is non-empty: tasks assigned to that role or with no assignment are eligible.
+			if role == "" {
+				if task.AssignedRole != "" {
+					continue
+				}
+			} else {
+				if task.AssignedRole != role && task.AssignedRole != "" {
+					continue
+				}
+			}
 
 			// Check if all dependencies are resolved (in done column)
 			hasUnresolved, err := a.tasks.HasUnresolvedDependencies(ctx, pid, task.ID)
@@ -1067,4 +1156,12 @@ func getPriorityScore(priority domain.Priority) int {
 	default:
 		return 200
 	}
+}
+
+// addClamped adds two non-negative ints and clamps the result to math.MaxInt to prevent overflow.
+func addClamped(a, b int) int {
+	if b > 0 && a > math.MaxInt-b {
+		return math.MaxInt
+	}
+	return a + b
 }

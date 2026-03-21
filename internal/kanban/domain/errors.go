@@ -17,6 +17,16 @@ func (e *Error) Unwrap() error {
 	return e.Err
 }
 
+// ErrorCode returns the domain error code, satisfying controller.CodedError.
+func (e *Error) ErrorCode() string {
+	return e.Code
+}
+
+// ErrorMessage returns the domain error message, satisfying controller.CodedError.
+func (e *Error) ErrorMessage() string {
+	return e.Message
+}
+
 // IsDomainError checks if an error is a domain error
 func IsDomainError(err error) bool {
 	var domainErr *Error

@@ -14,6 +14,12 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const (
+	maxSearchLimit = 1000
+	maxNextCount   = 100
+	maxDoneSince   = 8760 * time.Hour
+)
+
 // TaskQueriesHandler handles task read operations
 type TaskQueriesHandler struct {
 	queries    service.Queries
@@ -31,11 +37,43 @@ func NewTaskQueriesHandler(queries service.Queries, ctrl *controller.Controller)
 // RegisterRoutes registers task query routes
 func (h *TaskQueriesHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/projects/{id}/tasks", h.ListTasks).Methods("GET")
+	router.HandleFunc("/api/projects/{id}/tasks/search", h.SearchTasks).Methods("GET")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}", h.GetTask).Methods("GET")
 	router.HandleFunc("/api/projects/{id}/board", h.GetBoard).Methods("GET")
 	router.HandleFunc("/api/projects/{id}/columns", h.ListColumns).Methods("GET")
 	router.HandleFunc("/api/projects/{id}/next-tasks", h.GetNextTasks).Methods("GET")
 	router.HandleFunc("/api/projects/{id}/wip-slots", h.GetWIPSlots).Methods("GET")
+}
+
+// SearchTasks searches tasks with optional filters and a limit parameter.
+func (h *TaskQueriesHandler) SearchTasks(w http.ResponseWriter, r *http.Request) {
+	projectID := domain.ProjectID(mux.Vars(r)["id"])
+
+	filters := tasks.TaskFilters{}
+	if q := r.URL.Query().Get("q"); q != "" {
+		filters.Search = q
+	}
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 {
+			if limit > maxSearchLimit {
+				limit = maxSearchLimit
+			}
+			filters.Limit = limit
+		}
+	}
+
+	taskList, err := h.queries.ListTasks(r.Context(), projectID, filters)
+	if err != nil {
+		if domain.IsDomainError(err) {
+			h.controller.SendFail(w, r, nil, err)
+		} else {
+			h.controller.SendError(w, r, err)
+		}
+		return
+	}
+
+	publicTasks := converters.ToPublicTasksWithDetails(taskList)
+	h.controller.SendSuccess(w, r, publicTasks)
 }
 
 // ListTasks lists tasks with optional filters
@@ -87,19 +125,21 @@ func (h *TaskQueriesHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 
 	if includeChildren {
 		children, err := h.queries.ListSubProjects(r.Context(), projectID)
-		if err == nil {
-			for _, child := range children {
-				childTasks, err := h.queries.ListTasks(r.Context(), child.ID, filters)
-				if err != nil {
-					continue
-				}
-				childPublic := converters.ToPublicTasksWithDetails(childTasks)
-				for i := range childPublic {
-					childPublic[i].ProjectID = string(child.ID)
-					childPublic[i].ProjectName = child.Name
-				}
-				publicTasks = append(publicTasks, childPublic...)
+		if err != nil {
+			h.controller.SendError(w, r, err)
+			return
+		}
+		for _, child := range children {
+			childTasks, err := h.queries.ListTasks(r.Context(), child.ID, filters)
+			if err != nil {
+				continue
 			}
+			childPublic := converters.ToPublicTasksWithDetails(childTasks)
+			for i := range childPublic {
+				childPublic[i].ProjectID = string(child.ID)
+				childPublic[i].ProjectName = child.Name
+			}
+			publicTasks = append(publicTasks, childPublic...)
 		}
 	}
 
@@ -135,6 +175,10 @@ func (h *TaskQueriesHandler) GetBoard(w http.ResponseWriter, r *http.Request) {
 	if ds := r.URL.Query().Get("done_since"); ds != "" {
 		d, err := time.ParseDuration(ds)
 		if err == nil {
+			if d > maxDoneSince {
+				http.Error(w, `{"status":"fail","data":{"error":"done_since exceeds maximum allowed duration of 8760h"}}`, http.StatusBadRequest)
+				return
+			}
 			doneSince = &d
 		}
 	}
@@ -230,6 +274,9 @@ func (h *TaskQueriesHandler) GetNextTasks(w http.ResponseWriter, r *http.Request
 			count = n
 		}
 	}
+	if count > maxNextCount {
+		count = maxNextCount
+	}
 
 	role := r.URL.Query().Get("role")
 	includeSubprojects := r.URL.Query().Get("include_subprojects") == "true"
@@ -268,10 +315,11 @@ func (h *TaskQueriesHandler) GetNextTasks(w http.ResponseWriter, r *http.Request
 		}
 	} else {
 		// Multi-project query: main project + all sub-projects
-		allTasks := make(map[string]domain.Task) // Map by task ID to deduplicate
+		allTasks := make(map[string]domain.Task)
+		taskToProjectMap := make(map[string]domain.ProjectID)
 
 		// Get main project tasks
-		taskList, err := h.queries.GetNextTasks(r.Context(), projectID, role, count*10, nil) // Fetch extra to account for sub-projects
+		taskList, err := h.queries.GetNextTasks(r.Context(), projectID, role, count*10, nil)
 		if err != nil {
 			if domain.IsDomainError(err) {
 				h.controller.SendFail(w, r, nil, err)
@@ -283,9 +331,10 @@ func (h *TaskQueriesHandler) GetNextTasks(w http.ResponseWriter, r *http.Request
 
 		for _, t := range taskList {
 			allTasks[string(t.ID)] = t
+			taskToProjectMap[string(t.ID)] = projectID
 		}
 
-		// Get sub-projects
+		// Get sub-projects (fetch once)
 		subProjects, err := h.queries.ListSubProjects(r.Context(), projectID)
 		if err == nil {
 			for _, subProj := range subProjects {
@@ -293,6 +342,7 @@ func (h *TaskQueriesHandler) GetNextTasks(w http.ResponseWriter, r *http.Request
 				if err == nil {
 					for _, t := range subTaskList {
 						allTasks[string(t.ID)] = t
+						taskToProjectMap[string(t.ID)] = subProj.ID
 					}
 				}
 			}
@@ -304,7 +354,6 @@ func (h *TaskQueriesHandler) GetNextTasks(w http.ResponseWriter, r *http.Request
 			taskSlice = append(taskSlice, t)
 		}
 
-		// Simple bubble sort by priority_score DESC, created_at ASC
 		for i := 0; i < len(taskSlice); i++ {
 			for j := i + 1; j < len(taskSlice); j++ {
 				if taskSlice[j].PriorityScore > taskSlice[i].PriorityScore ||
@@ -317,23 +366,6 @@ func (h *TaskQueriesHandler) GetNextTasks(w http.ResponseWriter, r *http.Request
 		// Limit to requested count
 		if len(taskSlice) > count {
 			taskSlice = taskSlice[:count]
-		}
-
-		// Map tasks back to projects for result
-		taskToProjectMap := make(map[string]domain.ProjectID)
-
-		// Map main project tasks
-		for _, t := range taskList {
-			taskToProjectMap[string(t.ID)] = projectID
-		}
-
-		// Map sub-project tasks
-		subProjects, _ = h.queries.ListSubProjects(r.Context(), projectID)
-		for _, subProj := range subProjects {
-			subTaskList, _ := h.queries.GetNextTasks(r.Context(), subProj.ID, role, count*10, nil)
-			for _, t := range subTaskList {
-				taskToProjectMap[string(t.ID)] = subProj.ID
-			}
 		}
 
 		results = make([]nextTaskResult, len(taskSlice))

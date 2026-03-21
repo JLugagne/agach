@@ -52,6 +52,7 @@ func (h *RoleCommandsHandler) CreateRole(w http.ResponseWriter, r *http.Request)
 		req.Color,
 		req.Description,
 		req.PromptHint,
+		req.PromptTemplate,
 		req.TechStack,
 		req.SortOrder,
 	)
@@ -112,6 +113,10 @@ func (h *RoleCommandsHandler) UpdateRole(w http.ResponseWriter, r *http.Request)
 	if req.PromptHint != nil {
 		promptHint = *req.PromptHint
 	}
+	promptTemplate := ""
+	if req.PromptTemplate != nil {
+		promptTemplate = *req.PromptTemplate
+	}
 	techStack := []string{}
 	if req.TechStack != nil {
 		techStack = *req.TechStack
@@ -134,6 +139,7 @@ func (h *RoleCommandsHandler) UpdateRole(w http.ResponseWriter, r *http.Request)
 		color,
 		description,
 		promptHint,
+		promptTemplate,
 		techStack,
 		sortOrder,
 	)

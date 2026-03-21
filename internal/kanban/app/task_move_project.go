@@ -102,15 +102,17 @@ func (a *App) MoveTaskToProject(ctx context.Context, sourceProjectID domain.Proj
 		UpdatedAt:        now,
 	}
 
-	// Create the task in the target project
-	if err := a.tasks.Create(ctx, targetProjectID, newTask); err != nil {
-		logger.WithError(err).Error("failed to create task in target project")
+	// Delete the task from the source project first (fail fast before creating in target).
+	if err := a.tasks.Delete(ctx, sourceProjectID, taskID); err != nil {
+		logger.WithError(err).Error("failed to delete task from source project")
 		return err
 	}
 
-	// Delete the task from the source project
-	if err := a.tasks.Delete(ctx, sourceProjectID, taskID); err != nil {
-		logger.WithError(err).Error("failed to delete task from source project")
+	// Create the task in the target project.
+	// Source task is already deleted; if create fails the task is lost — callers should
+	// retry or handle the error.
+	if err := a.tasks.Create(ctx, targetProjectID, newTask); err != nil {
+		logger.WithError(err).Error("failed to create task in target project")
 		return err
 	}
 

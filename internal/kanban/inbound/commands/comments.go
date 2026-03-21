@@ -16,14 +16,25 @@ import (
 // CommentCommandsHandler handles comment write operations
 type CommentCommandsHandler struct {
 	commands   service.Commands
+	queries    service.Queries
 	controller *controller.Controller
 	hub        *websocket.Hub
 }
 
-// NewCommentCommandsHandler creates a new comment commands handler
+// NewCommentCommandsHandler creates a new comment commands handler (without ownership validation).
 func NewCommentCommandsHandler(commands service.Commands, ctrl *controller.Controller, hub *websocket.Hub) *CommentCommandsHandler {
 	return &CommentCommandsHandler{
 		commands:   commands,
+		controller: ctrl,
+		hub:        hub,
+	}
+}
+
+// NewCommentCommandsHandlerWithQueries creates a handler with ownership validation enabled.
+func NewCommentCommandsHandlerWithQueries(commands service.Commands, queries service.Queries, ctrl *controller.Controller, hub *websocket.Hub) *CommentCommandsHandler {
+	return &CommentCommandsHandler{
+		commands:   commands,
+		queries:    queries,
 		controller: ctrl,
 		hub:        hub,
 	}
@@ -113,12 +124,31 @@ func (h *CommentCommandsHandler) CreateComment(w http.ResponseWriter, r *http.Re
 // UpdateComment updates an existing comment
 func (h *CommentCommandsHandler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	projectID := domain.ProjectID(mux.Vars(r)["id"])
+	taskID := domain.TaskID(mux.Vars(r)["taskId"])
 	commentID := domain.CommentID(mux.Vars(r)["commentId"])
 
 	var req pkgkanban.UpdateCommentRequest
 	if err := h.controller.DecodeAndValidate(r, &req, pkgkanban.ErrInvalidCommentRequest); err != nil {
 		h.controller.SendFail(w, r, nil, errors.Join(pkgkanban.ErrInvalidCommentRequest, err))
 		return
+	}
+
+	if h.queries != nil {
+		comment, err := h.queries.GetComment(r.Context(), projectID, commentID)
+		if err != nil {
+			if domain.IsDomainError(err) {
+				statusCode := http.StatusNotFound
+				h.controller.SendFail(w, r, &statusCode, err)
+			} else {
+				h.controller.SendError(w, r, err)
+			}
+			return
+		}
+		if comment == nil || comment.TaskID != taskID {
+			statusCode := http.StatusNotFound
+			h.controller.SendFail(w, r, &statusCode, domain.ErrCommentNotFound)
+			return
+		}
 	}
 
 	err := h.commands.UpdateComment(r.Context(), projectID, commentID, req.Content)
@@ -148,7 +178,26 @@ func (h *CommentCommandsHandler) UpdateComment(w http.ResponseWriter, r *http.Re
 // DeleteComment deletes a comment
 func (h *CommentCommandsHandler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	projectID := domain.ProjectID(mux.Vars(r)["id"])
+	taskID := domain.TaskID(mux.Vars(r)["taskId"])
 	commentID := domain.CommentID(mux.Vars(r)["commentId"])
+
+	if h.queries != nil {
+		comment, err := h.queries.GetComment(r.Context(), projectID, commentID)
+		if err != nil {
+			if domain.IsDomainError(err) {
+				statusCode := http.StatusNotFound
+				h.controller.SendFail(w, r, &statusCode, err)
+			} else {
+				h.controller.SendError(w, r, err)
+			}
+			return
+		}
+		if comment == nil || comment.TaskID != taskID {
+			statusCode := http.StatusNotFound
+			h.controller.SendFail(w, r, &statusCode, domain.ErrCommentNotFound)
+			return
+		}
+	}
 
 	err := h.commands.DeleteComment(r.Context(), projectID, commentID)
 	if err != nil {

@@ -3,7 +3,7 @@ package kanban
 import (
 	"time"
 
-	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
+	"github.com/JLugagne/agach-mcp/pkg/apierror"
 )
 
 // CreateProjectRequest represents a request to create a project
@@ -48,25 +48,27 @@ type ProjectSummaryResponse struct {
 
 // CreateRoleRequest represents a request to create a role
 type CreateRoleRequest struct {
-	Slug        string   `json:"slug" validate:"required,min=1,max=50,slug"`
-	Name        string   `json:"name" validate:"required,min=1,max=100"`
-	Icon        string   `json:"icon" validate:"max=10"`
-	Color       string   `json:"color" validate:"omitempty,hexcolor"`
-	Description string   `json:"description" validate:"max=1000"`
-	TechStack   []string `json:"tech_stack" validate:"dive,max=50"`
-	PromptHint  string   `json:"prompt_hint" validate:"max=5000"`
-	SortOrder   int      `json:"sort_order"`
+	Slug           string   `json:"slug" validate:"required,min=1,max=50,slug"`
+	Name           string   `json:"name" validate:"required,min=1,max=100"`
+	Icon           string   `json:"icon" validate:"max=10"`
+	Color          string   `json:"color" validate:"omitempty,hexcolor"`
+	Description    string   `json:"description" validate:"max=1000"`
+	TechStack      []string `json:"tech_stack" validate:"max=100,dive,max=50"`
+	PromptHint     string   `json:"prompt_hint" validate:"max=5000"`
+	PromptTemplate string   `json:"prompt_template" validate:"omitempty,max=50000"`
+	SortOrder      int      `json:"sort_order"`
 }
 
 // UpdateRoleRequest represents a request to update a role
 type UpdateRoleRequest struct {
-	Name        *string   `json:"name" validate:"omitempty,min=1,max=100"`
-	Icon        *string   `json:"icon" validate:"omitempty,max=10"`
-	Color       *string   `json:"color" validate:"omitempty,hexcolor"`
-	Description *string   `json:"description" validate:"omitempty,max=1000"`
-	TechStack   *[]string `json:"tech_stack" validate:"omitempty,dive,max=50"`
-	PromptHint  *string   `json:"prompt_hint" validate:"omitempty,max=5000"`
-	SortOrder   *int      `json:"sort_order"`
+	Name           *string   `json:"name" validate:"omitempty,min=1,max=100"`
+	Icon           *string   `json:"icon" validate:"omitempty,max=10"`
+	Color          *string   `json:"color" validate:"omitempty,hexcolor"`
+	Description    *string   `json:"description" validate:"omitempty,max=1000"`
+	TechStack      *[]string `json:"tech_stack" validate:"omitempty,max=100,dive,max=50"`
+	PromptHint     *string   `json:"prompt_hint" validate:"omitempty,max=5000"`
+	PromptTemplate *string   `json:"prompt_template" validate:"omitempty,max=50000"`
+	SortOrder      *int      `json:"sort_order"`
 }
 
 // RoleResponse represents a role in API responses
@@ -92,10 +94,10 @@ type CreateTaskRequest struct {
 	CreatedByRole   string   `json:"created_by_role" validate:"max=100"`
 	CreatedByAgent  string   `json:"created_by_agent" validate:"max=100"`
 	AssignedRole    string   `json:"assigned_role" validate:"max=100"`
-	ContextFiles    []string `json:"context_files" validate:"dive,max=500"`
-	Tags            []string `json:"tags" validate:"dive,max=50"`
+	ContextFiles    []string `json:"context_files" validate:"max=100,dive,max=500"`
+	Tags            []string `json:"tags" validate:"max=100,dive,max=50"`
 	EstimatedEffort string   `json:"estimated_effort" validate:"omitempty,oneof=XS S M L XL"`
-	DependsOn       []string `json:"depends_on" validate:"dive,entity_id"`
+	DependsOn       []string `json:"depends_on" validate:"max=100,dive,entity_id"`
 	StartInBacklog  bool     `json:"start_in_backlog"`
 }
 
@@ -105,20 +107,20 @@ type UpdateTaskRequest struct {
 	Description          *string   `json:"description" validate:"omitempty,max=10000"`
 	Priority             *string   `json:"priority" validate:"omitempty,oneof=critical high medium low"`
 	AssignedRole         *string   `json:"assigned_role" validate:"omitempty,max=100"`
-	ContextFiles         *[]string `json:"context_files" validate:"omitempty,dive,max=500"`
-	Tags                 *[]string `json:"tags" validate:"omitempty,dive,max=50"`
+	ContextFiles         *[]string `json:"context_files" validate:"omitempty,max=100,dive,max=500"`
+	Tags                 *[]string `json:"tags" validate:"omitempty,max=100,dive,max=50"`
 	EstimatedEffort      *string   `json:"estimated_effort" validate:"omitempty,oneof=XS S M L XL"`
 	Resolution           *string   `json:"resolution" validate:"omitempty,max=10000"`
-	InputTokens          *int      `json:"input_tokens,omitempty"`
-	OutputTokens         *int      `json:"output_tokens,omitempty"`
-	CacheReadTokens      *int      `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens     *int      `json:"cache_write_tokens,omitempty"`
-	Model                     *string   `json:"model,omitempty"`
-	ColdStartInputTokens      *int      `json:"cold_start_input_tokens,omitempty"`
-	ColdStartOutputTokens     *int      `json:"cold_start_output_tokens,omitempty"`
-	ColdStartCacheReadTokens  *int      `json:"cold_start_cache_read_tokens,omitempty"`
-	ColdStartCacheWriteTokens *int      `json:"cold_start_cache_write_tokens,omitempty"`
-	HumanEstimateSeconds      *int      `json:"human_estimate_seconds,omitempty"`
+	InputTokens          *int      `json:"input_tokens,omitempty" validate:"omitempty,min=0"`
+	OutputTokens         *int      `json:"output_tokens,omitempty" validate:"omitempty,min=0"`
+	CacheReadTokens      *int      `json:"cache_read_tokens,omitempty" validate:"omitempty,min=0"`
+	CacheWriteTokens     *int      `json:"cache_write_tokens,omitempty" validate:"omitempty,min=0"`
+	Model                     *string   `json:"model,omitempty" validate:"omitempty,max=200"`
+	ColdStartInputTokens      *int      `json:"cold_start_input_tokens,omitempty" validate:"omitempty,min=0"`
+	ColdStartOutputTokens     *int      `json:"cold_start_output_tokens,omitempty" validate:"omitempty,min=0"`
+	ColdStartCacheReadTokens  *int      `json:"cold_start_cache_read_tokens,omitempty" validate:"omitempty,min=0"`
+	ColdStartCacheWriteTokens *int      `json:"cold_start_cache_write_tokens,omitempty" validate:"omitempty,min=0"`
+	HumanEstimateSeconds      *int      `json:"human_estimate_seconds,omitempty" validate:"omitempty,min=0"`
 }
 
 // MoveTaskRequest represents a request to move a task
@@ -309,27 +311,27 @@ type ColdStartStatResponse struct {
 
 // Validation errors
 var (
-	ErrInvalidProjectRequest = &domain.Error{
+	ErrInvalidProjectRequest = &apierror.Error{
 		Code:    "INVALID_PROJECT_REQUEST",
 		Message: "invalid project request data",
 	}
-	ErrInvalidRoleRequest = &domain.Error{
+	ErrInvalidRoleRequest = &apierror.Error{
 		Code:    "INVALID_ROLE_REQUEST",
 		Message: "invalid role request data",
 	}
-	ErrInvalidTaskRequest = &domain.Error{
+	ErrInvalidTaskRequest = &apierror.Error{
 		Code:    "INVALID_TASK_REQUEST",
 		Message: "invalid task request data",
 	}
-	ErrInvalidCommentRequest = &domain.Error{
+	ErrInvalidCommentRequest = &apierror.Error{
 		Code:    "INVALID_COMMENT_REQUEST",
 		Message: "invalid comment request data",
 	}
-	ErrInvalidDependencyRequest = &domain.Error{
+	ErrInvalidDependencyRequest = &apierror.Error{
 		Code:    "INVALID_DEPENDENCY_REQUEST",
 		Message: "invalid dependency request data",
 	}
-	ErrInvalidImageRequest = &domain.Error{
+	ErrInvalidImageRequest = &apierror.Error{
 		Code:    "INVALID_IMAGE_REQUEST",
 		Message: "invalid image request",
 	}

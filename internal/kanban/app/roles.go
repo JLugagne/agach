@@ -10,7 +10,7 @@ import (
 
 // Role Commands
 
-func (a *App) CreateRole(ctx context.Context, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error) {
+func (a *App) CreateRole(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
 	logger := a.logger.WithContext(ctx)
 
 	if slug == "" {
@@ -28,16 +28,17 @@ func (a *App) CreateRole(ctx context.Context, slug, name, icon, color, descripti
 	}
 
 	role := domain.Role{
-		ID:          domain.NewRoleID(),
-		Slug:        slug,
-		Name:        name,
-		Icon:        icon,
-		Color:       color,
-		Description: description,
-		TechStack:   techStack,
-		PromptHint:  promptHint,
-		SortOrder:   sortOrder,
-		CreatedAt:   time.Now(),
+		ID:             domain.NewRoleID(),
+		Slug:           slug,
+		Name:           name,
+		Icon:           icon,
+		Color:          color,
+		Description:    description,
+		TechStack:      techStack,
+		PromptHint:     promptHint,
+		PromptTemplate: promptTemplate,
+		SortOrder:      sortOrder,
+		CreatedAt:      time.Now(),
 	}
 
 	if err := a.roles.Create(ctx, role); err != nil {
@@ -49,7 +50,7 @@ func (a *App) CreateRole(ctx context.Context, slug, name, icon, color, descripti
 	return role, nil
 }
 
-func (a *App) UpdateRole(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error {
+func (a *App) UpdateRole(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error {
 	logger := a.logger.WithContext(ctx).WithField("roleID", roleID)
 
 	role, err := a.roles.FindByID(ctx, roleID)
@@ -75,6 +76,9 @@ func (a *App) UpdateRole(ctx context.Context, roleID domain.RoleID, name, icon, 
 	}
 	if promptHint != "" {
 		role.PromptHint = promptHint
+	}
+	if promptTemplate != "" {
+		role.PromptTemplate = promptTemplate
 	}
 	if techStack != nil {
 		role.TechStack = techStack
@@ -160,7 +164,7 @@ func (a *App) ListRoles(ctx context.Context) ([]domain.Role, error) {
 
 // Per-project role commands
 
-func (a *App) CreateProjectRole(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint string, techStack []string, sortOrder int) (domain.Role, error) {
+func (a *App) CreateProjectRole(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
 	logger := a.logger.WithContext(ctx).WithField("projectID", projectID)
 
 	if slug == "" {
@@ -176,16 +180,17 @@ func (a *App) CreateProjectRole(ctx context.Context, projectID domain.ProjectID,
 	}
 
 	role := domain.Role{
-		ID:          domain.NewRoleID(),
-		Slug:        slug,
-		Name:        name,
-		Icon:        icon,
-		Color:       color,
-		Description: description,
-		TechStack:   techStack,
-		PromptHint:  promptHint,
-		SortOrder:   sortOrder,
-		CreatedAt:   time.Now(),
+		ID:             domain.NewRoleID(),
+		Slug:           slug,
+		Name:           name,
+		Icon:           icon,
+		Color:          color,
+		Description:    description,
+		TechStack:      techStack,
+		PromptHint:     promptHint,
+		PromptTemplate: promptTemplate,
+		SortOrder:      sortOrder,
+		CreatedAt:      time.Now(),
 	}
 
 	if err := a.roles.CreateInProject(ctx, projectID, role); err != nil {
@@ -196,7 +201,7 @@ func (a *App) CreateProjectRole(ctx context.Context, projectID domain.ProjectID,
 	return role, nil
 }
 
-func (a *App) UpdateProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID, name, icon, color, description, promptHint string, techStack []string, sortOrder int) error {
+func (a *App) UpdateProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error {
 	logger := a.logger.WithContext(ctx).WithField("projectID", projectID).WithField("roleID", roleID)
 
 	role, err := a.roles.FindByIDInProject(ctx, projectID, roleID)
@@ -222,6 +227,9 @@ func (a *App) UpdateProjectRole(ctx context.Context, projectID domain.ProjectID,
 	}
 	if promptHint != "" {
 		role.PromptHint = promptHint
+	}
+	if promptTemplate != "" {
+		role.PromptTemplate = promptTemplate
 	}
 	if techStack != nil {
 		role.TechStack = techStack

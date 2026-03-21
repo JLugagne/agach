@@ -81,7 +81,7 @@ func (m *MockTaskRepository) Update(ctx context.Context, projectID domain.Projec
 
 func (m *MockTaskRepository) Delete(ctx context.Context, projectID domain.ProjectID, id domain.TaskID) error {
 	if m.DeleteFunc == nil {
-		panic("called not defined DeleteFunc")
+		return nil
 	}
 	return m.DeleteFunc(ctx, projectID, id)
 }

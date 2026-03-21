@@ -5,11 +5,23 @@ import (
 	pkgkanban "github.com/JLugagne/agach-mcp/pkg/kanban"
 )
 
+var validColumnSlugs = map[domain.ColumnSlug]bool{
+	domain.ColumnBacklog:    true,
+	domain.ColumnTodo:       true,
+	domain.ColumnInProgress: true,
+	domain.ColumnDone:       true,
+	domain.ColumnBlocked:    true,
+}
+
 // ToPublicColumn converts domain.Column to pkgkanban.ColumnResponse
 func ToPublicColumn(column domain.Column) pkgkanban.ColumnResponse {
+	slug := string(column.Slug)
+	if !validColumnSlugs[column.Slug] {
+		slug = ""
+	}
 	return pkgkanban.ColumnResponse{
 		ID:        string(column.ID),
-		Slug:      string(column.Slug),
+		Slug:      slug,
 		Name:      column.Name,
 		Position:  column.Position,
 		WIPLimit:  column.WIPLimit,
