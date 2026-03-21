@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Plus, XCircle, Paperclip, Loader2 } from 'lucide-react';
 import { createTask, listProjectRoles } from '../../lib/api';
-import type { RoleResponse } from '../../lib/types';
+import type { RoleResponse, FeatureResponse } from '../../lib/types';
 import { useImageUpload } from '../../hooks/useImageUpload';
 
 interface NewTaskModalProps {
@@ -9,14 +9,16 @@ interface NewTaskModalProps {
   onClose: () => void;
   onSuccess: () => void;
   defaultRole?: string;
+  features?: FeatureResponse[];
 }
 
-export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRole }: NewTaskModalProps) {
+export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRole, features }: NewTaskModalProps) {
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
   const [assignedRole, setAssignedRole] = useState(defaultRole ?? '');
+  const [selectedFeatureId, setSelectedFeatureId] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [contextFiles, setContextFiles] = useState<string[]>([]);
@@ -139,6 +141,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
         tags: tags.length > 0 ? tags : undefined,
         context_files: contextFiles.length > 0 ? contextFiles : undefined,
         start_in_backlog: addToBacklog,
+        feature_id: selectedFeatureId || undefined,
       });
       onSuccess();
     } catch (err) {
@@ -289,6 +292,27 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
             />
             <span className="text-[#E0E0E0] text-sm font-['Inter']">Add to backlog</span>
           </label>
+
+          {/* Feature selector */}
+          {features && features.length > 0 && (
+            <div>
+              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">
+                Feature
+              </label>
+              <select
+                value={selectedFeatureId}
+                onChange={(e) => setSelectedFeatureId(e.target.value)}
+                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] focus:outline-none focus:border-[#00C896]/50"
+              >
+                <option value="">None</option>
+                {features.map((feat) => (
+                  <option key={feat.id} value={feat.id}>
+                    {feat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Tags */}
           <div>

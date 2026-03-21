@@ -15,7 +15,7 @@ import (
 
 // Task Commands
 
-func (a *App) CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error) {
+func (a *App) CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.ProjectID) (domain.Task, error) {
 	logger := a.logger.WithContext(ctx).WithField("projectID", projectID)
 
 	if title == "" {
@@ -33,6 +33,16 @@ func (a *App) CreateTask(ctx context.Context, projectID domain.ProjectID, title,
 	}
 	if project == nil {
 		return domain.Task{}, domain.ErrProjectNotFound
+	}
+
+	if featureID != nil {
+		featureProject, err := a.projects.FindByID(ctx, *featureID)
+		if err != nil || featureProject == nil {
+			return domain.Task{}, domain.ErrProjectNotFound
+		}
+		if featureProject.ParentID == nil || *featureProject.ParentID != projectID {
+			return domain.Task{}, domain.ErrFeatureNotInProject
+		}
 	}
 
 	// Get the target column (backlog or todo)
@@ -68,6 +78,7 @@ func (a *App) CreateTask(ctx context.Context, projectID domain.ProjectID, title,
 	task := domain.Task{
 		ID:              domain.NewTaskID(),
 		ColumnID:        targetColumn.ID,
+		FeatureID:       featureID,
 		Title:           title,
 		Summary:         summary,
 		Description:     description,
@@ -134,6 +145,15 @@ func (a *App) BulkCreateTasks(ctx context.Context, projectID domain.ProjectID, i
 		if input.Summary == "" {
 			return nil, fmt.Errorf("inputs[%d]: %w", i, domain.ErrSummaryRequired)
 		}
+		if input.FeatureID != nil {
+			featureProject, err := a.projects.FindByID(ctx, *input.FeatureID)
+			if err != nil || featureProject == nil {
+				return nil, fmt.Errorf("inputs[%d]: %w", i, domain.ErrProjectNotFound)
+			}
+			if featureProject.ParentID == nil || *featureProject.ParentID != projectID {
+				return nil, fmt.Errorf("inputs[%d]: %w", i, domain.ErrFeatureNotInProject)
+			}
+		}
 	}
 
 	// Get starting positions for each column
@@ -174,6 +194,7 @@ func (a *App) BulkCreateTasks(ctx context.Context, projectID domain.ProjectID, i
 		domainTasks = append(domainTasks, domain.Task{
 			ID:              domain.NewTaskID(),
 			ColumnID:        columnID,
+			FeatureID:       input.FeatureID,
 			Title:           input.Title,
 			Summary:         input.Summary,
 			Description:     input.Description,
@@ -210,7 +231,7 @@ func (a *App) BulkCreateTasks(ctx context.Context, projectID domain.ProjectID, i
 	return domainTasks, nil
 }
 
-func (a *App) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error {
+func (a *App) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.ProjectID, clearFeature bool) error {
 	logger := a.logger.WithContext(ctx).WithFields(map[string]interface{}{
 		"projectID": projectID,
 		"taskID":    taskID,
@@ -271,6 +292,11 @@ func (a *App) UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID
 	}
 	if humanEstimateSeconds != nil {
 		task.HumanEstimateSeconds = *humanEstimateSeconds
+	}
+	if clearFeature {
+		task.FeatureID = nil
+	} else if featureID != nil {
+		task.FeatureID = featureID
 	}
 
 	task.UpdatedAt = time.Now()
@@ -944,18 +970,18 @@ func (a *App) ListTasks(ctx context.Context, projectID domain.ProjectID, filters
 	return taskList, nil
 }
 
-func (a *App) GetNextTask(ctx context.Context, projectID domain.ProjectID, role string, subProjectID *domain.ProjectID) (*domain.Task, error) {
+func (a *App) GetNextTask(ctx context.Context, projectID domain.ProjectID, role string, featureID *domain.ProjectID) (*domain.Task, error) {
 	logger := a.logger.WithContext(ctx).WithFields(map[string]interface{}{
-		"projectID":    projectID,
-		"role":         role,
-		"subProjectID": subProjectID,
+		"projectID": projectID,
+		"role":      role,
+		"featureID": featureID,
 	})
 
 	// Determine which project IDs to search
 	projectIDs := []domain.ProjectID{projectID}
-	if subProjectID != nil {
-		// Get the full subtree of the specified sub-project
-		tree, err := a.projects.GetTree(ctx, *subProjectID)
+	if featureID != nil {
+		// Get the full subtree of the specified feature
+		tree, err := a.projects.GetTree(ctx, *featureID)
 		if err != nil {
 			logger.WithError(err).Error("failed to get project tree")
 			return nil, errors.Join(domain.ErrProjectNotFound, err)
@@ -1036,12 +1062,12 @@ func (a *App) GetNextTask(ctx context.Context, projectID domain.ProjectID, role 
 	return bestTask, nil
 }
 
-func (a *App) GetNextTasks(ctx context.Context, projectID domain.ProjectID, role string, count int, subProjectID *domain.ProjectID) ([]domain.Task, error) {
+func (a *App) GetNextTasks(ctx context.Context, projectID domain.ProjectID, role string, count int, featureID *domain.ProjectID) ([]domain.Task, error) {
 	logger := a.logger.WithContext(ctx).WithFields(logrus.Fields{
-		"projectID":    projectID,
-		"role":         role,
-		"count":        count,
-		"subProjectID": subProjectID,
+		"projectID": projectID,
+		"role":      role,
+		"count":     count,
+		"featureID": featureID,
 	})
 
 	if count <= 0 {
@@ -1049,8 +1075,8 @@ func (a *App) GetNextTasks(ctx context.Context, projectID domain.ProjectID, role
 	}
 
 	targetProjectID := projectID
-	if subProjectID != nil {
-		targetProjectID = *subProjectID
+	if featureID != nil {
+		targetProjectID = *featureID
 	}
 
 	results, err := a.tasks.GetNextTasks(ctx, targetProjectID, role, count)

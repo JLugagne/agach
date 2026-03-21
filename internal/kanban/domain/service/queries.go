@@ -15,6 +15,7 @@ type Queries interface {
 	ListProjectsWithSummary(ctx context.Context) ([]domain.ProjectWithSummary, error)
 	ListSubProjects(ctx context.Context, parentID domain.ProjectID) ([]domain.Project, error)
 	ListSubProjectsWithSummary(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error)
+	ListFeaturesActiveOnly(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error)
 	GetProjectSummary(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectSummary, error)
 	GetProjectInfo(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectInfo, error)
 	ListProjectsByWorkDir(ctx context.Context, workDir string) ([]domain.ProjectWithSummary, error)
@@ -31,8 +32,8 @@ type Queries interface {
 	// Task queries
 	GetTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (*domain.Task, error)
 	ListTasks(ctx context.Context, projectID domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error)
-	GetNextTask(ctx context.Context, projectID domain.ProjectID, role string, subProjectID *domain.ProjectID) (*domain.Task, error)
-	GetNextTasks(ctx context.Context, projectID domain.ProjectID, role string, count int, subProjectID *domain.ProjectID) ([]domain.Task, error)
+	GetNextTask(ctx context.Context, projectID domain.ProjectID, role string, featureID *domain.ProjectID) (*domain.Task, error)
+	GetNextTasks(ctx context.Context, projectID domain.ProjectID, role string, count int, featureID *domain.ProjectID) ([]domain.Task, error)
 	GetDependencyContext(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.DependencyContext, error)
 
 	// Column queries

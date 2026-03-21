@@ -189,15 +189,16 @@ func (m *MockTaskRepository) GetColdStartStats(ctx context.Context, projectID do
 //   - todoColumnID: the ID of the "todo" column
 //   - inProgressColumnID: the ID of the "in_progress" column
 //   - doneColumnID: the ID of the "done" column
+//   - featureProjectID: a valid project ID (child of projectID) to use as feature_id in tests
 //
 // Example usage in implementation tests:
 //
 //	func TestSQLiteTaskRepository(t *testing.T) {
-//		repo, projectID, columnIDs := setupTestRepo(t)
+//		repo, projectID, columnIDs, featureProjectID := setupTestRepo(t)
 //		defer cleanupTestRepo(t, repo)
-//		taskstest.TasksContractTesting(t, repo, projectID, columnIDs.Todo, columnIDs.InProgress, columnIDs.Done)
+//		taskstest.TasksContractTesting(t, repo, projectID, columnIDs.Todo, columnIDs.InProgress, columnIDs.Done, featureProjectID)
 //	}
-func TasksContractTesting(t *testing.T, repo tasksrepo.TaskRepository, projectID domain.ProjectID, todoColumnID, inProgressColumnID, doneColumnID domain.ColumnID) {
+func TasksContractTesting(t *testing.T, repo tasksrepo.TaskRepository, projectID domain.ProjectID, todoColumnID, inProgressColumnID, doneColumnID domain.ColumnID, featureProjectID domain.ProjectID) {
 	ctx := context.Background()
 
 	t.Run("Contract: Create stores task and FindByID retrieves it", func(t *testing.T) {
@@ -622,5 +623,190 @@ func TasksContractTesting(t *testing.T, repo tasksrepo.TaskRepository, projectID
 		assert.Error(t, err, "MarkTaskSeen should return error for non-existent task")
 		assert.True(t, domain.IsDomainError(err), "Error should be a domain error")
 		assert.ErrorIs(t, err, domain.ErrTaskNotFound)
+	})
+
+	t.Run("Contract: Create stores feature_id and FindByID retrieves it", func(t *testing.T) {
+		featureID := featureProjectID
+		task := domain.Task{
+			ID:            domain.NewTaskID(),
+			ColumnID:      todoColumnID,
+			FeatureID:     &featureID,
+			Title:         "Task with Feature",
+			Summary:       "Task belonging to a feature",
+			Priority:      domain.PriorityMedium,
+			PriorityScore: domain.PriorityMedium.Score(),
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+		}
+
+		err := repo.Create(ctx, projectID, task)
+		require.NoError(t, err, "Create with feature_id should succeed")
+
+		retrieved, err := repo.FindByID(ctx, projectID, task.ID)
+		require.NoError(t, err, "FindByID should succeed")
+		require.NotNil(t, retrieved, "Retrieved task must not be nil")
+		require.NotNil(t, retrieved.FeatureID, "FeatureID must not be nil after retrieval")
+		assert.Equal(t, featureID, *retrieved.FeatureID, "FeatureID must match the stored value")
+	})
+
+	t.Run("Contract: Create with nil feature_id stores NULL", func(t *testing.T) {
+		task := domain.Task{
+			ID:            domain.NewTaskID(),
+			ColumnID:      todoColumnID,
+			FeatureID:     nil,
+			Title:         "Task without Feature",
+			Summary:       "Root-level task with no feature",
+			Priority:      domain.PriorityLow,
+			PriorityScore: domain.PriorityLow.Score(),
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+		}
+
+		err := repo.Create(ctx, projectID, task)
+		require.NoError(t, err, "Create with nil feature_id should succeed")
+
+		retrieved, err := repo.FindByID(ctx, projectID, task.ID)
+		require.NoError(t, err, "FindByID should succeed")
+		require.NotNil(t, retrieved, "Retrieved task must not be nil")
+		assert.Nil(t, retrieved.FeatureID, "FeatureID must be nil for root-level task")
+	})
+
+	t.Run("Contract: BulkCreate preserves feature_id for each task", func(t *testing.T) {
+		featureID := featureProjectID
+
+		tasks := []domain.Task{
+			{
+				ID:            domain.NewTaskID(),
+				ColumnID:      todoColumnID,
+				FeatureID:     &featureID,
+				Title:         "Bulk Task 1",
+				Summary:       "First bulk task with feature",
+				Priority:      domain.PriorityMedium,
+				PriorityScore: domain.PriorityMedium.Score(),
+				CreatedAt:     time.Now(),
+				UpdatedAt:     time.Now(),
+			},
+			{
+				ID:            domain.NewTaskID(),
+				ColumnID:      todoColumnID,
+				FeatureID:     nil,
+				Title:         "Bulk Task 2",
+				Summary:       "Second bulk task without feature",
+				Priority:      domain.PriorityLow,
+				PriorityScore: domain.PriorityLow.Score(),
+				CreatedAt:     time.Now(),
+				UpdatedAt:     time.Now(),
+			},
+		}
+
+		err := repo.BulkCreate(ctx, projectID, tasks)
+		require.NoError(t, err, "BulkCreate should succeed")
+
+		retrieved0, err := repo.FindByID(ctx, projectID, tasks[0].ID)
+		require.NoError(t, err)
+		require.NotNil(t, retrieved0.FeatureID, "First task should have feature_id set")
+		assert.Equal(t, featureID, *retrieved0.FeatureID)
+
+		retrieved1, err := repo.FindByID(ctx, projectID, tasks[1].ID)
+		require.NoError(t, err)
+		assert.Nil(t, retrieved1.FeatureID, "Second task should have nil feature_id")
+	})
+
+	t.Run("Contract: Update can change feature_id", func(t *testing.T) {
+		featureID := featureProjectID
+		task := domain.Task{
+			ID:            domain.NewTaskID(),
+			ColumnID:      todoColumnID,
+			FeatureID:     nil,
+			Title:         "Task to update feature_id",
+			Summary:       "Will be assigned a feature",
+			Priority:      domain.PriorityMedium,
+			PriorityScore: domain.PriorityMedium.Score(),
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+		}
+
+		require.NoError(t, repo.Create(ctx, projectID, task))
+
+		task.FeatureID = &featureID
+		task.UpdatedAt = time.Now()
+		require.NoError(t, repo.Update(ctx, projectID, task))
+
+		retrieved, err := repo.FindByID(ctx, projectID, task.ID)
+		require.NoError(t, err)
+		require.NotNil(t, retrieved.FeatureID, "feature_id should be set after update")
+		assert.Equal(t, featureID, *retrieved.FeatureID)
+	})
+
+	t.Run("Contract: Update can clear feature_id to nil", func(t *testing.T) {
+		featureID := featureProjectID
+		task := domain.Task{
+			ID:            domain.NewTaskID(),
+			ColumnID:      todoColumnID,
+			FeatureID:     &featureID,
+			Title:         "Task to clear feature_id",
+			Summary:       "Feature will be cleared",
+			Priority:      domain.PriorityMedium,
+			PriorityScore: domain.PriorityMedium.Score(),
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+		}
+
+		require.NoError(t, repo.Create(ctx, projectID, task))
+
+		task.FeatureID = nil
+		task.UpdatedAt = time.Now()
+		require.NoError(t, repo.Update(ctx, projectID, task))
+
+		retrieved, err := repo.FindByID(ctx, projectID, task.ID)
+		require.NoError(t, err)
+		assert.Nil(t, retrieved.FeatureID, "feature_id should be nil after clearing")
+	})
+
+	t.Run("Contract: List filters by feature_id", func(t *testing.T) {
+		featureID := featureProjectID
+
+		// taskA has feature_id set; taskB has no feature (nil), so filtering by featureID excludes it.
+		taskA := domain.Task{
+			ID:            domain.NewTaskID(),
+			ColumnID:      todoColumnID,
+			FeatureID:     &featureID,
+			Title:         "Feature A Task",
+			Summary:       "Belongs to feature A",
+			Priority:      domain.PriorityMedium,
+			PriorityScore: domain.PriorityMedium.Score(),
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+		}
+		taskB := domain.Task{
+			ID:            domain.NewTaskID(),
+			ColumnID:      todoColumnID,
+			FeatureID:     nil,
+			Title:         "No Feature Task",
+			Summary:       "Root-level task with no feature",
+			Priority:      domain.PriorityMedium,
+			PriorityScore: domain.PriorityMedium.Score(),
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+		}
+
+		require.NoError(t, repo.Create(ctx, projectID, taskA))
+		require.NoError(t, repo.Create(ctx, projectID, taskB))
+
+		filters := tasksrepo.TaskFilters{FeatureID: &featureID}
+		results, err := repo.List(ctx, projectID, filters)
+		require.NoError(t, err)
+
+		foundA, foundB := false, false
+		for _, r := range results {
+			if r.ID == taskA.ID {
+				foundA = true
+			}
+			if r.ID == taskB.ID {
+				foundB = true
+			}
+		}
+		assert.True(t, foundA, "Should find task belonging to feature A")
+		assert.False(t, foundB, "Should not find root-level task when filtering by feature_id")
 	})
 }

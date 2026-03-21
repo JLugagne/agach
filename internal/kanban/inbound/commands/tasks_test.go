@@ -38,7 +38,7 @@ func TestCreateTask_Success(t *testing.T) {
 	now := time.Now()
 
 	mock := &servicetest.MockCommands{
-		CreateTaskFunc: func(ctx context.Context, pid domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error) {
+		CreateTaskFunc: func(ctx context.Context, pid domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.ProjectID) (domain.Task, error) {
 			assert.Equal(t, projectID, pid)
 			assert.Equal(t, "Fix the bug", title)
 			assert.Equal(t, "A brief summary", summary)
@@ -116,7 +116,7 @@ func TestCreateTask_DomainError(t *testing.T) {
 	projectID := domain.NewProjectID()
 
 	mock := &servicetest.MockCommands{
-		CreateTaskFunc: func(ctx context.Context, pid domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error) {
+		CreateTaskFunc: func(ctx context.Context, pid domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.ProjectID) (domain.Task, error) {
 			return domain.Task{}, domain.ErrSummaryRequired
 		},
 	}
@@ -476,7 +476,7 @@ func TestUpdateTask_Success(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	mock := &servicetest.MockCommands{
-		UpdateTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error {
+		UpdateTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.ProjectID, clearFeature bool) error {
 			assert.Equal(t, projectID, pid)
 			assert.Equal(t, taskID, tid)
 			require.NotNil(t, title)
@@ -508,7 +508,7 @@ func TestUpdateTask_DomainError(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	mock := &servicetest.MockCommands{
-		UpdateTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error {
+		UpdateTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.ProjectID, clearFeature bool) error {
 			return domain.ErrTaskNotFound
 		},
 	}

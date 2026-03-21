@@ -1,7 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { LayoutGrid, Users, Settings, Plus, AlertTriangle, Sun, Moon, BarChart3, Inbox, BookOpen } from 'lucide-react';
-import { listSubProjects, getProject, getProjectSummary } from '../lib/api';
+import { listFeaturesActiveOnly, getProject, getProjectSummary } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useTheme } from './ThemeContext';
 import type { ProjectWithSummary, ProjectResponse, ProjectSummaryResponse } from '../lib/types';
@@ -17,18 +17,18 @@ export function Layout({ children }: LayoutProps) {
   const { theme, toggleTheme } = useTheme();
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [parentProject, setParentProject] = useState<ProjectResponse | null>(null);
-  const [subProjects, setSubProjects] = useState<ProjectWithSummary[]>([]);
+  const [activeFeatures, setActiveFeatures] = useState<ProjectWithSummary[]>([]);
   const [projectSummary, setProjectSummary] = useState<ProjectSummaryResponse | null>(null);
-  // Track which sub-projects had updates since the user last visited them
-  const [updatedSubProjects, setUpdatedSubProjects] = useState<Set<string>>(new Set());
-  // The parent project ID to use for fetching sub-projects
+  // Track which features had updates since the user last visited them
+  const [updatedFeatures, setUpdatedFeatures] = useState<Set<string>>(new Set());
+  // The parent project ID to use for fetching features
   const [parentId, setParentId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!projectId) {
       setProject(null);
       setParentProject(null);
-      setSubProjects([]);
+      setActiveFeatures([]);
       setParentId(null);
       setProjectSummary(null);
       return;
@@ -36,10 +36,10 @@ export function Layout({ children }: LayoutProps) {
 
     getProject(projectId).then((proj) => {
       setProject(proj);
-      // If this project has a parent, fetch siblings (parent's children)
-      const listFrom = proj.parent_id || projectId;
-      setParentId(proj.parent_id);
-      listSubProjects(listFrom).then(setSubProjects).catch(() => setSubProjects([]));
+      // Always fetch active features from the ROOT project
+      const rootId = proj.parent_id || projectId;
+      setParentId(proj.parent_id ?? null);
+      listFeaturesActiveOnly(rootId).then(setActiveFeatures).catch(() => setActiveFeatures([]));
       // Fetch parent project for breadcrumb title
       if (proj.parent_id) {
         getProject(proj.parent_id).then(setParentProject).catch(() => setParentProject(null));
@@ -63,10 +63,10 @@ export function Layout({ children }: LayoutProps) {
     }
   }, [project, parentProject]);
 
-  // Clear update indicator when navigating to a sub-project
+  // Clear update indicator when navigating to a feature
   useEffect(() => {
     if (projectId) {
-      setUpdatedSubProjects((prev) => {
+      setUpdatedFeatures((prev) => {
         if (!prev.has(projectId)) return prev;
         const next = new Set(prev);
         next.delete(projectId);
@@ -75,7 +75,7 @@ export function Layout({ children }: LayoutProps) {
     }
   }, [projectId]);
 
-  // Listen for WebSocket events and mark sub-projects with updates
+  // Listen for WebSocket events and mark features with updates
   useWebSocket(
     useCallback(
       (event) => {
@@ -88,21 +88,20 @@ export function Layout({ children }: LayoutProps) {
           getProjectSummary(projectId).then(setProjectSummary).catch(() => {});
           return;
         }
-        setSubProjects((sps) => {
-          if (sps.some((sp) => sp.id === eventProjectId)) {
-            setUpdatedSubProjects((prev) => {
+        setActiveFeatures((features) => {
+          if (features.some((f) => f.id === eventProjectId)) {
+            setUpdatedFeatures((prev) => {
               if (prev.has(eventProjectId)) return prev;
               const next = new Set(prev);
               next.add(eventProjectId);
               return next;
             });
-            // Refresh sub-project summaries
-            const listFrom = parentId || projectId;
-            if (listFrom) {
-              listSubProjects(listFrom).then(setSubProjects).catch(() => {});
+            const rootId = parentId || projectId;
+            if (rootId) {
+              listFeaturesActiveOnly(rootId).then(setActiveFeatures).catch(() => {});
             }
           }
-          return sps;
+          return features;
         });
       },
       [projectId, parentId],
@@ -112,7 +111,7 @@ export function Layout({ children }: LayoutProps) {
   const isActive = (path: string) => location.pathname === path;
   const isActivePrefix = (prefix: string) => location.pathname.startsWith(prefix);
 
-  // Determine the "root" project ID for nav links (parent if we're in a sub-project)
+  // Determine the "root" project ID for nav links (parent if we're in a feature)
   const navProjectId = parentId || projectId;
 
   return (
@@ -148,9 +147,12 @@ export function Layout({ children }: LayoutProps) {
                 onClick={() => navigate(`/projects/${projectId}/backlog`)}
                 badge={(() => {
                   const own = projectSummary?.backlog_count ?? 0;
-                  // When at root project (no parentId), add children's backlog counts
+                  // When at root project (no parentId), add features' backlog counts
                   const childrenCount = !parentId
-                    ? subProjects.reduce((sum, sp) => sum + ((sp.task_summary ?? sp.summary)?.backlog_count ?? 0), 0)
+                    ? activeFeatures.reduce(
+                        (sum, f) => sum + ((f.task_summary ?? f.summary)?.backlog_count ?? 0),
+                        0
+                      )
                     : 0;
                   const total = own + childrenCount;
                   return total > 0 ? total : undefined;
@@ -205,55 +207,71 @@ export function Layout({ children }: LayoutProps) {
           )}
         </nav>
 
-        {/* Sub-projects section */}
-        {projectId && subProjects.length > 0 && (
+        {/* Features section — only shown when there are active features */}
+        {projectId && activeFeatures.length > 0 && (
           <>
             <div className="px-4 pt-4 pb-2">
-              <span className="text-[10px] font-semibold tracking-[2px] text-[var(--text-muted)]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                SUB-PROJECTS
+              <span
+                className="text-[10px] font-semibold tracking-[2px] text-[var(--text-muted)]"
+                style={{ fontFamily: 'JetBrains Mono, monospace' }}
+              >
+                FEATURES
               </span>
             </div>
             <div className="flex flex-col gap-0.5 px-2.5 pb-2">
-              {subProjects.map((sp) => {
-                const isCurrentSubProject = sp.id === projectId;
-                const hasUpdate = updatedSubProjects.has(sp.id);
-                const summary = sp.task_summary ?? sp.summary;
+              {activeFeatures.map((feat) => {
+                const isCurrentFeature = feat.id === projectId;
+                const hasUpdate = updatedFeatures.has(feat.id);
+                const summary = feat.task_summary ?? feat.summary;
                 const inProgress = summary?.in_progress_count ?? 0;
                 const blocked = summary?.blocked_count ?? 0;
-                const total = (summary?.todo_count ?? 0) + inProgress + (summary?.done_count ?? 0) + blocked;
-                
+                const total =
+                  (summary?.todo_count ?? 0) +
+                  inProgress +
+                  (summary?.done_count ?? 0) +
+                  blocked;
+
                 let dotColor = 'var(--text-muted)';
-                if (isCurrentSubProject) dotColor = 'var(--primary)';
+                if (isCurrentFeature) dotColor = 'var(--primary)';
                 else if (hasUpdate) dotColor = theme === 'dark' ? '#F59E0B' : '#E07B54';
                 else if (blocked > 0) dotColor = theme === 'dark' ? '#F06060' : '#D94040';
                 else if (inProgress > 0) dotColor = 'var(--primary)';
 
                 return (
                   <button
-                    key={sp.id}
-                    onClick={() => navigate(`/projects/${sp.id}`)}
+                    key={feat.id}
+                    onClick={() => navigate(`/projects/${feat.id}`)}
                     className={`flex items-center gap-2.5 h-10 px-2.5 rounded-md w-full text-left transition-colors cursor-pointer ${
-                      isCurrentSubProject ? 'bg-[var(--nav-bg-active)]' : 'hover:bg-[var(--nav-bg-active)]/50'
+                      isCurrentFeature
+                        ? 'bg-[var(--nav-bg-active)]'
+                        : 'hover:bg-[var(--nav-bg-active)]/50'
                     }`}
                   >
                     <div className="relative flex-shrink-0">
                       <div
-                        className={`w-[7px] h-[7px] rounded-full ${hasUpdate && !isCurrentSubProject ? 'animate-pulse' : ''}`}
+                        className={`w-[7px] h-[7px] rounded-full ${
+                          hasUpdate && !isCurrentFeature ? 'animate-pulse' : ''
+                        }`}
                         style={{ backgroundColor: dotColor }}
                       />
                     </div>
                     <span
                       className={`text-[13px] flex-1 truncate ${
-                        isCurrentSubProject ? 'text-[var(--nav-text-active)]' : 'text-[var(--text-secondary)]'
+                        isCurrentFeature
+                          ? 'text-[var(--nav-text-active)]'
+                          : 'text-[var(--text-secondary)]'
                       }`}
                       style={{ fontFamily: 'Inter, sans-serif' }}
                     >
-                      {sp.name}
+                      {feat.name}
                     </span>
                     {blocked > 0 && (
                       <AlertTriangle size={12} className="text-[#FF3B30] shrink-0" />
                     )}
-                    <span className="text-[10px] text-[var(--text-muted)]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    <span
+                      className="text-[10px] text-[var(--text-muted)]"
+                      style={{ fontFamily: 'JetBrains Mono, monospace' }}
+                    >
                       {total}
                     </span>
                   </button>
@@ -261,11 +279,17 @@ export function Layout({ children }: LayoutProps) {
               })}
               <button
                 className="flex items-center gap-2 h-9 px-2.5 rounded-md w-full text-left hover:bg-[var(--nav-bg-active)]/50 transition-colors cursor-pointer group"
-                onClick={() => navigate(`/projects/${navProjectId}/settings/sub-projects`)}
+                onClick={() => navigate(`/projects/${navProjectId}/features`)}
               >
-                <Plus size={13} className="text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]" />
-                <span className="text-[12px] text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
-                  Add sub-project
+                <Plus
+                  size={13}
+                  className="text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]"
+                />
+                <span
+                  className="text-[12px] text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]"
+                  style={{ fontFamily: 'Inter, sans-serif' }}
+                >
+                  Add feature
                 </span>
               </button>
             </div>

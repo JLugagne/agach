@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 import { X, FileCode2, Tag, ArrowRight, ArrowLeft, Pencil, Check, XCircle, Paperclip, Loader2, Plus } from 'lucide-react';
-import type { TaskWithDetailsResponse, TaskResponse, ColumnWithTasksResponse, RoleResponse } from '../../lib/types';
+import type { TaskWithDetailsResponse, TaskResponse, ColumnWithTasksResponse, RoleResponse, FeatureResponse } from '../../lib/types';
 import { getTask, listDependencies, listDependents, updateTask, addDependency, removeDependency, listTasks, listProjectRoles } from '../../lib/api';
 import BlockedBanner from './BlockedBanner';
 import CommentSection from './CommentSection';
@@ -29,6 +29,7 @@ interface TaskDrawerProps {
   projectId: string;
   taskId: string;
   columns: ColumnWithTasksResponse[];
+  features?: FeatureResponse[];
   onClose: () => void;
   onAction: (action: string) => void;
   onTaskNavigate?: (taskId: string) => void;
@@ -64,7 +65,7 @@ function columnNameForTask(taskId: string, columns: ColumnWithTasksResponse[]): 
   return 'Unknown';
 }
 
-export default function TaskDrawer({ projectId, taskId, columns, onClose, onAction, onTaskNavigate }: TaskDrawerProps) {
+export default function TaskDrawer({ projectId, taskId, columns, features, onClose, onAction, onTaskNavigate }: TaskDrawerProps) {
   const [task, setTask] = useState<TaskWithDetailsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [commentRefreshKey] = useState(0);
@@ -778,6 +779,15 @@ export default function TaskDrawer({ projectId, taskId, columns, onClose, onActi
                     </span>
                   )}
                 </div>
+                {/* Feature badge */}
+                {task.feature_id && (
+                  <div className="mt-2">
+                    <label className="block text-xs font-mono text-[var(--text-dim)] mb-1">Feature</label>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#00C896]/10 border border-[#00C896]/20 rounded text-xs text-[#00C896]">
+                      {features?.find((f) => f.id === task.feature_id)?.name ?? task.feature_id}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Tags */}

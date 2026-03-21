@@ -31,6 +31,7 @@ func (h *ProjectQueriesHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/projects/{id}/info", h.GetProjectInfo).Methods("GET")
 	router.HandleFunc("/api/projects/{id}/summary", h.GetProjectSummary).Methods("GET")
 	router.HandleFunc("/api/projects/{id}/children", h.ListSubProjects).Methods("GET")
+	router.HandleFunc("/api/projects/{id}/features", h.HandleListFeatures).Methods("GET")
 }
 
 // ListProjects lists all root projects with summaries.
@@ -127,4 +128,35 @@ func (h *ProjectQueriesHandler) ListSubProjects(w http.ResponseWriter, r *http.R
 	}
 
 	h.controller.SendSuccess(w, r, projects)
+}
+
+// HandleListFeatures lists features (sub-projects) of a parent with optional active-only filter
+// Query params:
+//   - active_only=true — return only features with todo/in_progress/blocked tasks
+func (h *ProjectQueriesHandler) HandleListFeatures(w http.ResponseWriter, r *http.Request) {
+	parentID := domain.ProjectID(mux.Vars(r)["id"])
+
+	activeOnly := r.URL.Query().Get("active_only") == "true"
+
+	var (
+		features interface{}
+		err      error
+	)
+
+	if activeOnly {
+		features, err = h.queries.ListFeaturesActiveOnly(r.Context(), parentID)
+	} else {
+		features, err = h.queries.ListSubProjectsWithSummary(r.Context(), parentID)
+	}
+
+	if err != nil {
+		if domain.IsDomainError(err) {
+			h.controller.SendFail(w, r, nil, err)
+		} else {
+			h.controller.SendError(w, r, err)
+		}
+		return
+	}
+
+	h.controller.SendSuccess(w, r, features)
 }

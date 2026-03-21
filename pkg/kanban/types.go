@@ -142,6 +142,7 @@ type CreateTaskRequest struct {
 	EstimatedEffort string   `json:"estimated_effort" validate:"omitempty,oneof=XS S M L XL"`
 	DependsOn       []string `json:"depends_on" validate:"max=100,dive,entity_id"`
 	StartInBacklog  bool     `json:"start_in_backlog"`
+	FeatureID       *string  `json:"feature_id" validate:"omitempty,entity_id"`
 }
 
 // UpdateTaskRequest represents a request to update a task
@@ -164,6 +165,7 @@ type UpdateTaskRequest struct {
 	ColdStartCacheReadTokens  *int      `json:"cold_start_cache_read_tokens,omitempty" validate:"omitempty,min=0"`
 	ColdStartCacheWriteTokens *int      `json:"cold_start_cache_write_tokens,omitempty" validate:"omitempty,min=0"`
 	HumanEstimateSeconds      *int      `json:"human_estimate_seconds,omitempty" validate:"omitempty,min=0"`
+	FeatureID            *string   `json:"feature_id" validate:"omitempty,entity_id"`
 }
 
 // MoveTaskRequest represents a request to move a task
@@ -216,6 +218,7 @@ type ReorderTaskRequest struct {
 type TaskResponse struct {
 	ID                string     `json:"id"`
 	ColumnID          string     `json:"column_id"`
+	FeatureID         *string    `json:"feature_id"`
 	Title             string     `json:"title"`
 	Summary           string     `json:"summary"`
 	Description       string     `json:"description"`

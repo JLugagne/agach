@@ -10,7 +10,6 @@ interface SettingsLayoutProps {
 
 const tabs = [
   { label: 'Project Definition', path: '', icon: FileText },
-  { label: 'Sub-Projects', path: '/sub-projects', icon: FolderTree },
 ];
 
 export default function SettingsLayout({ projectName, children, rightDrawer }: SettingsLayoutProps) {
@@ -56,6 +55,17 @@ export default function SettingsLayout({ projectName, children, rightDrawer }: S
               </Link>
             );
           })}
+          <Link
+            to={`/projects/${projectId}/features`}
+            className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm mb-0.5 transition-colors ${
+              location.pathname === `/projects/${projectId}/features`
+                ? 'bg-[#1A1A1A] text-[#F0F0F0]'
+                : 'text-[var(--text-muted)] hover:text-[#E0E0E0] hover:bg-[#1A1A1A]/50'
+            }`}
+          >
+            <FolderTree size={15} />
+            Features
+          </Link>
         </nav>
       </aside>
 

@@ -133,6 +133,7 @@ export interface CloneRoleRequest {
 export interface TaskResponse {
   id: string;
   column_id: string;
+  feature_id: string | null;
   title: string;
   summary: string;
   description: string;
@@ -192,6 +193,7 @@ export interface CreateTaskRequest {
   estimated_effort?: string;
   depends_on?: string[];
   start_in_backlog?: boolean;
+  feature_id?: string | null;
 }
 
 export interface UpdateTaskRequest {
@@ -204,7 +206,12 @@ export interface UpdateTaskRequest {
   tags?: string[];
   estimated_effort?: string;
   resolution?: string;
+  feature_id?: string | null;
 }
+
+// A Feature is a project with parent_id set.
+// The API returns ProjectWithSummary for features.
+export type FeatureResponse = ProjectWithSummary;
 
 export interface MoveTaskRequest {
   target_column: string;

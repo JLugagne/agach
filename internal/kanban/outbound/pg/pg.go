@@ -2,7 +2,7 @@ package pg
 
 import (
 	"context"
-	_ "embed"
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,11 +23,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-//go:embed migrations/001_schema.sql
-var migrationSQL string
-
-//go:embed migrations/002_skills.sql
-var migrationSkillsSQL string
+//go:embed migrations
+var migrationsFS embed.FS
 
 // Repositories holds all PostgreSQL repository implementations.
 type Repositories struct {
@@ -46,11 +43,18 @@ func NewRepositories(pool *pgxpool.Pool) (*Repositories, error) {
 	if pool != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		if _, err := pool.Exec(ctx, migrationSQL); err != nil {
-			return nil, fmt.Errorf("applying kanban schema migration: %w", err)
+		entries, err := migrationsFS.ReadDir("migrations")
+		if err != nil {
+			return nil, fmt.Errorf("reading migrations directory: %w", err)
 		}
-		if _, err := pool.Exec(ctx, migrationSkillsSQL); err != nil {
-			return nil, fmt.Errorf("applying skills migration: %w", err)
+		for _, entry := range entries {
+			sql, err := migrationsFS.ReadFile("migrations/" + entry.Name())
+			if err != nil {
+				return nil, fmt.Errorf("reading migration %s: %w", entry.Name(), err)
+			}
+			if _, err := pool.Exec(ctx, string(sql)); err != nil {
+				return nil, fmt.Errorf("applying migration %s: %w", entry.Name(), err)
+			}
 		}
 	}
 	base := &baseRepository{pool: pool}
@@ -308,6 +312,81 @@ func (r *projectRepository) CountChildren(ctx context.Context, id domain.Project
 		return 0, fmt.Errorf("count children: %w", err)
 	}
 	return count, nil
+}
+
+func (r *projectRepository) ListFeaturesActiveOnly(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error) {
+	const query = `
+        WITH child_projects AS (
+            SELECT id, parent_id, name, description, created_by_role, created_by_agent,
+                   default_role, COALESCE(work_dir,'') AS work_dir, created_at, updated_at
+            FROM projects
+            WHERE parent_id = $1
+        ),
+        task_counts AS (
+            SELECT
+                t.project_id,
+                COUNT(*) FILTER (WHERE col.slug = 'backlog')     AS backlog_count,
+                COUNT(*) FILTER (WHERE col.slug = 'todo')        AS todo_count,
+                COUNT(*) FILTER (WHERE col.slug = 'in_progress') AS in_progress_count,
+                COUNT(*) FILTER (WHERE col.slug = 'done')        AS done_count,
+                COUNT(*) FILTER (WHERE col.slug = 'blocked')     AS blocked_count
+            FROM tasks t
+            JOIN columns col ON col.id = t.column_id
+            WHERE t.project_id IN (SELECT id FROM child_projects)
+            GROUP BY t.project_id
+        )
+        SELECT
+            cp.id, cp.parent_id, cp.name, cp.description,
+            cp.created_by_role, cp.created_by_agent, cp.default_role, cp.work_dir,
+            cp.created_at, cp.updated_at,
+            COALESCE(tc.backlog_count, 0)      AS backlog_count,
+            COALESCE(tc.todo_count, 0)         AS todo_count,
+            COALESCE(tc.in_progress_count, 0)  AS in_progress_count,
+            COALESCE(tc.done_count, 0)         AS done_count,
+            COALESCE(tc.blocked_count, 0)      AS blocked_count
+        FROM child_projects cp
+        LEFT JOIN task_counts tc ON tc.project_id = cp.id
+        WHERE
+            COALESCE(tc.todo_count, 0) +
+            COALESCE(tc.in_progress_count, 0) +
+            COALESCE(tc.blocked_count, 0) > 0
+        ORDER BY cp.name ASC
+    `
+
+	rows, err := r.pool.Query(ctx, query, string(parentID))
+	if err != nil {
+		return nil, fmt.Errorf("ListFeaturesActiveOnly: %w", err)
+	}
+	defer rows.Close()
+
+	var results []domain.ProjectWithSummary
+	for rows.Next() {
+		var p domain.ProjectWithSummary
+		var parentIDStr *string
+		err := rows.Scan(
+			(*string)(&p.ID), &parentIDStr, &p.Name, &p.Description,
+			&p.CreatedByRole, &p.CreatedByAgent, &p.DefaultRole, &p.WorkDir,
+			&p.CreatedAt, &p.UpdatedAt,
+			&p.TaskSummary.BacklogCount,
+			&p.TaskSummary.TodoCount,
+			&p.TaskSummary.InProgressCount,
+			&p.TaskSummary.DoneCount,
+			&p.TaskSummary.BlockedCount,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("ListFeaturesActiveOnly scan: %w", err)
+		}
+		if parentIDStr != nil {
+			pid := domain.ProjectID(*parentIDStr)
+			p.ParentID = &pid
+		}
+		p.ChildrenCount = 0
+		results = append(results, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ListFeaturesActiveOnly rows: %w", err)
+	}
+	return results, nil
 }
 
 func (r *projectRepository) ListByWorkDir(ctx context.Context, workDir string) ([]domain.Project, error) {
@@ -675,7 +754,7 @@ func scanRoles(rows pgx.Rows) ([]domain.Role, error) {
 type taskRepository struct{ *baseRepository }
 
 const taskSelectCols = `
-	t.id, t.column_id, t.title, t.summary, t.description, t.priority, t.priority_score,
+	t.id, t.column_id, t.feature_id, t.title, t.summary, t.description, t.priority, t.priority_score,
 	t.position, t.created_by_role, t.created_by_agent, t.assigned_role,
 	t.is_blocked, t.blocked_reason, t.blocked_at, t.blocked_by_agent,
 	t.wont_do_requested, t.wont_do_reason, t.wont_do_requested_by, t.wont_do_requested_at,
@@ -692,8 +771,9 @@ func scanTask(row pgx.Row) (*domain.Task, error) {
 	var t domain.Task
 	var filesModifiedJSON, contextFilesJSON, tagsJSON []byte
 	var isBlocked, wontDoRequested int
+	var featureIDStr *string
 	err := row.Scan(
-		(*string)(&t.ID), (*string)(&t.ColumnID), &t.Title, &t.Summary, &t.Description,
+		(*string)(&t.ID), (*string)(&t.ColumnID), &featureIDStr, &t.Title, &t.Summary, &t.Description,
 		(*string)(&t.Priority), &t.PriorityScore, &t.Position,
 		&t.CreatedByRole, &t.CreatedByAgent, &t.AssignedRole,
 		&isBlocked, &t.BlockedReason, &t.BlockedAt, &t.BlockedByAgent,
@@ -712,6 +792,10 @@ func scanTask(row pgx.Row) (*domain.Task, error) {
 		}
 		return nil, err
 	}
+	if featureIDStr != nil {
+		pid := domain.ProjectID(*featureIDStr)
+		t.FeatureID = &pid
+	}
 	t.IsBlocked = isBlocked == 1
 	t.WontDoRequested = wontDoRequested == 1
 	t.FilesModified = jsonUnmarshalStrings(filesModifiedJSON)
@@ -726,8 +810,9 @@ func scanTaskRows(rows pgx.Rows) ([]domain.Task, error) {
 		var t domain.Task
 		var filesModifiedJSON, contextFilesJSON, tagsJSON []byte
 		var isBlocked, wontDoRequested int
+		var featureIDStr *string
 		err := rows.Scan(
-			(*string)(&t.ID), (*string)(&t.ColumnID), &t.Title, &t.Summary, &t.Description,
+			(*string)(&t.ID), (*string)(&t.ColumnID), &featureIDStr, &t.Title, &t.Summary, &t.Description,
 			(*string)(&t.Priority), &t.PriorityScore, &t.Position,
 			&t.CreatedByRole, &t.CreatedByAgent, &t.AssignedRole,
 			&isBlocked, &t.BlockedReason, &t.BlockedAt, &t.BlockedByAgent,
@@ -742,6 +827,10 @@ func scanTaskRows(rows pgx.Rows) ([]domain.Task, error) {
 		)
 		if err != nil {
 			return nil, err
+		}
+		if featureIDStr != nil {
+			pid := domain.ProjectID(*featureIDStr)
+			t.FeatureID = &pid
 		}
 		t.IsBlocked = isBlocked == 1
 		t.WontDoRequested = wontDoRequested == 1
@@ -760,6 +849,14 @@ func boolToInt(b bool) int {
 	return 0
 }
 
+// featureIDOrNil returns a string representation of a ProjectID pointer, or nil if the pointer is nil.
+func featureIDOrNil(id *domain.ProjectID) interface{} {
+	if id == nil {
+		return nil
+	}
+	return string(*id)
+}
+
 func (r *taskRepository) Create(ctx context.Context, projectID domain.ProjectID, task domain.Task) error {
 	filesJSON := jsonMarshal(task.FilesModified)
 	contextJSON := jsonMarshal(task.ContextFiles)
@@ -767,7 +864,7 @@ func (r *taskRepository) Create(ctx context.Context, projectID domain.ProjectID,
 
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO tasks (
-			id, project_id, column_id, title, summary, description,
+			id, project_id, column_id, feature_id, title, summary, description,
 			priority, priority_score, position,
 			created_by_role, created_by_agent, assigned_role,
 			is_blocked, blocked_reason, blocked_at, blocked_by_agent,
@@ -780,20 +877,20 @@ func (r *taskRepository) Create(ctx context.Context, projectID domain.ProjectID,
 			started_at, duration_seconds, human_estimate_seconds,
 			created_at, updated_at
 		) VALUES (
-			$1,$2,$3,$4,$5,$6,
-			$7,$8,$9,
-			$10,$11,$12,
-			$13,$14,$15,$16,
-			$17,$18,$19,$20,
-			$21,$22,$23,
-			$24,$25,$26,$27,$28,
-			$29,$30,
-			$31,$32,$33,$34,$35,
-			$36,$37,$38,$39,
-			$40,$41,$42,
-			$43,$44
+			$1,$2,$3,$4,$5,$6,$7,
+			$8,$9,$10,
+			$11,$12,$13,
+			$14,$15,$16,$17,
+			$18,$19,$20,$21,
+			$22,$23,$24,
+			$25,$26,$27,$28,$29,
+			$30,$31,
+			$32,$33,$34,$35,$36,
+			$37,$38,$39,$40,
+			$41,$42,$43,
+			$44,$45
 		)`,
-		string(task.ID), string(projectID), string(task.ColumnID),
+		string(task.ID), string(projectID), string(task.ColumnID), featureIDOrNil(task.FeatureID),
 		task.Title, task.Summary, task.Description,
 		string(task.Priority), task.PriorityScore, task.Position,
 		task.CreatedByRole, task.CreatedByAgent, task.AssignedRole,
@@ -854,6 +951,11 @@ func (r *taskRepository) List(ctx context.Context, projectID domain.ProjectID, f
 		args = append(args, *filters.UpdatedSince)
 		argIdx++
 	}
+	if filters.FeatureID != nil {
+		where = append(where, fmt.Sprintf(`t.feature_id = $%d`, argIdx))
+		args = append(args, string(*filters.FeatureID))
+		argIdx++
+	}
 	if filters.Search != "" {
 		where = append(where, fmt.Sprintf(`t.search_vector @@ plainto_tsquery('english', $%d)`, argIdx))
 		args = append(args, filters.Search)
@@ -897,9 +999,10 @@ func (r *taskRepository) List(ctx context.Context, projectID domain.ProjectID, f
 		var isBlocked, wontDoRequested int
 		var hasUnresolvedDeps bool
 		var commentCount int
+		var featureIDStr *string
 
 		err := rows.Scan(
-			(*string)(&t.ID), (*string)(&t.ColumnID), &t.Title, &t.Summary, &t.Description,
+			(*string)(&t.ID), (*string)(&t.ColumnID), &featureIDStr, &t.Title, &t.Summary, &t.Description,
 			(*string)(&t.Priority), &t.PriorityScore, &t.Position,
 			&t.CreatedByRole, &t.CreatedByAgent, &t.AssignedRole,
 			&isBlocked, &t.BlockedReason, &t.BlockedAt, &t.BlockedByAgent,
@@ -915,6 +1018,10 @@ func (r *taskRepository) List(ctx context.Context, projectID domain.ProjectID, f
 		)
 		if err != nil {
 			return nil, err
+		}
+		if featureIDStr != nil {
+			pid := domain.ProjectID(*featureIDStr)
+			t.FeatureID = &pid
 		}
 		t.IsBlocked = isBlocked == 1
 		t.WontDoRequested = wontDoRequested == 1
@@ -940,20 +1047,20 @@ func (r *taskRepository) Update(ctx context.Context, projectID domain.ProjectID,
 
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE tasks SET
-			column_id=$1, title=$2, summary=$3, description=$4,
-			priority=$5, priority_score=$6, position=$7,
-			created_by_role=$8, created_by_agent=$9, assigned_role=$10,
-			is_blocked=$11, blocked_reason=$12, blocked_at=$13, blocked_by_agent=$14,
-			wont_do_requested=$15, wont_do_reason=$16, wont_do_requested_by=$17, wont_do_requested_at=$18,
-			completion_summary=$19, completed_by_agent=$20, completed_at=$21,
-			files_modified=$22, resolution=$23, context_files=$24, tags=$25, estimated_effort=$26,
-			seen_at=$27, session_id=$28,
-			input_tokens=$29, output_tokens=$30, cache_read_tokens=$31, cache_write_tokens=$32, model=$33,
-			cold_start_input_tokens=$34, cold_start_output_tokens=$35, cold_start_cache_read_tokens=$36, cold_start_cache_write_tokens=$37,
-			started_at=$38, duration_seconds=$39, human_estimate_seconds=$40,
-			updated_at=$41
-		WHERE project_id=$42 AND id=$43`,
-		string(task.ColumnID), task.Title, task.Summary, task.Description,
+			column_id=$1, feature_id=$2, title=$3, summary=$4, description=$5,
+			priority=$6, priority_score=$7, position=$8,
+			created_by_role=$9, created_by_agent=$10, assigned_role=$11,
+			is_blocked=$12, blocked_reason=$13, blocked_at=$14, blocked_by_agent=$15,
+			wont_do_requested=$16, wont_do_reason=$17, wont_do_requested_by=$18, wont_do_requested_at=$19,
+			completion_summary=$20, completed_by_agent=$21, completed_at=$22,
+			files_modified=$23, resolution=$24, context_files=$25, tags=$26, estimated_effort=$27,
+			seen_at=$28, session_id=$29,
+			input_tokens=$30, output_tokens=$31, cache_read_tokens=$32, cache_write_tokens=$33, model=$34,
+			cold_start_input_tokens=$35, cold_start_output_tokens=$36, cold_start_cache_read_tokens=$37, cold_start_cache_write_tokens=$38,
+			started_at=$39, duration_seconds=$40, human_estimate_seconds=$41,
+			updated_at=$42
+		WHERE project_id=$43 AND id=$44`,
+		string(task.ColumnID), featureIDOrNil(task.FeatureID), task.Title, task.Summary, task.Description,
 		string(task.Priority), task.PriorityScore, task.Position,
 		task.CreatedByRole, task.CreatedByAgent, task.AssignedRole,
 		boolToInt(task.IsBlocked), task.BlockedReason, task.BlockedAt, task.BlockedByAgent,
@@ -1270,7 +1377,7 @@ func (r *taskRepository) BulkCreate(ctx context.Context, projectID domain.Projec
 
 		_, err := tx.Exec(ctx, `
 			INSERT INTO tasks (
-				id, project_id, column_id, title, summary, description,
+				id, project_id, column_id, feature_id, title, summary, description,
 				priority, priority_score, position,
 				created_by_role, created_by_agent, assigned_role,
 				is_blocked, blocked_reason, blocked_at, blocked_by_agent,
@@ -1283,20 +1390,20 @@ func (r *taskRepository) BulkCreate(ctx context.Context, projectID domain.Projec
 				started_at, duration_seconds, human_estimate_seconds,
 				created_at, updated_at
 			) VALUES (
-				$1,$2,$3,$4,$5,$6,
-				$7,$8,$9,
-				$10,$11,$12,
-				$13,$14,$15,$16,
-				$17,$18,$19,$20,
-				$21,$22,$23,
-				$24,$25,$26,$27,$28,
-				$29,$30,
-				$31,$32,$33,$34,$35,
-				$36,$37,$38,$39,
-				$40,$41,$42,
-				$43,$44
+				$1,$2,$3,$4,$5,$6,$7,
+				$8,$9,$10,
+				$11,$12,$13,
+				$14,$15,$16,$17,
+				$18,$19,$20,$21,
+				$22,$23,$24,
+				$25,$26,$27,$28,$29,
+				$30,$31,
+				$32,$33,$34,$35,$36,
+				$37,$38,$39,$40,
+				$41,$42,$43,
+				$44,$45
 			)`,
-			string(task.ID), string(projectID), string(task.ColumnID),
+			string(task.ID), string(projectID), string(task.ColumnID), featureIDOrNil(task.FeatureID),
 			task.Title, task.Summary, task.Description,
 			string(task.Priority), task.PriorityScore, task.Position,
 			task.CreatedByRole, task.CreatedByAgent, task.AssignedRole,

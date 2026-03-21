@@ -68,6 +68,37 @@ func TestToPublicTask(t *testing.T) {
 		assert.Equal(t, now, result.UpdatedAt)
 	})
 
+	t.Run("nil feature_id maps to nil", func(t *testing.T) {
+		task := domain.Task{
+			ID:        domain.TaskID("task-nil-feature"),
+			ColumnID:  domain.ColumnID("col-1"),
+			Title:     "No feature",
+			Summary:   "Summary",
+			FeatureID: nil,
+		}
+
+		result := converters.ToPublicTask(task)
+
+		assert.Nil(t, result.FeatureID)
+	})
+
+	t.Run("non-nil feature_id maps correctly", func(t *testing.T) {
+		pid := domain.ProjectID("abc12345")
+		task := domain.Task{
+			ID:        domain.TaskID("task-with-feature"),
+			ColumnID:  domain.ColumnID("col-1"),
+			Title:     "With feature",
+			Summary:   "Summary",
+			FeatureID: &pid,
+		}
+
+		result := converters.ToPublicTask(task)
+
+		if assert.NotNil(t, result.FeatureID) {
+			assert.Equal(t, "abc12345", *result.FeatureID)
+		}
+	})
+
 	t.Run("Converts full task with all fields", func(t *testing.T) {
 		now := time.Now()
 		blockedAt := now.Add(-1 * time.Hour)

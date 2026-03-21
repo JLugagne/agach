@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { Plus, ChevronRight, FolderTree, X, Search } from 'lucide-react';
-import { getBoard, getProject, getTask, createTask, listProjectRoles, listSubProjects, moveTask as apiMoveTask, markTaskSeen, updateTask } from '../lib/api';
+import { getBoard, getProject, getTask, createTask, listProjectRoles, listSubProjects, listFeaturesActiveOnly, moveTask as apiMoveTask, markTaskSeen, updateTask } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type {
   BoardResponse,
   ColumnWithTasksResponse,
   ProjectResponse,
+  ProjectWithSummary,
   RoleResponse,
   TaskWithDetailsResponse,
 } from '../lib/types';
@@ -38,6 +39,8 @@ export default function KanbanPage() {
   const [parentProject, setParentProject] = useState<ProjectResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [doneSince, setDoneSince] = useState('');
+
+  const [features, setFeatures] = useState<ProjectWithSummary[]>([]);
 
   // Filter state
   const [includeChildren, setIncludeChildren] = useState(true);
@@ -255,6 +258,7 @@ export default function KanbanPage() {
     listSubProjects(projectId).then((children) => {
       setChildProjectIds(new Set(children.map((c) => c.id)));
     }).catch(() => setChildProjectIds(new Set()));
+    listFeaturesActiveOnly(projectId).then(setFeatures).catch(() => setFeatures([]));
   }, [projectId]);
 
   useEffect(() => {
@@ -729,6 +733,7 @@ export default function KanbanPage() {
             projectId={taskProjectId}
             taskId={selectedTaskId}
             columns={board.columns}
+            features={features}
             onClose={() => setSelectedTaskId(null)}
             onAction={handleDrawerAction}
             onTaskNavigate={(taskId) => setSelectedTaskId(taskId)}
@@ -741,6 +746,7 @@ export default function KanbanPage() {
         <NewTaskModal
           projectId={projectId}
           defaultRole={project?.default_role}
+          features={features}
           onClose={() => setShowNewTask(false)}
           onSuccess={() => {
             setShowNewTask(false);

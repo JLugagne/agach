@@ -39,9 +39,16 @@ func ToDomainTaskIDs(ids []string) []domain.TaskID {
 
 // ToPublicTask converts domain.Task to pkgkanban.TaskResponse
 func ToPublicTask(task domain.Task) pkgkanban.TaskResponse {
+	var featureID *string
+	if task.FeatureID != nil {
+		s := string(*task.FeatureID)
+		featureID = &s
+	}
+
 	return pkgkanban.TaskResponse{
 		ID:                string(task.ID),
 		ColumnID:          string(task.ColumnID),
+		FeatureID:         featureID,
 		Title:             task.Title,
 		Summary:           task.Summary,
 		Description:       task.Description,

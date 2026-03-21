@@ -61,6 +61,12 @@ func (h *TaskCommandsHandler) CreateTask(w http.ResponseWriter, r *http.Request)
 
 	priority := converters.ToDomainPriority(req.Priority)
 
+	var featureID *domain.ProjectID
+	if req.FeatureID != nil && *req.FeatureID != "" {
+		pid := domain.ProjectID(*req.FeatureID)
+		featureID = &pid
+	}
+
 	task, err := h.commands.CreateTask(
 		r.Context(),
 		projectID,
@@ -75,6 +81,7 @@ func (h *TaskCommandsHandler) CreateTask(w http.ResponseWriter, r *http.Request)
 		req.Tags,
 		req.EstimatedEffort,
 		req.StartInBacklog,
+		featureID,
 	)
 	if err != nil {
 		if domain.IsDomainError(err) {
@@ -160,6 +167,17 @@ func (h *TaskCommandsHandler) UpdateTask(w http.ResponseWriter, r *http.Request)
 		tokenUsage = &tu
 	}
 
+	var featureID *domain.ProjectID
+	clearFeature := false
+	if req.FeatureID != nil {
+		if *req.FeatureID == "" {
+			clearFeature = true
+		} else {
+			pid := domain.ProjectID(*req.FeatureID)
+			featureID = &pid
+		}
+	}
+
 	err := h.commands.UpdateTask(
 		r.Context(),
 		projectID,
@@ -174,6 +192,8 @@ func (h *TaskCommandsHandler) UpdateTask(w http.ResponseWriter, r *http.Request)
 		req.Tags,
 		tokenUsage,
 		req.HumanEstimateSeconds,
+		featureID,
+		clearFeature,
 	)
 	if err != nil {
 		if domain.IsDomainError(err) {
@@ -312,7 +332,7 @@ func (h *TaskCommandsHandler) CompleteTask(w http.ResponseWriter, r *http.Reques
 	// If a human estimate was provided, persist it via UpdateTask
 	if req.HumanEstimateSeconds > 0 {
 		humanEst := req.HumanEstimateSeconds
-		_ = h.commands.UpdateTask(r.Context(), projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, nil, &humanEst)
+		_ = h.commands.UpdateTask(r.Context(), projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, nil, &humanEst, nil, false)
 	}
 
 	// Broadcast task_completed event

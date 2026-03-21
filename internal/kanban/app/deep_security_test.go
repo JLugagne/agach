@@ -1051,7 +1051,7 @@ func TestSecurity_RED_TokenCounterOverflow(t *testing.T) {
 		InputTokens: 100,
 	}
 
-	err := a.UpdateTask(ctx, projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, overflow, nil)
+	err := a.UpdateTask(ctx, projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, overflow, nil, nil, false)
 
 	// RED: current code applies the addition unconditionally and returns no error.
 	// After a fix the call should either return an error or clamp to MaxInt.
@@ -1107,7 +1107,7 @@ func TestSecurity_GREEN_TokenCounterNormalAccumulation(t *testing.T) {
 	)
 
 	usage := &domain.TokenUsage{InputTokens: 500}
-	err := a.UpdateTask(ctx, projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, usage, nil)
+	err := a.UpdateTask(ctx, projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, usage, nil, nil, false)
 	require.NoError(t, err)
 	assert.Equal(t, 1500, savedTask.InputTokens)
 }

@@ -672,7 +672,7 @@ func TestSecurity_RED_NegativeTokenValuesCorruptCounter(t *testing.T) {
 		OutputTokens: 0,
 	}
 
-	err := a.UpdateTask(ctx, projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, negativeUsage, nil)
+	err := a.UpdateTask(ctx, projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, negativeUsage, nil, nil, false)
 
 	// After the fix, UpdateTask should return an error for negative token values.
 	// Currently it accepts them and decrements the counter to a negative value.
@@ -714,7 +714,7 @@ func TestSecurity_GREEN_PositiveTokenValuesAccumulate(t *testing.T) {
 	}
 
 	usage := &domain.TokenUsage{InputTokens: 50, OutputTokens: 25}
-	err := a.UpdateTask(ctx, projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, usage, nil)
+	err := a.UpdateTask(ctx, projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, usage, nil, nil, false)
 	require.NoError(t, err)
 	require.NotNil(t, updatedTask)
 	assert.Equal(t, 150, updatedTask.InputTokens, "positive token accumulation must work correctly")
@@ -911,7 +911,7 @@ func TestSecurity_GREEN_CreateTask_EmptyTitleIsRejected(t *testing.T) {
 	}
 
 	_, err := a.CreateTask(ctx, projectID, "", "summary", "desc",
-		domain.PriorityMedium, "", "", "", nil, nil, "", false)
+		domain.PriorityMedium, "", "", "", nil, nil, "", false, nil)
 
 	assert.ErrorIs(t, err, domain.ErrTaskTitleRequired,
 		"empty task title must be rejected with ErrTaskTitleRequired")
@@ -930,7 +930,7 @@ func TestSecurity_GREEN_CreateTask_EmptySummaryIsRejected(t *testing.T) {
 	}
 
 	_, err := a.CreateTask(ctx, projectID, "Valid title", "", "desc",
-		domain.PriorityMedium, "", "", "", nil, nil, "", false)
+		domain.PriorityMedium, "", "", "", nil, nil, "", false, nil)
 
 	assert.ErrorIs(t, err, domain.ErrSummaryRequired,
 		"empty task summary must be rejected with ErrSummaryRequired")

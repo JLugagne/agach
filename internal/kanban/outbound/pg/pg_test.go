@@ -46,6 +46,7 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 type testRepos struct {
 	*pg.Repositories
 	projectID          domain.ProjectID
+	featureProjectID   domain.ProjectID
 	todoColumnID       domain.ColumnID
 	inProgressColumnID domain.ColumnID
 	doneColumnID       domain.ColumnID
@@ -96,9 +97,21 @@ func setupRepos(t *testing.T) *testRepos {
 		}
 	}
 
+	// Create a child project to use as featureProjectID in contract tests
+	featureProjectID := domain.NewProjectID()
+	err = repos.Projects.Create(ctx, domain.Project{
+		ID:        featureProjectID,
+		ParentID:  &projectID,
+		Name:      "Test Feature Project",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	})
+	require.NoError(t, err)
+
 	return &testRepos{
 		Repositories:       repos,
 		projectID:          projectID,
+		featureProjectID:   featureProjectID,
 		todoColumnID:       todoID,
 		inProgressColumnID: inProgressID,
 		doneColumnID:       doneID,
@@ -121,7 +134,7 @@ func TestRoleRepository_Contract(t *testing.T) {
 
 func TestTaskRepository_Contract(t *testing.T) {
 	r := setupRepos(t)
-	taskstest.TasksContractTesting(t, r.Tasks, r.projectID, r.todoColumnID, r.inProgressColumnID, r.doneColumnID)
+	taskstest.TasksContractTesting(t, r.Tasks, r.projectID, r.todoColumnID, r.inProgressColumnID, r.doneColumnID, r.featureProjectID)
 }
 
 func TestColumnRepository_Contract(t *testing.T) {
@@ -142,4 +155,47 @@ func TestDependencyRepository_Contract(t *testing.T) {
 func TestToolUsageRepository_Contract(t *testing.T) {
 	r := setupRepos(t)
 	toolusagetest.ToolUsageContractTesting(t, r.ToolUsage, r.projectID)
+}
+
+func TestProjectFeaturesRepository(t *testing.T) {
+	pool := newTestPool(t)
+	repos, err := pg.NewRepositories(pool)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	parentProject := domain.Project{
+		ID:   domain.NewProjectID(),
+		Name: "Test Parent Project",
+	}
+	require.NoError(t, repos.Projects.Create(ctx, parentProject))
+
+	createTaskInColumn := func(t *testing.T, projectID domain.ProjectID, columnSlug domain.ColumnSlug) {
+		t.Helper()
+		cols, err := repos.Columns.List(ctx, projectID)
+		require.NoError(t, err)
+
+		var col *domain.Column
+		for i := range cols {
+			if cols[i].Slug == columnSlug {
+				col = &cols[i]
+				break
+			}
+		}
+		require.NotNil(t, col, "column %s must exist for project %s", columnSlug, projectID)
+
+		task := domain.Task{
+			ID:            domain.NewTaskID(),
+			ColumnID:      col.ID,
+			Title:         "Test Task",
+			Summary:       "Test task for feature active filter",
+			Priority:      domain.PriorityMedium,
+			PriorityScore: domain.PriorityMedium.Score(),
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+		}
+		require.NoError(t, repos.Tasks.Create(ctx, projectID, task))
+	}
+
+	projectstest.ProjectFeaturesContractTesting(t, repos.Projects, parentProject.ID, createTaskInColumn)
 }

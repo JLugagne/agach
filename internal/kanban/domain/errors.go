@@ -235,6 +235,10 @@ var (
 		Code:    "PROJECTS_NOT_RELATED",
 		Message: "source and target projects must share the same parent (be siblings) or have a direct parent-child relationship",
 	}
+	ErrFeatureNotInProject = &Error{
+		Code:    "FEATURE_NOT_IN_PROJECT",
+		Message: "feature does not belong to this project",
+	}
 
 	// Aliases for backward compatibility
 	ErrDependencyCycle  = ErrCircularDependency

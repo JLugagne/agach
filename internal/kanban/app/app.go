@@ -277,6 +277,10 @@ func (a *App) ListProjectsWithSummary(ctx context.Context) ([]domain.ProjectWith
 	return result, nil
 }
 
+func (a *App) ListFeaturesActiveOnly(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error) {
+	return a.projects.ListFeaturesActiveOnly(ctx, parentID)
+}
+
 func (a *App) ListSubProjectsWithSummary(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error) {
 	logger := a.logger.WithContext(ctx).WithField("parentID", parentID)
 

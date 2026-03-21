@@ -20,6 +20,7 @@ type BulkTaskInput struct {
 	EstimatedEffort string
 	StartInBacklog  bool
 	DependsOn       []domain.TaskID
+	FeatureID       *domain.ProjectID
 }
 
 // Commands defines write operations for the Kanban system
@@ -40,9 +41,9 @@ type Commands interface {
 	DeleteProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error
 
 	// Task commands
-	CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool) (domain.Task, error)
+	CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.ProjectID) (domain.Task, error)
 	BulkCreateTasks(ctx context.Context, projectID domain.ProjectID, inputs []BulkTaskInput) ([]domain.Task, error)
-	UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int) error
+	UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.ProjectID, clearFeature bool) error
 	UpdateTaskFiles(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error
 	DeleteTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
 	MoveTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnSlug domain.ColumnSlug) error

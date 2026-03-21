@@ -11,6 +11,8 @@ import type {
   BulkReassignTasksRequest, BulkReassignTasksResponse, TasksByAgentResponse,
 } from './types';
 
+export const authEvents = new EventTarget();
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const opts: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
   if (body !== undefined) opts.body = JSON.stringify(body);
@@ -32,7 +34,16 @@ export const listProjects = () => request<ProjectWithSummary[]>('GET', '/api/pro
 export const getProject = (id: string) => request<ProjectResponse>('GET', `/api/projects/${id}`);
 export const getProjectInfo = (id: string) => request<ProjectResponse>('GET', `/api/projects/${id}/info`);
 export const getProjectSummary = (id: string) => request<ProjectSummaryResponse>('GET', `/api/projects/${id}/summary`);
+/**
+ * @deprecated Use listFeatures() instead. This calls /children which returns all
+ * children regardless of active status.
+ */
 export const listSubProjects = (id: string) => request<ProjectWithSummary[]>('GET', `/api/projects/${id}/children`);
+export const listFeatures = (projectId: string) => request<ProjectWithSummary[]>('GET', `/api/projects/${projectId}/features`);
+export const listFeaturesActiveOnly = (projectId: string) => request<ProjectWithSummary[]>('GET', `/api/projects/${projectId}/features?active_only=true`);
+export const createFeature = (parentProjectId: string, data: CreateProjectRequest) => request<ProjectResponse>('POST', '/api/projects', { ...data, parent_id: parentProjectId });
+export const deleteFeature = (featureId: string) => request<void>('DELETE', `/api/projects/${featureId}`);
+export const updateFeature = (featureId: string, data: UpdateProjectRequest) => request<ProjectResponse>('PATCH', `/api/projects/${featureId}`, data);
 export const createProject = (data: CreateProjectRequest) => request<ProjectResponse>('POST', '/api/projects', data);
 export const updateProject = (id: string, data: UpdateProjectRequest) => request<ProjectResponse>('PATCH', `/api/projects/${id}`, data);
 export const deleteProject = (id: string) => request<void>('DELETE', `/api/projects/${id}`);

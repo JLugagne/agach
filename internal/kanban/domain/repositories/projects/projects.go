@@ -35,4 +35,9 @@ type ProjectRepository interface {
 
 	// ListByWorkDir retrieves all projects (root and sub-projects) matching the given work_dir
 	ListByWorkDir(ctx context.Context, workDir string) ([]domain.Project, error)
+
+	// ListFeaturesActiveOnly retrieves direct children of parentID that have at least
+	// one task in the todo, in_progress, or blocked column.
+	// Returns ProjectWithSummary so callers can display task counts without extra queries.
+	ListFeaturesActiveOnly(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error)
 }

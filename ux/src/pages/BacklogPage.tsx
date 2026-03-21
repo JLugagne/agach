@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, ArrowRight, ArrowRightToLine, ChevronDown } from 'lucide-react';
-import { listTasks, moveTask, listSubProjects, getProjectSummary, listColumns } from '../lib/api';
+import { listTasks, moveTask, listFeatures, getProjectSummary, listColumns } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type { TaskWithDetailsResponse, ProjectWithSummary, ProjectSummaryResponse, ColumnWithTasksResponse } from '../lib/types';
 import TaskDrawer from '../components/kanban/TaskDrawer';
@@ -10,8 +10,8 @@ export default function BacklogPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [tasks, setTasks] = useState<TaskWithDetailsResponse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [subProjects, setSubProjects] = useState<ProjectWithSummary[]>([]);
-  const [selectedSubProject, setSelectedSubProject] = useState<string>('');
+  const [features, setFeatures] = useState<ProjectWithSummary[]>([]);
+  const [selectedFeature, setSelectedFeature] = useState<string>('');
   const [summary, setSummary] = useState<ProjectSummaryResponse | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [columns, setColumns] = useState<ColumnWithTasksResponse[]>([]);
@@ -32,13 +32,13 @@ export default function BacklogPage() {
     }
   }, [projectId]);
 
-  const fetchSubProjects = useCallback(async () => {
+  const fetchFeatures = useCallback(async () => {
     if (!projectId) return;
     try {
-      const sps = await listSubProjects(projectId);
-      setSubProjects(sps);
+      const feats = await listFeatures(projectId);
+      setFeatures(feats);
     } catch {
-      setSubProjects([]);
+      setFeatures([]);
     }
   }, [projectId]);
 
@@ -64,10 +64,10 @@ export default function BacklogPage() {
 
   useEffect(() => {
     fetchTasks();
-    fetchSubProjects();
+    fetchFeatures();
     fetchSummary();
     fetchColumns();
-  }, [fetchTasks, fetchSubProjects, fetchSummary, fetchColumns]);
+  }, [fetchTasks, fetchFeatures, fetchSummary, fetchColumns]);
 
   useWebSocket(
     useCallback(
@@ -109,11 +109,11 @@ export default function BacklogPage() {
     }
   };
 
-  // Filter by selected sub-project
+  // Filter by selected feature
   const filteredTasks = useMemo(() => {
-    if (!selectedSubProject) return tasks;
-    return tasks.filter((t) => t.project_id === selectedSubProject);
-  }, [tasks, selectedSubProject]);
+    if (!selectedFeature) return tasks;
+    return tasks.filter((t) => t.project_id === selectedFeature);
+  }, [tasks, selectedFeature]);
 
   // Priority color
   const priorityColor = (priority: string) => {
@@ -165,24 +165,24 @@ export default function BacklogPage() {
             </button>
           )}
 
-          {/* Sub-project filter */}
-          {subProjects.length > 0 && (
+          {/* Feature filter */}
+          {features.length > 0 && (
           <div className="relative">
             <select
-              value={selectedSubProject}
-              onChange={(e) => setSelectedSubProject(e.target.value)}
+              value={selectedFeature}
+              onChange={(e) => setSelectedFeature(e.target.value)}
               className="appearance-none bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-1.5 pr-8 text-[13px] text-[var(--text-primary)] cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
               style={{ fontFamily: 'Inter, sans-serif' }}
             >
               <option value="">
-                All projects {summary ? `(${summary.backlog_count})` : ''}
+                All features {summary ? `(${summary.backlog_count})` : ''}
               </option>
-              {subProjects.map((sp) => {
-                const spSummary = sp.task_summary ?? sp.summary;
-                const backlogCount = spSummary?.backlog_count ?? 0;
+              {features.map((feat) => {
+                const featSummary = feat.task_summary ?? feat.summary;
+                const backlogCount = featSummary?.backlog_count ?? 0;
                 return (
-                  <option key={sp.id} value={sp.id}>
-                    {sp.name} ({backlogCount})
+                  <option key={feat.id} value={feat.id}>
+                    {feat.name} ({backlogCount})
                   </option>
                 );
               })}

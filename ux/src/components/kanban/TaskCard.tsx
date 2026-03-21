@@ -175,6 +175,14 @@ export default function TaskCard({ task, columnSlug, isNew, isHighlighted, selec
             </span>
           )}
 
+          {/* Feature dot */}
+          {task.feature_id && (
+            <div
+              className="w-1.5 h-1.5 rounded-full bg-[#00C896]/60 shrink-0"
+              title={`Feature: ${task.feature_id}`}
+            />
+          )}
+
           {/* Unresolved deps indicator */}
           {task.has_unresolved_deps && (
             <GitBranch size={10} className="text-[var(--status-progress)]" />

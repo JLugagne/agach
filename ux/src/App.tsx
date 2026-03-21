@@ -5,7 +5,7 @@ import HomePage from './pages/HomePage';
 import KanbanPage from './pages/KanbanPage';
 import RolesPage from './pages/RolesPage';
 import ProjectSettingsPage from './pages/ProjectSettingsPage';
-import SubProjectsPage from './pages/SubProjectsPage';
+import FeaturesPage from './pages/FeaturesPage';
 import ExportGeminiPage from './pages/ExportGeminiPage';
 import ExportClaudePage from './pages/ExportClaudePage';
 import StatisticsPage from './pages/StatisticsPage';
@@ -22,7 +22,8 @@ function App() {
           <Route path="/projects/:projectId/board" element={<Layout><KanbanPage /></Layout>} />
           <Route path="/projects/:projectId/backlog" element={<Layout><BacklogPage /></Layout>} />
           <Route path="/projects/:projectId/settings" element={<Layout><ProjectSettingsPage /></Layout>} />
-          <Route path="/projects/:projectId/settings/sub-projects" element={<Layout><SubProjectsPage /></Layout>} />
+          <Route path="/projects/:projectId/features" element={<Layout><FeaturesPage /></Layout>} />
+          <Route path="/projects/:projectId/settings/sub-projects" element={<Layout><FeaturesPage /></Layout>} />
           <Route path="/projects/:projectId/export/gemini" element={<Layout><ExportGeminiPage /></Layout>} />
           <Route path="/projects/:projectId/export/claude" element={<Layout><ExportClaudePage /></Layout>} />
           <Route path="/projects/:projectId/statistics" element={<Layout><StatisticsPage /></Layout>} />

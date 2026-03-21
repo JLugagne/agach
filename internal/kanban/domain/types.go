@@ -181,6 +181,10 @@ type Project struct {
 	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
+func (p Project) IsFeature() bool {
+	return p.ParentID != nil
+}
+
 // Role represents an agent role in the system
 type Role struct {
 	ID             RoleID    `json:"id"`
@@ -238,9 +242,10 @@ type TokenUsage struct {
 
 // Task represents a task in the kanban board
 type Task struct {
-	ID                TaskID     `json:"id"`
-	ColumnID          ColumnID   `json:"column_id"`
-	Title             string     `json:"title"`
+	ID        TaskID     `json:"id"`
+	ColumnID  ColumnID   `json:"column_id"`
+	FeatureID *ProjectID `json:"feature_id"`
+	Title     string     `json:"title"`
 	Summary           string     `json:"summary"` // Brief description (required at creation)
 	Description       string     `json:"description"`
 	Priority          Priority   `json:"priority"`
