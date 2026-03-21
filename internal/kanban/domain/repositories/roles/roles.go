@@ -30,7 +30,25 @@ type RoleRepository interface {
 	// IsInUse checks if a role is referenced by any tasks
 	IsInUse(ctx context.Context, slug string) (bool, error)
 
-	// CopyGlobalRolesToProject copies all global roles into the per-project database
+	// Clone creates a new role as a deep copy of an existing role with a new ID and slug.
+	// Returns ErrRoleAlreadyExists if newSlug is already taken.
+	Clone(ctx context.Context, sourceID domain.RoleID, newSlug, newName string) (domain.Role, error)
+
+	// AssignToProject creates a project_agents row linking projectID and roleID.
+	// Returns ErrAgentAlreadyInProject if the pair already exists.
+	AssignToProject(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error
+
+	// RemoveFromProject deletes the project_agents row.
+	// Returns ErrAgentNotInProject if the pair does not exist.
+	RemoveFromProject(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error
+
+	// ListByProject returns all roles assigned to a project, ordered by sort_order then name.
+	ListByProject(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error)
+
+	// IsAssignedToProject checks whether a role is assigned to a given project.
+	IsAssignedToProject(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) (bool, error)
+
+	// Deprecated: use AssignToProject
 	CopyGlobalRolesToProject(ctx context.Context, projectID domain.ProjectID) error
 
 	// CreateInProject creates a role in the per-project database

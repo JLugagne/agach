@@ -66,4 +66,22 @@ type Queries interface {
 	// GetWIPSlots returns the current WIP slot availability for the in_progress column.
 	// FreeSlots is -1 when the column has no limit (wip_limit == 0).
 	GetWIPSlots(ctx context.Context, projectID domain.ProjectID) (*domain.WIPSlotsInfo, error)
+
+	// Skill queries
+
+	// GetSkill retrieves a skill by ID.
+	GetSkill(ctx context.Context, skillID domain.SkillID) (*domain.Skill, error)
+
+	// GetSkillBySlug retrieves a skill by slug.
+	GetSkillBySlug(ctx context.Context, slug string) (*domain.Skill, error)
+
+	// ListSkills returns all global skills ordered by sort_order.
+	ListSkills(ctx context.Context) ([]domain.Skill, error)
+
+	// ListAgentSkills returns all skills assigned to a given agent (by slug).
+	ListAgentSkills(ctx context.Context, agentSlug string) ([]domain.Skill, error)
+
+	// GetProjectTasksByAgent returns all tasks in a project whose assigned_role matches agentSlug.
+	// Used by the remove-agent dialog to show how many tasks are affected.
+	GetProjectTasksByAgent(ctx context.Context, projectID domain.ProjectID, agentSlug string) ([]domain.Task, error)
 }

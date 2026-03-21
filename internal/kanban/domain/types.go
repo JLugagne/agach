@@ -109,6 +109,19 @@ func (id DependencyID) String() string {
 	return string(id)
 }
 
+// SkillID represents a unique skill identifier
+type SkillID string
+
+// NewSkillID generates a new skill ID
+func NewSkillID() SkillID {
+	return SkillID(shortID())
+}
+
+// String returns the string representation of a SkillID
+func (id SkillID) String() string {
+	return string(id)
+}
+
 // Priority represents task priority levels
 type Priority string
 
@@ -179,8 +192,23 @@ type Role struct {
 	TechStack      []string  `json:"tech_stack"`
 	PromptHint     string    `json:"prompt_hint"`
 	PromptTemplate string    `json:"prompt_template"`
+	Content        string    `json:"content"`
 	SortOrder      int       `json:"sort_order"`
 	CreatedAt      time.Time `json:"created_at"`
+}
+
+// Skill represents a reusable capability that can be assigned to an agent
+type Skill struct {
+	ID          SkillID   `json:"id"`
+	Slug        string    `json:"slug"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Content     string    `json:"content"`
+	Icon        string    `json:"icon"`
+	Color       string    `json:"color"`
+	SortOrder   int       `json:"sort_order"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // Column represents a kanban column

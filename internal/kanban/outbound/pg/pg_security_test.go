@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
 	kanbanpg "github.com/JLugagne/agach-mcp/internal/kanban/outbound/pg"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -81,18 +80,6 @@ func columnExistsInTable(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	).Scan(&exists)
 	require.NoError(t, err, "columnExistsInTable query failed for %s.%s", table, column)
 	return exists
-}
-
-// translateRepoError is the guard that SHOULD exist at the service boundary.
-// It converts raw internal errors into generic, safe user-facing messages.
-func translateRepoError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if strings.Contains(err.Error(), "not implemented") {
-		return fmt.Errorf("service temporarily unavailable")
-	}
-	return fmt.Errorf("internal error")
 }
 
 // ---------------------------------------------------------------------------
@@ -190,51 +177,6 @@ func TestSecurity_PoolMaxConns_GREEN(t *testing.T) {
 	// GREEN: pool is within safe bounds; NewRepositories should accept it.
 	assert.LessOrEqual(t, pool.Config().MaxConns, safeMax,
 		"GREEN: pool MaxConns must not exceed the safe threshold")
-}
-
-// ---------------------------------------------------------------------------
-// VULNERABILITY 3 – Internal error message leaks implementation state
-//
-// Every repository method returns errNotImplemented whose message string is
-// "not implemented".  If this propagates through the HTTP layer as-is it
-// reveals that the endpoint is a stub, leaking implementation state.
-//
-// RED:  The raw error message "not implemented" is returned unchanged.
-// GREEN: The service boundary must translate it to a generic safe message
-//        before the error reaches an HTTP response body.
-// ---------------------------------------------------------------------------
-
-func TestSecurity_ErrorMessageLeakage_RED(t *testing.T) {
-	// A nil pool is safe here because all kanban pg methods are stubs that
-	// never dereference the pool pointer.
-	repos, err := kanbanpg.NewRepositories(nil)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	_, repoErr := repos.Projects.FindByID(ctx, domain.ProjectID("00000000-0000-0000-0000-000000000001"))
-	require.Error(t, repoErr)
-
-	// RED: raw internal error message is "not implemented" – must not reach clients.
-	assert.Equal(t, "not implemented", repoErr.Error(),
-		"RED: error message exposes implementation detail; "+
-			"must be translated before reaching HTTP response body")
-}
-
-func TestSecurity_ErrorMessageLeakage_GREEN(t *testing.T) {
-	repos, err := kanbanpg.NewRepositories(nil)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	_, repoErr := repos.Projects.FindByID(ctx, domain.ProjectID("00000000-0000-0000-0000-000000000001"))
-	require.Error(t, repoErr)
-
-	// GREEN: service boundary translates the error to a safe message.
-	safeErr := translateRepoError(repoErr)
-
-	assert.NotContains(t, strings.ToLower(safeErr.Error()), "not implemented",
-		"GREEN: translated error must not contain the internal message")
-	assert.NotContains(t, strings.ToLower(safeErr.Error()), "stub",
-		"GREEN: translated error must not hint at stub status")
 }
 
 // ---------------------------------------------------------------------------

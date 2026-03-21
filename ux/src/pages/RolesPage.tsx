@@ -8,6 +8,7 @@ import {
   Pencil,
   Check,
   Star,
+  Copy,
 } from 'lucide-react';
 import {
   listRoles, createRole, updateRole, deleteRole,
@@ -17,6 +18,8 @@ import {
 import { useWebSocket } from '../hooks/useWebSocket';
 import type { RoleResponse, CreateRoleRequest, UpdateRoleRequest } from '../lib/types';
 import MarkdownContent from '../components/ui/MarkdownContent';
+import CloneAgentDialog from '../components/CloneAgentDialog';
+import AgentSkillsPanel from '../components/AgentSkillsPanel';
 
 const PRESET_COLORS = [
   '#00C896',
@@ -35,6 +38,7 @@ export default function RolesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<RoleResponse | null>(null);
   const [defaultRole, setDefaultRole] = useState<string>('');
+  const [cloningRole, setCloningRole] = useState<RoleResponse | null>(null);
 
   const fetchRoles = useCallback(async () => {
     try {
@@ -79,7 +83,8 @@ export default function RolesPage() {
         if (
           event.type === 'role_created' ||
           event.type === 'role_updated' ||
-          event.type === 'role_deleted'
+          event.type === 'role_deleted' ||
+          event.type === 'agent_cloned'
         ) {
           fetchRoles();
         }
@@ -155,6 +160,7 @@ export default function RolesPage() {
                 isDefault={defaultRole === role.slug}
                 onSetDefault={projectId ? () => handleSetDefault(role.slug) : undefined}
                 onClick={() => openEdit(role)}
+                onClone={() => setCloningRole(role)}
               />
             ))}
           </div>
@@ -171,6 +177,18 @@ export default function RolesPage() {
           onDeleted={handleDeleted}
         />
       )}
+
+      {/* Clone Dialog */}
+      {cloningRole && (
+        <CloneAgentDialog
+          sourceRole={cloningRole}
+          onClose={() => setCloningRole(null)}
+          onSuccess={(cloned) => {
+            setRoles(prev => [...prev, cloned]);
+            setCloningRole(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -180,11 +198,13 @@ function RoleCard({
   isDefault,
   onSetDefault,
   onClick,
+  onClone,
 }: {
   role: RoleResponse;
   isDefault: boolean;
   onSetDefault?: () => void;
   onClick: () => void;
+  onClone: () => void;
 }) {
   return (
     <div
@@ -220,6 +240,13 @@ function RoleCard({
               <Star size={14} fill={isDefault ? 'currentColor' : 'none'} />
             </button>
           )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onClone(); }}
+            title="Clone agent"
+            className="p-1.5 rounded text-muted-foreground hover:text-blue-400 hover:bg-blue-400/10 transition-colors"
+          >
+            <Copy size={14} />
+          </button>
           <div
             className="w-3 h-3 rounded-full"
             style={{ backgroundColor: role.color || '#6B7280' }}
@@ -648,6 +675,14 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
                 className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y font-mono text-xs"
               />
             </div>
+          )}
+
+          {/* Agent Skills */}
+          {isEdit && localRole && (
+            <AgentSkillsPanel
+              agentSlug={localRole.slug}
+              agentName={localRole.name}
+            />
           )}
         </div>
 

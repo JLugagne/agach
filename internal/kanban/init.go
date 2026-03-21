@@ -1,12 +1,10 @@
 package kanban
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/app"
 	"github.com/JLugagne/agach-mcp/internal/kanban/inbound/commands"
-	"github.com/JLugagne/agach-mcp/internal/kanban/inbound/mcp"
 	"github.com/JLugagne/agach-mcp/internal/kanban/inbound/queries"
 	"github.com/JLugagne/agach-mcp/internal/kanban/outbound/pg"
 	"github.com/JLugagne/agach-mcp/pkg/controller"
@@ -22,47 +20,6 @@ import (
 type Config struct {
 	Pool   *pgxpool.Pool
 	Logger *logrus.Logger
-}
-
-// RunMCPStdio initializes the Kanban system and runs the MCP server over stdio.
-// This blocks until the connection is closed or ctx is cancelled.
-func RunMCPStdio(ctx context.Context, cfg Config) error {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = logrus.New()
-		logger.SetLevel(logrus.InfoLevel)
-	}
-
-	// Redirect logrus output to stderr so it doesn't interfere with stdio MCP
-	logger.SetOutput(logrus.StandardLogger().Out)
-
-	logger.Info("Initializing Kanban MCP stdio server")
-
-	repos, err := pg.NewRepositories(cfg.Pool)
-	if err != nil {
-		logger.WithError(err).Error("Failed to initialize repositories")
-		return err
-	}
-
-	appInstance := app.NewApp(app.Config{
-		Projects:     repos.Projects,
-		Roles:        repos.Roles,
-		Tasks:        repos.Tasks,
-		Columns:      repos.Columns,
-		Comments:     repos.Comments,
-		Dependencies: repos.Dependencies,
-		ToolUsage:    repos.ToolUsage,
-		Logger:       logger,
-	})
-
-	mcpServer, err := mcp.NewServer(appInstance, appInstance, nil, logger)
-	if err != nil {
-		logger.WithError(err).Error("Failed to initialize MCP server")
-		return err
-	}
-
-	logger.Info("MCP stdio server starting")
-	return mcpServer.Run(ctx)
 }
 
 // InitKanbanHTTP initializes the Kanban system with HTTP REST API and WebSocket
@@ -119,6 +76,8 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	seenCommands := commands.NewSeenCommandsHandler(appInstance, ctrl, hub)
 	columnCommands := commands.NewColumnCommandsHandler(appInstance, ctrl)
 	projectRoleCommands := commands.NewProjectRoleCommandsHandler(appInstance, appInstance, ctrl)
+	projectAgentCmds := commands.NewProjectAgentCommandsHandler(appInstance, appInstance, ctrl, hub)
+	skillCommands := commands.NewSkillCommandsHandler(appInstance, appInstance, ctrl, hub)
 
 	// Initialize query handlers
 	projectQueries := queries.NewProjectQueriesHandler(appInstance, ctrl)
@@ -131,6 +90,8 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	projectRoleQueries := queries.NewProjectRoleQueriesHandler(appInstance, ctrl)
 	coldStartStatsQueries := queries.NewColdStartStatsQueriesHandler(appInstance, ctrl)
 	sseHandler := queries.NewSSEHandler(sseHub)
+	skillQueries := queries.NewSkillQueriesHandler(appInstance, ctrl)
+	projectAgentQueries := queries.NewProjectAgentQueriesHandler(appInstance, ctrl)
 
 	// Register routes
 	projectCommands.RegisterRoutes(router)
@@ -151,6 +112,10 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	projectRoleQueries.RegisterRoutes(router)
 	coldStartStatsQueries.RegisterRoutes(router)
 	sseHandler.RegisterRoutes(router)
+	projectAgentCmds.RegisterRoutes(router)
+	skillCommands.RegisterRoutes(router)
+	skillQueries.RegisterRoutes(router)
+	projectAgentQueries.RegisterRoutes(router)
 
 	// WebSocket endpoint
 	upgrader := gorillaws.Upgrader{
@@ -175,42 +140,3 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	return hub, nil
 }
 
-// InitKanbanMCP initializes the Kanban MCP system and mounts the SSE handler on the provided router.
-// If hub is provided, the MCP server will broadcast events to it; otherwise a new hub is created.
-func InitKanbanMCP(cfg Config, router *mux.Router, hub *websocket.Hub) error {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = logrus.New()
-		logger.SetLevel(logrus.InfoLevel)
-	}
-
-	logger.Info("Initializing Kanban MCP SSE system")
-
-	repos, err := pg.NewRepositories(cfg.Pool)
-	if err != nil {
-		logger.WithError(err).Error("Failed to initialize repositories")
-		return err
-	}
-
-	appInstance := app.NewApp(app.Config{
-		Projects:     repos.Projects,
-		Roles:        repos.Roles,
-		Tasks:        repos.Tasks,
-		Columns:      repos.Columns,
-		Comments:     repos.Comments,
-		Dependencies: repos.Dependencies,
-		ToolUsage:    repos.ToolUsage,
-		Logger:       logger,
-	})
-
-	mcpServer, err := mcp.NewServer(appInstance, appInstance, hub, logger)
-	if err != nil {
-		logger.WithError(err).Error("Failed to initialize MCP server")
-		return err
-	}
-
-	router.PathPrefix("/mcp").Handler(mcpServer.HTTPHandler())
-
-	logger.Info("MCP server mounted at /mcp (streamable HTTP)")
-	return nil
-}

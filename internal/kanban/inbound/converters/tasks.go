@@ -82,6 +82,15 @@ func ToPublicTask(task domain.Task) pkgkanban.TaskResponse {
 	}
 }
 
+// ToPublicTasks converts []domain.Task to []pkgkanban.TaskResponse
+func ToPublicTasks(ts []domain.Task) []pkgkanban.TaskResponse {
+	result := make([]pkgkanban.TaskResponse, len(ts))
+	for i, t := range ts {
+		result[i] = ToPublicTask(t)
+	}
+	return result
+}
+
 // ToPublicTaskWithDetails converts domain.TaskWithDetails to pkgkanban.TaskWithDetailsResponse
 func ToPublicTaskWithDetails(task domain.TaskWithDetails) pkgkanban.TaskWithDetailsResponse {
 	return pkgkanban.TaskWithDetailsResponse{

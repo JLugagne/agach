@@ -32,6 +32,11 @@ type MockRoleRepository struct {
 	UpdateFunc                   func(ctx context.Context, role domain.Role) error
 	DeleteFunc                   func(ctx context.Context, id domain.RoleID) error
 	IsInUseFunc                  func(ctx context.Context, slug string) (bool, error)
+	CloneFunc                    func(ctx context.Context, sourceID domain.RoleID, newSlug, newName string) (domain.Role, error)
+	AssignToProjectFunc          func(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error
+	RemoveFromProjectFunc        func(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error
+	ListByProjectFunc            func(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error)
+	IsAssignedToProjectFunc      func(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) (bool, error)
 	CopyGlobalRolesToProjectFunc func(ctx context.Context, projectID domain.ProjectID) error
 	CreateInProjectFunc          func(ctx context.Context, projectID domain.ProjectID, role domain.Role) error
 	FindBySlugInProjectFunc      func(ctx context.Context, projectID domain.ProjectID, slug string) (*domain.Role, error)
@@ -88,6 +93,41 @@ func (m *MockRoleRepository) IsInUse(ctx context.Context, slug string) (bool, er
 		panic("called not defined IsInUseFunc")
 	}
 	return m.IsInUseFunc(ctx, slug)
+}
+
+func (m *MockRoleRepository) Clone(ctx context.Context, sourceID domain.RoleID, newSlug, newName string) (domain.Role, error) {
+	if m.CloneFunc == nil {
+		panic("called not defined CloneFunc")
+	}
+	return m.CloneFunc(ctx, sourceID, newSlug, newName)
+}
+
+func (m *MockRoleRepository) AssignToProject(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error {
+	if m.AssignToProjectFunc == nil {
+		panic("called not defined AssignToProjectFunc")
+	}
+	return m.AssignToProjectFunc(ctx, projectID, roleID)
+}
+
+func (m *MockRoleRepository) RemoveFromProject(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error {
+	if m.RemoveFromProjectFunc == nil {
+		panic("called not defined RemoveFromProjectFunc")
+	}
+	return m.RemoveFromProjectFunc(ctx, projectID, roleID)
+}
+
+func (m *MockRoleRepository) ListByProject(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error) {
+	if m.ListByProjectFunc == nil {
+		panic("called not defined ListByProjectFunc")
+	}
+	return m.ListByProjectFunc(ctx, projectID)
+}
+
+func (m *MockRoleRepository) IsAssignedToProject(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) (bool, error) {
+	if m.IsAssignedToProjectFunc == nil {
+		panic("called not defined IsAssignedToProjectFunc")
+	}
+	return m.IsAssignedToProjectFunc(ctx, projectID, roleID)
 }
 
 func (m *MockRoleRepository) CopyGlobalRolesToProject(ctx context.Context, projectID domain.ProjectID) error {
@@ -389,5 +429,159 @@ func RolesContractTesting(t *testing.T, repo roles.RoleRepository) {
 		inUse, err := repo.IsInUse(ctx, role.Slug)
 		require.NoError(t, err, "IsInUse should succeed")
 		assert.False(t, inUse, "Unused role should return false")
+	})
+}
+
+// MockRoleExtended exposes the new method signatures added in the agent-management feature.
+// It is a standalone struct and does NOT implement the full RoleRepository interface.
+type MockRoleExtended struct {
+	CloneFunc               func(ctx context.Context, sourceID domain.RoleID, newSlug, newName string) (domain.Role, error)
+	AssignToProjectFunc     func(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error
+	RemoveFromProjectFunc   func(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error
+	ListByProjectFunc       func(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error)
+	IsAssignedToProjectFunc func(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) (bool, error)
+}
+
+func (m *MockRoleExtended) Clone(ctx context.Context, sourceID domain.RoleID, newSlug, newName string) (domain.Role, error) {
+	if m.CloneFunc == nil {
+		panic("called not defined CloneFunc")
+	}
+	return m.CloneFunc(ctx, sourceID, newSlug, newName)
+}
+
+func (m *MockRoleExtended) AssignToProject(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error {
+	if m.AssignToProjectFunc == nil {
+		panic("called not defined AssignToProjectFunc")
+	}
+	return m.AssignToProjectFunc(ctx, projectID, roleID)
+}
+
+func (m *MockRoleExtended) RemoveFromProject(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error {
+	if m.RemoveFromProjectFunc == nil {
+		panic("called not defined RemoveFromProjectFunc")
+	}
+	return m.RemoveFromProjectFunc(ctx, projectID, roleID)
+}
+
+func (m *MockRoleExtended) ListByProject(ctx context.Context, projectID domain.ProjectID) ([]domain.Role, error) {
+	if m.ListByProjectFunc == nil {
+		panic("called not defined ListByProjectFunc")
+	}
+	return m.ListByProjectFunc(ctx, projectID)
+}
+
+func (m *MockRoleExtended) IsAssignedToProject(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) (bool, error) {
+	if m.IsAssignedToProjectFunc == nil {
+		panic("called not defined IsAssignedToProjectFunc")
+	}
+	return m.IsAssignedToProjectFunc(ctx, projectID, roleID)
+}
+
+// RoleExtendedContractTesting runs contract tests for the new Clone/AssignToProject/
+// RemoveFromProject/ListByProject/IsAssignedToProject methods of RoleRepository.
+func RoleExtendedContractTesting(t *testing.T, repo roles.RoleRepository) {
+	ctx := context.Background()
+
+	seedRole := func(t *testing.T, slug, name string) domain.Role {
+		t.Helper()
+		role := domain.Role{
+			ID:          domain.NewRoleID(),
+			Slug:        slug,
+			Name:        name,
+			Description: "Contract test role",
+			TechStack:   []string{"Go"},
+			PromptHint:  "Be helpful",
+			SortOrder:   0,
+			CreatedAt:   time.Now(),
+		}
+		require.NoError(t, repo.Create(ctx, role))
+		return role
+	}
+
+	t.Run("Contract: Clone creates copy with new slug", func(t *testing.T) {
+		original := seedRole(t, "original-"+domain.NewRoleID().String(), "Original")
+
+		cloned, err := repo.Clone(ctx, original.ID, "clone-1-"+domain.NewRoleID().String(), "Clone 1")
+		require.NoError(t, err)
+		assert.NotEqual(t, original.ID, cloned.ID)
+		assert.Equal(t, "Clone 1", cloned.Name)
+		assert.Equal(t, original.Description, cloned.Description)
+		assert.Equal(t, original.TechStack, cloned.TechStack)
+
+		retrieved, err := repo.FindByID(ctx, original.ID)
+		require.NoError(t, err)
+		assert.Equal(t, original.ID, retrieved.ID, "original must still exist")
+	})
+
+	t.Run("Contract: Clone returns ErrRoleAlreadyExists for duplicate slug", func(t *testing.T) {
+		original := seedRole(t, "orig-dup-"+domain.NewRoleID().String(), "Original Dup")
+
+		_, err := repo.Clone(ctx, original.ID, original.Slug, "")
+		require.Error(t, err)
+		assert.ErrorIs(t, err, domain.ErrRoleAlreadyExists)
+	})
+
+	t.Run("Contract: AssignToProject and ListByProject", func(t *testing.T) {
+		role := seedRole(t, "assign-role-"+domain.NewRoleID().String(), "Assign Role")
+		projectID := domain.NewProjectID()
+
+		err := repo.AssignToProject(ctx, projectID, role.ID)
+		require.NoError(t, err)
+
+		list, err := repo.ListByProject(ctx, projectID)
+		require.NoError(t, err)
+		found := false
+		for _, r := range list {
+			if r.ID == role.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "assigned role must appear in ListByProject")
+
+		assigned, err := repo.IsAssignedToProject(ctx, projectID, role.ID)
+		require.NoError(t, err)
+		assert.True(t, assigned)
+	})
+
+	t.Run("Contract: AssignToProject idempotency", func(t *testing.T) {
+		role := seedRole(t, "idempotent-role-"+domain.NewRoleID().String(), "Idempotent Role")
+		projectID := domain.NewProjectID()
+
+		err := repo.AssignToProject(ctx, projectID, role.ID)
+		require.NoError(t, err)
+
+		err = repo.AssignToProject(ctx, projectID, role.ID)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, domain.ErrAgentAlreadyInProject)
+	})
+
+	t.Run("Contract: RemoveFromProject", func(t *testing.T) {
+		role := seedRole(t, "remove-role-"+domain.NewRoleID().String(), "Remove Role")
+		projectID := domain.NewProjectID()
+
+		require.NoError(t, repo.AssignToProject(ctx, projectID, role.ID))
+
+		err := repo.RemoveFromProject(ctx, projectID, role.ID)
+		require.NoError(t, err)
+
+		list, err := repo.ListByProject(ctx, projectID)
+		require.NoError(t, err)
+		for _, r := range list {
+			assert.NotEqual(t, role.ID, r.ID, "removed role must not appear in ListByProject")
+		}
+
+		assigned, err := repo.IsAssignedToProject(ctx, projectID, role.ID)
+		require.NoError(t, err)
+		assert.False(t, assigned)
+	})
+
+	t.Run("Contract: RemoveFromProject not-assigned", func(t *testing.T) {
+		role := seedRole(t, "never-assigned-"+domain.NewRoleID().String(), "Never Assigned")
+		projectID := domain.NewProjectID()
+
+		err := repo.RemoveFromProject(ctx, projectID, role.ID)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, domain.ErrAgentNotInProject)
 	})
 }

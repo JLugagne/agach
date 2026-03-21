@@ -43,6 +43,7 @@ func (h *TaskQueriesHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/projects/{id}/columns", h.ListColumns).Methods("GET")
 	router.HandleFunc("/api/projects/{id}/next-tasks", h.GetNextTasks).Methods("GET")
 	router.HandleFunc("/api/projects/{id}/wip-slots", h.GetWIPSlots).Methods("GET")
+	router.HandleFunc("/api/projects/{projectId}/agents/{slug}/tasks", h.ListTasksByAgent).Methods("GET")
 }
 
 // SearchTasks searches tasks with optional filters and a limit parameter.
@@ -419,4 +420,32 @@ func (h *TaskQueriesHandler) GetWIPSlots(w http.ResponseWriter, r *http.Request)
 	}
 
 	h.controller.SendSuccess(w, r, info)
+}
+
+// ListTasksByAgent returns all tasks assigned to a given agent within a project
+func (h *TaskQueriesHandler) ListTasksByAgent(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	projectID := domain.ProjectID(vars["projectId"])
+	agentSlug := vars["slug"]
+
+	if agentSlug == "" {
+		http.Error(w, `{"status":"fail","data":{"error":"agent slug is required"}}`, http.StatusBadRequest)
+		return
+	}
+
+	taskList, err := h.queries.GetProjectTasksByAgent(r.Context(), projectID, agentSlug)
+	if err != nil {
+		if domain.IsDomainError(err) {
+			h.controller.SendFail(w, r, nil, err)
+		} else {
+			h.controller.SendError(w, r, err)
+		}
+		return
+	}
+
+	h.controller.SendSuccess(w, r, pkgkanban.TasksByAgentResponse{
+		AgentSlug: agentSlug,
+		TaskCount: len(taskList),
+		Tasks:     converters.ToPublicTasks(taskList),
+	})
 }

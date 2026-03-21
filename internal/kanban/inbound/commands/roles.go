@@ -34,6 +34,7 @@ func (h *RoleCommandsHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/roles", h.CreateRole).Methods("POST")
 	router.HandleFunc("/api/roles/{slug}", h.UpdateRole).Methods("PATCH")
 	router.HandleFunc("/api/roles/{slug}", h.DeleteRole).Methods("DELETE")
+	router.HandleFunc("/api/roles/{slug}/clone", h.CloneRole).Methods("POST")
 }
 
 // CreateRole creates a new role
@@ -189,4 +190,39 @@ func (h *RoleCommandsHandler) DeleteRole(w http.ResponseWriter, r *http.Request)
 	})
 
 	h.controller.SendSuccess(w, r, map[string]string{"message": "role deleted"})
+}
+
+// CloneRole clones an existing role into a new role with a different slug
+func (h *RoleCommandsHandler) CloneRole(w http.ResponseWriter, r *http.Request) {
+	sourceSlug := mux.Vars(r)["slug"]
+	if sourceSlug == "" {
+		h.controller.SendFail(w, r, nil, domain.ErrRoleSlugRequired)
+		return
+	}
+
+	var req pkgkanban.CloneRoleRequest
+	if err := h.controller.DecodeAndValidate(r, &req, pkgkanban.ErrInvalidRoleRequest); err != nil {
+		h.controller.SendFail(w, r, nil, errors.Join(pkgkanban.ErrInvalidRoleRequest, err))
+		return
+	}
+
+	cloned, err := h.commands.CloneRole(r.Context(), sourceSlug, req.NewSlug, req.NewName)
+	if err != nil {
+		if domain.IsDomainError(err) {
+			h.controller.SendFail(w, r, nil, err)
+		} else {
+			h.controller.SendError(w, r, err)
+		}
+		return
+	}
+
+	h.hub.Broadcast(websocket.Event{
+		Type: "agent_cloned",
+		Data: map[string]string{
+			"source_slug": sourceSlug,
+			"new_slug":    req.NewSlug,
+		},
+	})
+
+	h.controller.SendSuccess(w, r, converters.ToPublicRole(cloned))
 }
