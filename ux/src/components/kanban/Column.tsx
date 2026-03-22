@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import type { ColumnWithTasksResponse, TaskWithDetailsResponse } from '../../lib/types';
+import type { ColumnWithTasksResponse, ProjectWithSummary, TaskWithDetailsResponse } from '../../lib/types';
 import TaskCard from './TaskCard';
+import FeatureCard from './FeatureCard';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
@@ -18,6 +19,8 @@ interface ColumnProps {
   isTaskSelected?: (taskId: string) => boolean;
   onTaskSelect?: (taskId: string, ctrlKey: boolean) => void;
   onRefresh?: () => void;
+  features?: ProjectWithSummary[];
+  onFeatureClick?: (feature: ProjectWithSummary) => void;
 }
 
 const statusColorVars: Record<string, { dot: string; label: string; countBg: string; countText: string }> = {
@@ -38,6 +41,8 @@ export default function Column({
   isTaskSelected,
   onTaskSelect,
   onRefresh,
+  features,
+  onFeatureClick,
 }: ColumnProps) {
   const colors = statusColorVars[column.slug] || statusColorVars.todo;
   const [localTasks, setLocalTasks] = useState<TaskWithDetailsResponse[] | null>(null);
@@ -90,6 +95,7 @@ export default function Column({
 
   return (
     <div
+      data-qa="column"
       className="flex flex-col rounded-lg bg-[var(--bg-tertiary)] min-w-0 flex-1 h-full transition-all duration-200"
       style={{
         border: isOverWip
@@ -115,6 +121,7 @@ export default function Column({
             style={{ backgroundColor: colors.dot }}
           />
           <span
+            data-qa="column-title"
             className="text-xs font-['JetBrains_Mono'] font-bold uppercase tracking-wider"
             style={{ color: colors.label }}
           >
@@ -152,25 +159,30 @@ export default function Column({
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           <div className="flex flex-col gap-2 p-3 overflow-y-auto flex-1">
-            {tasks.length === 0 ? (
+            {tasks.length === 0 && (features ?? []).length === 0 ? (
               <p className="text-[var(--text-muted)] text-xs font-['Inter'] text-center py-6">
                 No tasks
               </p>
             ) : (
-              tasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  columnSlug={column.slug}
-                  isNew={isTaskNew ? isTaskNew(task.id) : false}
-                  isHighlighted={isTaskHighlighted ? isTaskHighlighted(task.id) : false}
-                  selected={isTaskSelected ? isTaskSelected(task.id) : false}
-                  roleColor={task.assigned_role ? roleColorMap?.[task.assigned_role] : undefined}
-                  onClick={() => onTaskClick(task)}
-                  onContextMenu={(e) => onTaskContextMenu(task, e)}
-                  onSelect={onTaskSelect}
-                />
-              ))
+              <>
+                {(features ?? []).map((f) => (
+                  <FeatureCard key={f.id} feature={f} onClick={() => onFeatureClick?.(f)} />
+                ))}
+                {tasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    columnSlug={column.slug}
+                    isNew={isTaskNew ? isTaskNew(task.id) : false}
+                    isHighlighted={isTaskHighlighted ? isTaskHighlighted(task.id) : false}
+                    selected={isTaskSelected ? isTaskSelected(task.id) : false}
+                    roleColor={task.assigned_role ? roleColorMap?.[task.assigned_role] : undefined}
+                    onClick={() => onTaskClick(task)}
+                    onContextMenu={(e) => onTaskContextMenu(task, e)}
+                    onSelect={onTaskSelect}
+                  />
+                ))}
+              </>
             )}
           </div>
         </SortableContext>

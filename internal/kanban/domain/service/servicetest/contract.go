@@ -19,7 +19,7 @@ import (
 //		},
 //	}
 type MockCommands struct {
-	CreateProjectFunc        func(ctx context.Context, name, description, workDir, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
+	CreateProjectFunc        func(ctx context.Context, name, description, workDir, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
 	UpdateProjectFunc        func(ctx context.Context, projectID domain.ProjectID, name, description string, defaultRole *string) error
 	DeleteProjectFunc        func(ctx context.Context, projectID domain.ProjectID) error
 	CreateRoleFunc           func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error)
@@ -61,13 +61,18 @@ type MockCommands struct {
 	DeleteSkillFunc                 func(ctx context.Context, skillID domain.SkillID) error
 	AddSkillToAgentFunc             func(ctx context.Context, agentSlug, skillSlug string) error
 	RemoveSkillFromAgentFunc        func(ctx context.Context, agentSlug, skillSlug string) error
+	CreateDockerfileFunc            func(ctx context.Context, slug, name, description, version, content string, isLatest bool, sortOrder int) (domain.Dockerfile, error)
+	UpdateDockerfileFunc            func(ctx context.Context, dockerfileID domain.DockerfileID, name, description, content *string, isLatest *bool, sortOrder *int) error
+	DeleteDockerfileFunc            func(ctx context.Context, dockerfileID domain.DockerfileID) error
+	SetProjectDockerfileFunc        func(ctx context.Context, projectID domain.ProjectID, dockerfileID domain.DockerfileID) error
+	ClearProjectDockerfileFunc      func(ctx context.Context, projectID domain.ProjectID) error
 }
 
-func (m *MockCommands) CreateProject(ctx context.Context, name, description, workDir, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
+func (m *MockCommands) CreateProject(ctx context.Context, name, description, workDir, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
 	if m.CreateProjectFunc == nil {
 		panic("called not defined CreateProjectFunc")
 	}
-	return m.CreateProjectFunc(ctx, name, description, workDir, createdByRole, createdByAgent, parentID)
+	return m.CreateProjectFunc(ctx, name, description, workDir, gitURL, createdByRole, createdByAgent, parentID)
 }
 
 func (m *MockCommands) UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string, defaultRole *string) error {
@@ -357,6 +362,41 @@ func (m *MockCommands) RemoveSkillFromAgent(ctx context.Context, agentSlug, skil
 	return m.RemoveSkillFromAgentFunc(ctx, agentSlug, skillSlug)
 }
 
+func (m *MockCommands) CreateDockerfile(ctx context.Context, slug, name, description, version, content string, isLatest bool, sortOrder int) (domain.Dockerfile, error) {
+	if m.CreateDockerfileFunc == nil {
+		panic("called not defined CreateDockerfileFunc")
+	}
+	return m.CreateDockerfileFunc(ctx, slug, name, description, version, content, isLatest, sortOrder)
+}
+
+func (m *MockCommands) UpdateDockerfile(ctx context.Context, dockerfileID domain.DockerfileID, name, description, content *string, isLatest *bool, sortOrder *int) error {
+	if m.UpdateDockerfileFunc == nil {
+		panic("called not defined UpdateDockerfileFunc")
+	}
+	return m.UpdateDockerfileFunc(ctx, dockerfileID, name, description, content, isLatest, sortOrder)
+}
+
+func (m *MockCommands) DeleteDockerfile(ctx context.Context, dockerfileID domain.DockerfileID) error {
+	if m.DeleteDockerfileFunc == nil {
+		panic("called not defined DeleteDockerfileFunc")
+	}
+	return m.DeleteDockerfileFunc(ctx, dockerfileID)
+}
+
+func (m *MockCommands) SetProjectDockerfile(ctx context.Context, projectID domain.ProjectID, dockerfileID domain.DockerfileID) error {
+	if m.SetProjectDockerfileFunc == nil {
+		panic("called not defined SetProjectDockerfileFunc")
+	}
+	return m.SetProjectDockerfileFunc(ctx, projectID, dockerfileID)
+}
+
+func (m *MockCommands) ClearProjectDockerfile(ctx context.Context, projectID domain.ProjectID) error {
+	if m.ClearProjectDockerfileFunc == nil {
+		panic("called not defined ClearProjectDockerfileFunc")
+	}
+	return m.ClearProjectDockerfileFunc(ctx, projectID)
+}
+
 // MockQueries is a function-based mock implementation of the service.Queries interface.
 type MockQueries struct {
 	GetProjectFunc                  func(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error)
@@ -396,6 +436,10 @@ type MockQueries struct {
 	ListSkillsFunc                  func(ctx context.Context) ([]domain.Skill, error)
 	ListAgentSkillsFunc             func(ctx context.Context, agentSlug string) ([]domain.Skill, error)
 	GetProjectTasksByAgentFunc      func(ctx context.Context, projectID domain.ProjectID, agentSlug string) ([]domain.Task, error)
+	GetDockerfileFunc               func(ctx context.Context, dockerfileID domain.DockerfileID) (*domain.Dockerfile, error)
+	GetDockerfileBySlugAndVersionFunc func(ctx context.Context, slug, version string) (*domain.Dockerfile, error)
+	ListDockerfilesFunc             func(ctx context.Context) ([]domain.Dockerfile, error)
+	GetProjectDockerfileFunc        func(ctx context.Context, projectID domain.ProjectID) (*domain.Dockerfile, error)
 }
 
 func (m *MockQueries) GetProject(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error) {
@@ -655,4 +699,32 @@ func (m *MockQueries) GetProjectTasksByAgent(ctx context.Context, projectID doma
 		panic("called not defined GetProjectTasksByAgentFunc")
 	}
 	return m.GetProjectTasksByAgentFunc(ctx, projectID, agentSlug)
+}
+
+func (m *MockQueries) GetDockerfile(ctx context.Context, dockerfileID domain.DockerfileID) (*domain.Dockerfile, error) {
+	if m.GetDockerfileFunc == nil {
+		panic("called not defined GetDockerfileFunc")
+	}
+	return m.GetDockerfileFunc(ctx, dockerfileID)
+}
+
+func (m *MockQueries) GetDockerfileBySlugAndVersion(ctx context.Context, slug, version string) (*domain.Dockerfile, error) {
+	if m.GetDockerfileBySlugAndVersionFunc == nil {
+		panic("called not defined GetDockerfileBySlugAndVersionFunc")
+	}
+	return m.GetDockerfileBySlugAndVersionFunc(ctx, slug, version)
+}
+
+func (m *MockQueries) ListDockerfiles(ctx context.Context) ([]domain.Dockerfile, error) {
+	if m.ListDockerfilesFunc == nil {
+		panic("called not defined ListDockerfilesFunc")
+	}
+	return m.ListDockerfilesFunc(ctx)
+}
+
+func (m *MockQueries) GetProjectDockerfile(ctx context.Context, projectID domain.ProjectID) (*domain.Dockerfile, error) {
+	if m.GetProjectDockerfileFunc == nil {
+		panic("called not defined GetProjectDockerfileFunc")
+	}
+	return m.GetProjectDockerfileFunc(ctx, projectID)
 }

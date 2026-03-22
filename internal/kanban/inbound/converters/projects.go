@@ -22,15 +22,23 @@ func ToPublicProject(project domain.Project) pkgkanban.ProjectResponse {
 		parentID = &pid
 	}
 
+	var dockerfileID *string
+	if project.DockerfileID != nil {
+		did := string(*project.DockerfileID)
+		dockerfileID = &did
+	}
+
 	return pkgkanban.ProjectResponse{
 		ID:             string(project.ID),
 		ParentID:       parentID,
 		Name:           project.Name,
 		Description:    project.Description,
 		WorkDir:        project.WorkDir,
+		GitURL:         project.GitURL,
 		CreatedByRole:  project.CreatedByRole,
 		CreatedByAgent: project.CreatedByAgent,
 		DefaultRole:    project.DefaultRole,
+		DockerfileID:   dockerfileID,
 		CreatedAt:      project.CreatedAt,
 		UpdatedAt:      project.UpdatedAt,
 	}

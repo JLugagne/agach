@@ -220,6 +220,7 @@ export default function CommentSection({ projectId, taskId, refreshKey }: Commen
         <div className="flex items-center gap-2 mb-1">
           <label className="text-[var(--text-muted)] text-xs font-['Inter']">Post as:</label>
           <select
+            data-qa="comment-author-select"
             value={authorRole}
             onChange={(e) => setAuthorRole(e.target.value)}
             className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded px-2 py-0.5 text-[var(--text-primary)] text-xs font-['Inter'] focus:outline-none focus:border-[var(--primary)]"
@@ -229,6 +230,7 @@ export default function CommentSection({ projectId, taskId, refreshKey }: Commen
         </div>
         <div className="flex gap-2">
           <textarea
+            data-qa="comment-content-input"
             ref={textareaRef}
             value={content}
             onChange={(e) => setContent(e.target.value)}
@@ -241,6 +243,7 @@ export default function CommentSection({ projectId, taskId, refreshKey }: Commen
             className={`flex-1 bg-[var(--bg-secondary)] border rounded-md px-3 py-2 text-[var(--text-primary)] text-sm font-['Inter'] placeholder-[var(--text-dim)] resize-y focus:outline-none transition-colors ${dragOver ? 'border-[var(--primary)]' : 'border-[var(--border-primary)] focus:border-[var(--primary)]'}`}
           />
           <button
+            data-qa="comment-submit-btn"
             onClick={handleSubmit}
             disabled={submitting || !content.trim()}
             className="self-end px-3 py-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
@@ -252,6 +255,7 @@ export default function CommentSection({ projectId, taskId, refreshKey }: Commen
         {/* Image upload toolbar */}
         <div className="flex items-center gap-2">
           <button
+            data-qa="comment-upload-image-btn"
             type="button"
             onClick={handleImageButtonClick}
             disabled={uploading}

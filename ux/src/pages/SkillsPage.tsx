@@ -111,6 +111,7 @@ export default function SkillsPage() {
           </div>
           <button
             onClick={openCreate}
+            data-qa="new-skill-btn"
             className="flex items-center gap-1.5 px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 transition-colors"
           >
             <Plus size={15} />
@@ -127,6 +128,7 @@ export default function SkillsPage() {
             <p className="text-[var(--text-dim)] text-sm mb-4">No skills yet. Create your first skill to get started.</p>
             <button
               onClick={openCreate}
+              data-qa="create-first-skill-btn"
               className="text-sm text-[#00C896] hover:text-[#00C896]/80 transition-colors"
             >
               Create your first skill
@@ -152,12 +154,14 @@ export default function SkillsPage() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={handleDeleteConfirm}
+                        data-qa="confirm-delete-skill-btn"
                         className="px-3 py-1 bg-[#F06060] text-white text-xs rounded-md hover:bg-[#FF3B30] transition-colors"
                       >
                         Confirm
                       </button>
                       <button
                         onClick={handleDeleteCancel}
+                        data-qa="cancel-delete-skill-btn"
                         className="px-3 py-1 text-xs text-[var(--text-muted)] hover:text-[#E0E0E0] transition-colors"
                       >
                         Cancel
@@ -192,7 +196,7 @@ function SkillCard({
   onDelete: () => void;
 }) {
   return (
-    <div className="rounded-lg bg-[#111111] border border-[#1E1E1E] p-5 text-left transition-colors hover:border-[#252525] w-full">
+    <div data-qa="skill-card" className="rounded-lg bg-[#111111] border border-[#1E1E1E] p-5 text-left transition-colors hover:border-[#252525] w-full">
       <div className="flex items-start gap-3 mb-3">
         <span className="text-xl">{skill.icon || '\u2B22'}</span>
         <div className="flex-1 min-w-0">
@@ -210,6 +214,7 @@ function SkillCard({
           <button
             onClick={onEdit}
             title="Edit skill"
+            data-qa="skill-edit-btn"
             className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
           >
             <Pencil size={13} />
@@ -217,6 +222,7 @@ function SkillCard({
           <button
             onClick={onDelete}
             title="Delete skill"
+            data-qa="skill-delete-btn"
             className="text-[var(--text-dim)] hover:text-[#F06060] transition-colors"
           >
             <Trash2 size={13} />
@@ -315,6 +321,7 @@ function SkillModal({ skill, onClose, onSaved }: SkillModalProps) {
           </h2>
           <button
             onClick={onClose}
+            data-qa="cancel-skill-modal-btn"
             className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
           >
             <X size={18} />
@@ -332,6 +339,7 @@ function SkillModal({ skill, onClose, onSaved }: SkillModalProps) {
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="e.g. Go Testing"
+                data-qa="skill-name-input"
                 className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
                 autoFocus
               />
@@ -344,6 +352,7 @@ function SkillModal({ skill, onClose, onSaved }: SkillModalProps) {
                 onChange={(e) => handleSlugChange(e.target.value)}
                 placeholder="gotesting"
                 disabled={isEdit}
+                data-qa="skill-slug-input"
                 className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 disabled:opacity-50 font-mono"
               />
             </div>
@@ -359,6 +368,7 @@ function SkillModal({ skill, onClose, onSaved }: SkillModalProps) {
                 onChange={(e) => setIcon(e.target.value)}
                 placeholder="e.g. \uD83D\uDCDA"
                 maxLength={10}
+                data-qa="skill-icon-input"
                 className="w-24 bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-center text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
               />
             </div>
@@ -369,6 +379,7 @@ function SkillModal({ skill, onClose, onSaved }: SkillModalProps) {
                   <button
                     key={c}
                     onClick={() => setColor(c)}
+                    data-qa={`skill-color-${c.replace('#', '')}-btn`}
                     className={`w-7 h-7 rounded-full border-2 transition-all ${
                       color === c ? 'border-white scale-110' : 'border-transparent'
                     }`}
@@ -383,6 +394,7 @@ function SkillModal({ skill, onClose, onSaved }: SkillModalProps) {
                 type="number"
                 value={sortOrder}
                 onChange={(e) => setSortOrder(Number(e.target.value))}
+                data-qa="skill-sort-order-input"
                 className="w-20 bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] focus:outline-none focus:border-[#00C896]/50"
               />
             </div>
@@ -396,6 +408,7 @@ function SkillModal({ skill, onClose, onSaved }: SkillModalProps) {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe this skill..."
               rows={3}
+              data-qa="skill-description-textarea"
               className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y"
             />
           </div>
@@ -408,6 +421,7 @@ function SkillModal({ skill, onClose, onSaved }: SkillModalProps) {
               onChange={(e) => setContent(e.target.value)}
               placeholder="Markdown content..."
               rows={10}
+              data-qa="skill-content-textarea"
               className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y font-mono text-xs"
             />
           </div>
@@ -417,6 +431,7 @@ function SkillModal({ skill, onClose, onSaved }: SkillModalProps) {
         <div className="flex items-center justify-end px-6 py-4 border-t border-[#1E1E1E] gap-3">
           <button
             onClick={onClose}
+            data-qa="cancel-skill-modal-btn"
             className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[#E0E0E0] transition-colors"
           >
             Cancel
@@ -424,6 +439,7 @@ function SkillModal({ skill, onClose, onSaved }: SkillModalProps) {
           <button
             onClick={handleSave}
             disabled={!name.trim() || !slug.trim() || saving}
+            data-qa="save-skill-btn"
             className="px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 disabled:opacity-50 transition-colors"
           >
             {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Skill'}

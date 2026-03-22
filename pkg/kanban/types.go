@@ -11,6 +11,7 @@ type CreateProjectRequest struct {
 	Name           string  `json:"name" validate:"required,min=1,max=200"`
 	Description    string  `json:"description" validate:"max=5000"`
 	WorkDir        string  `json:"work_dir" validate:"max=1000"`
+	GitURL         string  `json:"git_url" validate:"omitempty,max=500"`
 	ParentID       *string `json:"parent_id" validate:"omitempty,entity_id"`
 	CreatedByRole  string  `json:"created_by_role" validate:"max=100"`
 	CreatedByAgent string  `json:"created_by_agent" validate:"max=100"`
@@ -30,9 +31,11 @@ type ProjectResponse struct {
 	Name           string    `json:"name"`
 	Description    string    `json:"description"`
 	WorkDir        string    `json:"work_dir"`
+	GitURL         string    `json:"git_url"`
 	CreatedByRole  string    `json:"created_by_role"`
 	CreatedByAgent string    `json:"created_by_agent"`
 	DefaultRole    string    `json:"default_role"`
+	DockerfileID   *string   `json:"dockerfile_id"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
@@ -392,6 +395,45 @@ type BulkReassignTasksResponse struct {
 	UpdatedCount int `json:"updated_count"`
 }
 
+// CreateDockerfileRequest represents a request to create a dockerfile
+type CreateDockerfileRequest struct {
+	Slug        string `json:"slug" validate:"required,min=1,max=50,slug"`
+	Name        string `json:"name" validate:"required,min=1,max=100"`
+	Description string `json:"description" validate:"max=1000"`
+	Version     string `json:"version" validate:"required,min=1,max=50"`
+	Content     string `json:"content" validate:"max=100000"`
+	IsLatest    bool   `json:"is_latest"`
+	SortOrder   int    `json:"sort_order"`
+}
+
+// UpdateDockerfileRequest represents a request to update a dockerfile
+type UpdateDockerfileRequest struct {
+	Name        *string `json:"name" validate:"omitempty,min=1,max=100"`
+	Description *string `json:"description" validate:"omitempty,max=1000"`
+	Content     *string `json:"content" validate:"omitempty,max=100000"`
+	IsLatest    *bool   `json:"is_latest"`
+	SortOrder   *int    `json:"sort_order"`
+}
+
+// DockerfileResponse represents a dockerfile in API responses
+type DockerfileResponse struct {
+	ID          string    `json:"id"`
+	Slug        string    `json:"slug"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Version     string    `json:"version"`
+	Content     string    `json:"content"`
+	IsLatest    bool      `json:"is_latest"`
+	SortOrder   int       `json:"sort_order"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// SetProjectDockerfileRequest represents a request to assign a dockerfile to a project
+type SetProjectDockerfileRequest struct {
+	DockerfileID string `json:"dockerfile_id" validate:"required,min=1,max=50"`
+}
+
 // Validation errors
 var (
 	ErrInvalidProjectRequest = &apierror.Error{
@@ -425,5 +467,9 @@ var (
 	ErrInvalidAgentAssignmentRequest = &apierror.Error{
 		Code:    "INVALID_AGENT_ASSIGNMENT_REQUEST",
 		Message: "invalid agent assignment request",
+	}
+	ErrInvalidDockerfileRequest = &apierror.Error{
+		Code:    "INVALID_DOCKERFILE_REQUEST",
+		Message: "invalid dockerfile request",
 	}
 )

@@ -27,6 +27,7 @@ export default function DeleteConfirmModal({
       <div className="relative bg-[var(--bg-elevated)] border border-[var(--border-primary)] rounded-lg w-full max-w-[400px] p-6 text-center">
         <button
           onClick={onCancel}
+          data-qa="delete-confirm-close-btn"
           className="absolute top-3 right-3 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
         >
           <X size={18} />
@@ -42,6 +43,7 @@ export default function DeleteConfirmModal({
         <div className="flex items-center justify-center gap-4">
           <button
             onClick={onCancel}
+            data-qa="delete-confirm-cancel-btn"
             className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
           >
             Cancel
@@ -49,6 +51,7 @@ export default function DeleteConfirmModal({
           <button
             onClick={onConfirm}
             disabled={loading}
+            data-qa="delete-confirm-submit-btn"
             className="px-4 py-2 bg-[var(--status-blocked)] text-white text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50 transition-colors"
           >
             {loading ? 'Deleting...' : confirmLabel}

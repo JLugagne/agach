@@ -56,6 +56,9 @@ func (h *AuthCommandsHandler) RegisterRoutes(router *mux.Router) {
 	router.Handle("/api/auth/login", bodySizeLimit(h.authLimiter.middleware(http.HandlerFunc(h.Login)))).Methods("POST")
 	router.HandleFunc("/api/auth/refresh", h.Refresh).Methods("POST")
 	router.HandleFunc("/api/auth/logout", h.Logout).Methods("POST")
+	router.HandleFunc("/api/auth/me", h.GetMe).Methods("GET")
+	router.HandleFunc("/api/auth/me", h.UpdateProfile).Methods("PATCH")
+	router.HandleFunc("/api/auth/me/password", h.ChangePassword).Methods("POST")
 	router.HandleFunc("/api/auth/apikeys", h.ListAPIKeys).Methods("GET")
 	router.Handle("/api/auth/apikeys", h.authLimiter.middleware(bodySizeLimit(http.HandlerFunc(h.CreateAPIKey)))).Methods("POST")
 	router.HandleFunc("/api/auth/apikeys/{id}", h.RevokeAPIKey).Methods("DELETE")
@@ -76,6 +79,15 @@ type createAPIKeyRequest struct {
 	Name      string     `json:"name" validate:"required"`
 	Scopes    []string   `json:"scopes"`
 	ExpiresAt *time.Time `json:"expires_at"`
+}
+
+type updateProfileRequest struct {
+	DisplayName string `json:"display_name" validate:"required"`
+}
+
+type changePasswordRequest struct {
+	CurrentPassword string `json:"current_password" validate:"required"`
+	NewPassword     string `json:"new_password" validate:"required,min=8"`
 }
 
 // Register handles POST /api/auth/register.
@@ -248,6 +260,70 @@ func (h *AuthCommandsHandler) RevokeAPIKey(w http.ResponseWriter, r *http.Reques
 		if errors.Is(err, domain.ErrForbidden) {
 			status := http.StatusForbidden
 			h.controller.SendFail(w, r, &status, &apierror.Error{Code: "FORBIDDEN", Message: "access denied"})
+			return
+		}
+		h.controller.SendError(w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetMe handles GET /api/auth/me.
+func (h *AuthCommandsHandler) GetMe(w http.ResponseWriter, r *http.Request) {
+	actor, ok := h.actorFromRequest(w, r)
+	if !ok {
+		return
+	}
+
+	user, err := h.queries.GetCurrentUser(r.Context(), actor)
+	if err != nil {
+		h.controller.SendError(w, r, err)
+		return
+	}
+
+	h.controller.SendSuccess(w, r, toPublicUser(user))
+}
+
+// UpdateProfile handles PATCH /api/auth/me.
+func (h *AuthCommandsHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	actor, ok := h.actorFromRequest(w, r)
+	if !ok {
+		return
+	}
+
+	var req updateProfileRequest
+	if err := h.controller.DecodeAndValidate(r, &req, &apierror.Error{Code: "INVALID_REQUEST", Message: "invalid request body"}); err != nil {
+		h.controller.SendFail(w, r, nil, err)
+		return
+	}
+
+	user, err := h.commands.UpdateProfile(r.Context(), actor, req.DisplayName)
+	if err != nil {
+		h.controller.SendError(w, r, err)
+		return
+	}
+
+	h.controller.SendSuccess(w, r, toPublicUser(user))
+}
+
+// ChangePassword handles POST /api/auth/me/password.
+func (h *AuthCommandsHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	actor, ok := h.actorFromRequest(w, r)
+	if !ok {
+		return
+	}
+
+	var req changePasswordRequest
+	if err := h.controller.DecodeAndValidate(r, &req, &apierror.Error{Code: "INVALID_REQUEST", Message: "invalid request body"}); err != nil {
+		h.controller.SendFail(w, r, nil, err)
+		return
+	}
+
+	if err := h.commands.ChangePassword(r.Context(), actor, req.CurrentPassword, req.NewPassword); err != nil {
+		if errors.Is(err, domain.ErrInvalidCredentials) {
+			status := http.StatusUnauthorized
+			h.controller.SendFail(w, r, &status, &apierror.Error{Code: "INVALID_CREDENTIALS", Message: err.Error()})
 			return
 		}
 		h.controller.SendError(w, r, err)

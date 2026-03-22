@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderOpen, Loader2, ArrowRight, ChevronDown, ChevronRight } from 'lucide-react';
+import { FolderOpen, Loader2, ArrowRight, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { listProjects, listRoles } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type { ProjectWithSummary, RoleResponse, ProjectSummaryResponse } from '../lib/types';
+import CreateProjectDialog from '../components/CreateProjectDialog';
 
 function getSummary(p: ProjectWithSummary): ProjectSummaryResponse {
   return p.task_summary || p.summary || { todo_count: 0, in_progress_count: 0, done_count: 0, blocked_count: 0 };
@@ -54,6 +55,7 @@ export default function HomePage() {
   const [roles, setRoles] = useState<RoleResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -114,10 +116,19 @@ export default function HomePage() {
     <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)]">
       <div className="max-w-5xl mx-auto px-8 py-12">
         {/* Header */}
-        <div className="mb-2">
+        <div className="flex items-center justify-between mb-2">
           <h1 className="text-[28px] font-medium text-[var(--text-primary)]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
             My Projects
           </h1>
+          <button
+            onClick={() => setShowCreateDialog(true)}
+            data-qa="create-project-btn"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors"
+            style={{ fontFamily: 'Inter, sans-serif' }}
+          >
+            <Plus size={14} />
+            New Project
+          </button>
         </div>
         <p className="text-xs text-[var(--text-muted)] mb-10" style={{ fontFamily: 'Inter, sans-serif' }}>
           {totalDirs} folder{totalDirs !== 1 ? 's' : ''}
@@ -131,11 +142,20 @@ export default function HomePage() {
             <Loader2 className="animate-spin text-[var(--text-muted)]" size={24} />
           </div>
         ) : projects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-3">
+          <div className="flex flex-col items-center justify-center py-24 gap-4">
             <FolderOpen size={32} className="text-[var(--text-dim)]" />
             <p className="text-sm text-[var(--text-muted)]" style={{ fontFamily: 'Inter, sans-serif' }}>
-              No projects yet. Create one to get started.
+              No projects yet.
             </p>
+            <button
+              onClick={() => setShowCreateDialog(true)}
+              data-qa="create-project-empty-btn"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors"
+              style={{ fontFamily: 'Inter, sans-serif' }}
+            >
+              <Plus size={14} />
+              Create your first project
+            </button>
           </div>
         ) : (
           <div className="flex flex-col gap-6">
@@ -154,6 +174,12 @@ export default function HomePage() {
         )}
       </div>
 
+      {showCreateDialog && (
+        <CreateProjectDialog
+          onClose={() => setShowCreateDialog(false)}
+          onCreated={fetchData}
+        />
+      )}
     </div>
   );
 }
@@ -180,6 +206,7 @@ function FolderGroup({
       {/* Folder header */}
       <button
         onClick={onToggle}
+        data-qa="folder-group-toggle"
         className="flex items-center gap-3 w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-primary)] hover:border-[var(--border-secondary)] transition-colors cursor-pointer"
       >
         <FolderOpen size={16} className="text-[var(--text-secondary)] flex-shrink-0" />
@@ -240,7 +267,7 @@ function ProjectCard({
     : null;
 
   return (
-    <div className="rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-primary)] p-5 flex flex-col gap-3 hover:border-[var(--border-secondary)] transition-colors group">
+    <div data-qa="project-card" className="rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-primary)] p-5 flex flex-col gap-3 hover:border-[var(--border-secondary)] transition-colors group">
       {/* Top row: role badge + status */}
       <div className="flex items-center justify-between">
         {role ? (
@@ -297,6 +324,7 @@ function ProjectCard({
       {/* Open link */}
       <button
         onClick={onOpen}
+        data-qa="project-open-btn"
         className="flex items-center gap-1 text-xs text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors cursor-pointer self-start mt-auto"
         style={{ fontFamily: 'Inter, sans-serif' }}
       >

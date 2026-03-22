@@ -107,6 +107,11 @@ func (h *TaskQueriesHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 		filters.Search = search
 	}
 
+	if featureID := r.URL.Query().Get("feature_id"); featureID != "" {
+		fid := domain.ProjectID(featureID)
+		filters.FeatureID = &fid
+	}
+
 	// Fetch tasks for the parent project
 	taskList, err := h.queries.ListTasks(r.Context(), projectID, filters)
 	if err != nil {

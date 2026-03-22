@@ -45,7 +45,7 @@ func (h *ProjectCommandsHandler) CreateProject(w http.ResponseWriter, r *http.Re
 
 	parentID := converters.ToDomainProjectID(req.ParentID)
 
-	project, err := h.commands.CreateProject(r.Context(), req.Name, req.Description, req.WorkDir, req.CreatedByRole, req.CreatedByAgent, parentID)
+	project, err := h.commands.CreateProject(r.Context(), req.Name, req.Description, req.WorkDir, req.GitURL, req.CreatedByRole, req.CreatedByAgent, parentID)
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)

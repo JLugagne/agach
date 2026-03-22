@@ -13,6 +13,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/columns"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/comments"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dependencies"
+	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dockerfiles"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/roles"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/skills"
@@ -28,14 +29,15 @@ var migrationsFS embed.FS
 
 // Repositories holds all PostgreSQL repository implementations.
 type Repositories struct {
-	Projects     projects.ProjectRepository
-	Roles        roles.RoleRepository
-	Tasks        tasks.TaskRepository
-	Columns      columns.ColumnRepository
-	Comments     comments.CommentRepository
+	Projects    projects.ProjectRepository
+	Roles       roles.RoleRepository
+	Tasks       tasks.TaskRepository
+	Columns     columns.ColumnRepository
+	Comments    comments.CommentRepository
 	Dependencies dependencies.DependencyRepository
-	ToolUsage    toolusage.ToolUsageRepository
-	Skills       skills.SkillRepository
+	ToolUsage   toolusage.ToolUsageRepository
+	Skills      skills.SkillRepository
+	Dockerfiles dockerfiles.DockerfileRepository
 }
 
 // NewRepositories creates all repository implementations backed by a pgxpool.Pool and runs migrations.
@@ -67,6 +69,7 @@ func NewRepositories(pool *pgxpool.Pool) (*Repositories, error) {
 		Dependencies: &dependencyRepository{base},
 		ToolUsage:    &toolUsageRepository{base},
 		Skills:       &skillRepository{base},
+		Dockerfiles:  &dockerfileRepository{base},
 	}, nil
 }
 
@@ -133,10 +136,10 @@ func (r *projectRepository) Create(ctx context.Context, p domain.Project) error 
 	}
 
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO projects (id, parent_id, name, description, created_by_role, created_by_agent, default_role, work_dir, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		INSERT INTO projects (id, parent_id, name, description, created_by_role, created_by_agent, default_role, work_dir, git_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 		string(p.ID), parentID, p.Name, p.Description,
-		p.CreatedByRole, p.CreatedByAgent, p.DefaultRole, p.WorkDir,
+		p.CreatedByRole, p.CreatedByAgent, p.DefaultRole, p.WorkDir, p.GitURL,
 		p.CreatedAt, p.UpdatedAt,
 	)
 	if err != nil {
@@ -172,7 +175,7 @@ func (r *projectRepository) Create(ctx context.Context, p domain.Project) error 
 
 func (r *projectRepository) FindByID(ctx context.Context, id domain.ProjectID) (*domain.Project, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT id, parent_id, name, description, created_by_role, created_by_agent, default_role, COALESCE(work_dir,''), created_at, updated_at
+		SELECT id, parent_id, name, description, created_by_role, created_by_agent, default_role, COALESCE(work_dir,''), COALESCE(git_url,''), dockerfile_id, created_at, updated_at
 		FROM projects WHERE id = $1`, string(id))
 	return scanProject(row)
 }
@@ -182,11 +185,11 @@ func (r *projectRepository) List(ctx context.Context, parentID *domain.ProjectID
 	var err error
 	if parentID == nil {
 		rows, err = r.pool.Query(ctx, `
-			SELECT id, parent_id, name, description, created_by_role, created_by_agent, default_role, COALESCE(work_dir,''), created_at, updated_at
+			SELECT id, parent_id, name, description, created_by_role, created_by_agent, default_role, COALESCE(work_dir,''), COALESCE(git_url,''), dockerfile_id, created_at, updated_at
 			FROM projects WHERE parent_id IS NULL ORDER BY created_at ASC`)
 	} else {
 		rows, err = r.pool.Query(ctx, `
-			SELECT id, parent_id, name, description, created_by_role, created_by_agent, default_role, COALESCE(work_dir,''), created_at, updated_at
+			SELECT id, parent_id, name, description, created_by_role, created_by_agent, default_role, COALESCE(work_dir,''), COALESCE(git_url,''), dockerfile_id, created_at, updated_at
 			FROM projects WHERE parent_id = $1 ORDER BY created_at ASC`, string(*parentID))
 	}
 	if err != nil {
@@ -199,14 +202,14 @@ func (r *projectRepository) List(ctx context.Context, parentID *domain.ProjectID
 func (r *projectRepository) GetTree(ctx context.Context, id domain.ProjectID) ([]domain.Project, error) {
 	rows, err := r.pool.Query(ctx, `
 		WITH RECURSIVE tree AS (
-			SELECT id, parent_id, name, description, created_by_role, created_by_agent, default_role, COALESCE(work_dir,'') AS work_dir, created_at, updated_at
+			SELECT id, parent_id, name, description, created_by_role, created_by_agent, default_role, COALESCE(work_dir,'') AS work_dir, COALESCE(git_url,'') AS git_url, dockerfile_id, created_at, updated_at
 			FROM projects WHERE id = $1
 			UNION ALL
-			SELECT p.id, p.parent_id, p.name, p.description, p.created_by_role, p.created_by_agent, p.default_role, COALESCE(p.work_dir,''), p.created_at, p.updated_at
+			SELECT p.id, p.parent_id, p.name, p.description, p.created_by_role, p.created_by_agent, p.default_role, COALESCE(p.work_dir,''), COALESCE(p.git_url,''), p.dockerfile_id, p.created_at, p.updated_at
 			FROM projects p
 			INNER JOIN tree t ON p.parent_id = t.id
 		)
-		SELECT id, parent_id, name, description, created_by_role, created_by_agent, default_role, work_dir, created_at, updated_at FROM tree`,
+		SELECT id, parent_id, name, description, created_by_role, created_by_agent, default_role, work_dir, git_url, dockerfile_id, created_at, updated_at FROM tree`,
 		string(id),
 	)
 	if err != nil {
@@ -223,9 +226,9 @@ func (r *projectRepository) Update(ctx context.Context, p domain.Project) error 
 		parentID = &s
 	}
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE projects SET parent_id=$1, name=$2, description=$3, created_by_role=$4, created_by_agent=$5, default_role=$6, work_dir=$7, updated_at=$8
-		WHERE id=$9`,
-		parentID, p.Name, p.Description, p.CreatedByRole, p.CreatedByAgent, p.DefaultRole, p.WorkDir, p.UpdatedAt, string(p.ID),
+		UPDATE projects SET parent_id=$1, name=$2, description=$3, created_by_role=$4, created_by_agent=$5, default_role=$6, work_dir=$7, git_url=$8, updated_at=$9
+		WHERE id=$10`,
+		parentID, p.Name, p.Description, p.CreatedByRole, p.CreatedByAgent, p.DefaultRole, p.WorkDir, p.GitURL, p.UpdatedAt, string(p.ID),
 	)
 	if err != nil {
 		return fmt.Errorf("update project: %w", err)
@@ -318,7 +321,7 @@ func (r *projectRepository) ListFeaturesActiveOnly(ctx context.Context, parentID
 	const query = `
         WITH child_projects AS (
             SELECT id, parent_id, name, description, created_by_role, created_by_agent,
-                   default_role, COALESCE(work_dir,'') AS work_dir, created_at, updated_at
+                   default_role, COALESCE(work_dir,'') AS work_dir, COALESCE(git_url,'') AS git_url, dockerfile_id, created_at, updated_at
             FROM projects
             WHERE parent_id = $1
         ),
@@ -337,8 +340,8 @@ func (r *projectRepository) ListFeaturesActiveOnly(ctx context.Context, parentID
         )
         SELECT
             cp.id, cp.parent_id, cp.name, cp.description,
-            cp.created_by_role, cp.created_by_agent, cp.default_role, cp.work_dir,
-            cp.created_at, cp.updated_at,
+            cp.created_by_role, cp.created_by_agent, cp.default_role, cp.work_dir, cp.git_url,
+            cp.dockerfile_id, cp.created_at, cp.updated_at,
             COALESCE(tc.backlog_count, 0)      AS backlog_count,
             COALESCE(tc.todo_count, 0)         AS todo_count,
             COALESCE(tc.in_progress_count, 0)  AS in_progress_count,
@@ -363,10 +366,11 @@ func (r *projectRepository) ListFeaturesActiveOnly(ctx context.Context, parentID
 	for rows.Next() {
 		var p domain.ProjectWithSummary
 		var parentIDStr *string
+		var dockerfileIDStr *string
 		err := rows.Scan(
 			(*string)(&p.ID), &parentIDStr, &p.Name, &p.Description,
-			&p.CreatedByRole, &p.CreatedByAgent, &p.DefaultRole, &p.WorkDir,
-			&p.CreatedAt, &p.UpdatedAt,
+			&p.CreatedByRole, &p.CreatedByAgent, &p.DefaultRole, &p.WorkDir, &p.GitURL,
+			&dockerfileIDStr, &p.CreatedAt, &p.UpdatedAt,
 			&p.TaskSummary.BacklogCount,
 			&p.TaskSummary.TodoCount,
 			&p.TaskSummary.InProgressCount,
@@ -380,6 +384,10 @@ func (r *projectRepository) ListFeaturesActiveOnly(ctx context.Context, parentID
 			pid := domain.ProjectID(*parentIDStr)
 			p.ParentID = &pid
 		}
+		if dockerfileIDStr != nil {
+			did := domain.DockerfileID(*dockerfileIDStr)
+			p.DockerfileID = &did
+		}
 		p.ChildrenCount = 0
 		results = append(results, p)
 	}
@@ -391,7 +399,7 @@ func (r *projectRepository) ListFeaturesActiveOnly(ctx context.Context, parentID
 
 func (r *projectRepository) ListByWorkDir(ctx context.Context, workDir string) ([]domain.Project, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, parent_id, name, description, created_by_role, created_by_agent, default_role, COALESCE(work_dir,''), created_at, updated_at
+		SELECT id, parent_id, name, description, created_by_role, created_by_agent, default_role, COALESCE(work_dir,''), COALESCE(git_url,''), dockerfile_id, created_at, updated_at
 		FROM projects WHERE work_dir = $1 ORDER BY created_at ASC`, workDir)
 	if err != nil {
 		return nil, fmt.Errorf("list by work dir: %w", err)
@@ -404,10 +412,11 @@ func (r *projectRepository) ListByWorkDir(ctx context.Context, workDir string) (
 func scanProject(row pgx.Row) (*domain.Project, error) {
 	var p domain.Project
 	var parentID *string
+	var dockerfileID *string
 	err := row.Scan(
 		(*string)(&p.ID), &parentID, &p.Name, &p.Description,
-		&p.CreatedByRole, &p.CreatedByAgent, &p.DefaultRole, &p.WorkDir,
-		&p.CreatedAt, &p.UpdatedAt,
+		&p.CreatedByRole, &p.CreatedByAgent, &p.DefaultRole, &p.WorkDir, &p.GitURL,
+		&dockerfileID, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -419,6 +428,10 @@ func scanProject(row pgx.Row) (*domain.Project, error) {
 		pid := domain.ProjectID(*parentID)
 		p.ParentID = &pid
 	}
+	if dockerfileID != nil {
+		did := domain.DockerfileID(*dockerfileID)
+		p.DockerfileID = &did
+	}
 	return &p, nil
 }
 
@@ -428,10 +441,11 @@ func scanProjects(rows pgx.Rows) ([]domain.Project, error) {
 	for rows.Next() {
 		var p domain.Project
 		var parentID *string
+		var dockerfileID *string
 		err := rows.Scan(
 			(*string)(&p.ID), &parentID, &p.Name, &p.Description,
-			&p.CreatedByRole, &p.CreatedByAgent, &p.DefaultRole, &p.WorkDir,
-			&p.CreatedAt, &p.UpdatedAt,
+			&p.CreatedByRole, &p.CreatedByAgent, &p.DefaultRole, &p.WorkDir, &p.GitURL,
+			&dockerfileID, &p.CreatedAt, &p.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -439,6 +453,10 @@ func scanProjects(rows pgx.Rows) ([]domain.Project, error) {
 		if parentID != nil {
 			pid := domain.ProjectID(*parentID)
 			p.ParentID = &pid
+		}
+		if dockerfileID != nil {
+			did := domain.DockerfileID(*dockerfileID)
+			p.DockerfileID = &did
 		}
 		result = append(result, p)
 	}

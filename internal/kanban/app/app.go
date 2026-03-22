@@ -9,6 +9,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/columns"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/comments"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dependencies"
+	dockerfilesrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dockerfiles"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/roles"
 	skillsrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/skills"
@@ -28,6 +29,7 @@ type App struct {
 	dependencies dependencies.DependencyRepository
 	toolUsage    toolusage.ToolUsageRepository
 	skills       skillsrepo.SkillRepository
+	dockerfiles  dockerfilesrepo.DockerfileRepository
 	logger       *logrus.Logger
 }
 
@@ -41,6 +43,7 @@ type Config struct {
 	Dependencies dependencies.DependencyRepository
 	ToolUsage    toolusage.ToolUsageRepository
 	Skills       skillsrepo.SkillRepository
+	Dockerfiles  dockerfilesrepo.DockerfileRepository
 	Logger       *logrus.Logger
 }
 
@@ -59,6 +62,7 @@ func NewApp(cfg Config) *App {
 		dependencies: cfg.Dependencies,
 		toolUsage:    cfg.ToolUsage,
 		skills:       cfg.Skills,
+		dockerfiles:  cfg.Dockerfiles,
 		logger:       cfg.Logger,
 	}
 }
@@ -71,7 +75,7 @@ var (
 
 // Project Commands
 
-func (a *App) CreateProject(ctx context.Context, name, description, workDir, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
+func (a *App) CreateProject(ctx context.Context, name, description, workDir, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
 	logger := a.logger.WithContext(ctx)
 
 	if name == "" {
@@ -96,6 +100,7 @@ func (a *App) CreateProject(ctx context.Context, name, description, workDir, cre
 		Name:           name,
 		Description:    description,
 		WorkDir:        workDir,
+		GitURL:         gitURL,
 		CreatedByRole:  createdByRole,
 		CreatedByAgent: createdByAgent,
 		CreatedAt:      time.Now(),

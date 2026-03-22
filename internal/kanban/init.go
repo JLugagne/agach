@@ -50,6 +50,8 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 		Comments:     repos.Comments,
 		Dependencies: repos.Dependencies,
 		ToolUsage:    repos.ToolUsage,
+		Skills:       repos.Skills,
+		Dockerfiles:  repos.Dockerfiles,
 		Logger:       logger,
 	})
 
@@ -78,6 +80,7 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	projectRoleCommands := commands.NewProjectRoleCommandsHandler(appInstance, appInstance, ctrl)
 	projectAgentCmds := commands.NewProjectAgentCommandsHandler(appInstance, appInstance, ctrl, hub)
 	skillCommands := commands.NewSkillCommandsHandler(appInstance, appInstance, ctrl, hub)
+	dockerfileCommands := commands.NewDockerfileCommandsHandler(appInstance, ctrl)
 
 	// Initialize query handlers
 	projectQueries := queries.NewProjectQueriesHandler(appInstance, ctrl)
@@ -92,6 +95,7 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	sseHandler := queries.NewSSEHandler(sseHub)
 	skillQueries := queries.NewSkillQueriesHandler(appInstance, ctrl)
 	projectAgentQueries := queries.NewProjectAgentQueriesHandler(appInstance, ctrl)
+	dockerfileQueries := queries.NewDockerfileQueriesHandler(appInstance, ctrl)
 
 	// Register routes
 	projectCommands.RegisterRoutes(router)
@@ -116,6 +120,8 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	skillCommands.RegisterRoutes(router)
 	skillQueries.RegisterRoutes(router)
 	projectAgentQueries.RegisterRoutes(router)
+	dockerfileCommands.RegisterRoutes(router)
+	dockerfileQueries.RegisterRoutes(router)
 
 	// WebSocket endpoint
 	upgrader := gorillaws.Upgrader{

@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2, AlertTriangle } from 'lucide-react';
-import { getProject, updateProject, deleteProject, getProjectInfo, listColumns, updateColumnWIPLimit, listProjectRoles, listProjectAgents } from '../lib/api';
+import { getProject, updateProject, deleteProject, getProjectInfo, listColumns, updateColumnWIPLimit, listProjectRoles, listProjectAgents, listDockerfiles, setProjectDockerfile, clearProjectDockerfile } from '../lib/api';
 import SettingsLayout from '../components/settings/SettingsLayout';
 import DeleteConfirmModal from '../components/ui/DeleteConfirmModal';
 import AddAgentToProjectDialog from '../components/AddAgentToProjectDialog';
 import RemoveAgentDialog from '../components/RemoveAgentDialog';
 import { useWebSocket } from '../hooks/useWebSocket';
-import type { ProjectResponse, ColumnResponse, RoleResponse, WSEvent } from '../lib/types';
+import type { ProjectResponse, ColumnResponse, RoleResponse, WSEvent, DockerfileResponse } from '../lib/types';
 
 function ProjectAgentsSection({ projectId }: { projectId: string }) {
   const [agents, setAgents] = useState<RoleResponse[]>([]);
@@ -40,6 +40,7 @@ function ProjectAgentsSection({ projectId }: { projectId: string }) {
         <h2 className="font-heading text-lg text-[#F0F0F0]">Project Agents</h2>
         <button
           onClick={() => setAddDialogOpen(true)}
+          data-qa="add-agent-btn"
           className="px-3 py-1.5 bg-[#1A1A1A] border border-[#252525] text-sm text-[var(--text-muted)] rounded-md hover:text-[#F0F0F0] hover:border-[#333] transition-colors"
         >
           + Add Agent
@@ -67,6 +68,7 @@ function ProjectAgentsSection({ projectId }: { projectId: string }) {
               </div>
               <button
                 onClick={() => setRemoveTarget(agent)}
+                data-qa="remove-agent-btn"
                 className="text-xs text-[var(--text-dim)] hover:text-[#FF3B30] transition-colors px-2 py-0.5 rounded"
               >
                 Remove
@@ -97,6 +99,131 @@ function ProjectAgentsSection({ projectId }: { projectId: string }) {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function ProjectDockerfileSection({
+  projectId,
+  currentDockerfileId,
+}: {
+  projectId: string;
+  currentDockerfileId: string | null;
+}) {
+  const [dockerfiles, setDockerfiles] = useState<DockerfileResponse[]>([]);
+  const [selectedId, setSelectedId] = useState<string>(currentDockerfileId ?? '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    listDockerfiles().then(setDockerfiles).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setSelectedId(currentDockerfileId ?? '');
+  }, [currentDockerfileId]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaved(false);
+    try {
+      if (selectedId) {
+        await setProjectDockerfile(projectId, { dockerfile_id: selectedId });
+      } else {
+        await clearProjectDockerfile(projectId);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selected = dockerfiles.find((d) => d.id === selectedId);
+
+  return (
+    <div className="mb-12">
+      <h2 className="font-heading text-lg text-[#F0F0F0] mb-4">Docker Compose</h2>
+      <p className="text-xs text-[var(--text-muted)] mb-4">
+        Assign a Docker Compose configuration to this project. Only one configuration can be active at a time.
+      </p>
+
+      <div className="space-y-3 mb-4">
+        {/* None option */}
+        <label className="flex items-center gap-3 p-3 rounded-md bg-[#111] border border-[#1E1E1E] cursor-pointer hover:border-[#252525] transition-colors">
+          <input
+            type="radio"
+            name="dockerfile"
+            value=""
+            checked={selectedId === ''}
+            onChange={() => setSelectedId('')}
+            className="accent-[#00C896]"
+          />
+          <span className="text-sm text-[var(--text-muted)] italic">None</span>
+        </label>
+
+        {dockerfiles.map((d) => (
+          <label
+            key={d.id}
+            className={`flex items-center gap-3 p-3 rounded-md bg-[#111] border cursor-pointer transition-colors ${
+              selectedId === d.id ? 'border-[#00C896]/40' : 'border-[#1E1E1E] hover:border-[#252525]'
+            }`}
+          >
+            <input
+              type="radio"
+              name="dockerfile"
+              value={d.id}
+              checked={selectedId === d.id}
+              onChange={() => setSelectedId(d.id)}
+              className="accent-[#00C896]"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-[#F0F0F0]">{d.name}</span>
+                <span className="font-mono text-[10px] text-[var(--text-dim)] bg-[#1A1A1A] border border-[#252525] px-1.5 py-0.5 rounded">
+                  v{d.version}
+                </span>
+                {d.is_latest && (
+                  <span className="text-[10px] font-mono bg-[#00C896]/10 text-[#00C896] border border-[#00C896]/20 px-1.5 py-0.5 rounded">
+                    latest
+                  </span>
+                )}
+              </div>
+              <p className="font-mono text-[10px] text-[var(--text-dim)] mt-0.5">{d.slug}</p>
+              {d.description && (
+                <p className="text-xs text-[var(--text-dim)] mt-0.5 truncate">{d.description}</p>
+              )}
+            </div>
+          </label>
+        ))}
+
+        {dockerfiles.length === 0 && (
+          <p className="text-xs text-[var(--text-dim)] italic py-2">
+            No dockerfiles available. Create one in the{' '}
+            <a href="/dockerfiles" className="text-[#00C896] hover:underline">Dockerfiles</a> section.
+          </p>
+        )}
+      </div>
+
+      {selected && (
+        <div className="mb-4 p-3 bg-[#0D0D0D] rounded-md border border-[#1E1E1E]">
+          <p className="text-[10px] font-mono text-[var(--text-dim)] mb-1">Preview</p>
+          <pre className="text-[10px] font-mono text-[#A0A0A0] whitespace-pre-wrap line-clamp-6 overflow-hidden">
+            {selected.content || '(empty)'}
+          </pre>
+        </div>
+      )}
+
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        data-qa="save-dockerfile-assignment-btn"
+        className="px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 disabled:opacity-50 transition-colors"
+      >
+        {saving ? 'Saving...' : saved ? 'Saved' : 'Save Docker Compose'}
+      </button>
     </div>
   );
 }
@@ -245,6 +372,7 @@ export default function ProjectSettingsPage() {
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          data-qa="project-name-input"
           className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
         />
       </div>
@@ -257,6 +385,7 @@ export default function ProjectSettingsPage() {
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Describe this project..."
           rows={5}
+          data-qa="project-description-textarea"
           className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y"
         />
       </div>
@@ -267,6 +396,7 @@ export default function ProjectSettingsPage() {
         <select
           value={defaultRole}
           onChange={(e) => setDefaultRole(e.target.value)}
+          data-qa="default-role-select"
           className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] focus:outline-none focus:border-[#00C896]/50"
         >
           <option value="">None (Unassigned)</option>
@@ -281,6 +411,7 @@ export default function ProjectSettingsPage() {
         <button
           onClick={handleSave}
           disabled={!name.trim() || saving}
+          data-qa="save-project-settings-btn"
           className="px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 disabled:opacity-50 transition-colors"
         >
           {saving ? 'Saving...' : saved ? 'Saved' : 'Save Changes'}
@@ -310,6 +441,7 @@ export default function ProjectSettingsPage() {
                       [col.slug]: Math.max(0, parseInt(e.target.value) || 0),
                     }))
                   }
+                  data-qa={`wip-limit-${col.slug}-input`}
                   className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] focus:outline-none focus:border-[#00C896]/50"
                 />
               </div>
@@ -318,6 +450,7 @@ export default function ProjectSettingsPage() {
           <button
             onClick={handleSaveWipLimits}
             disabled={wipSaving}
+            data-qa="save-wip-limits-btn"
             className="px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 disabled:opacity-50 transition-colors"
           >
             {wipSaving ? 'Saving...' : wipSaved ? 'Saved' : 'Save WIP Limits'}
@@ -327,6 +460,9 @@ export default function ProjectSettingsPage() {
 
       {/* Project Agents */}
       {projectId && <ProjectAgentsSection projectId={projectId} />}
+
+      {/* Project Dockerfile */}
+      {projectId && <ProjectDockerfileSection projectId={projectId} currentDockerfileId={project.dockerfile_id ?? null} />}
 
       {/* Danger Zone */}
       <div className="border border-[#FF3B30]/30 rounded-lg p-5">
@@ -340,6 +476,7 @@ export default function ProjectSettingsPage() {
             </p>
             <button
               onClick={() => setDeleteOpen(true)}
+              data-qa="delete-project-btn"
               className="px-4 py-2 bg-[#FF3B30] text-white text-sm font-medium rounded-md hover:bg-[#FF3B30]/80 transition-colors"
             >
               Delete Project

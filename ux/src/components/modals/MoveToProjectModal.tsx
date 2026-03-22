@@ -70,6 +70,7 @@ export default function MoveToProjectModal({ task, projectId, onClose, onSuccess
           </h2>
           <button
             onClick={onClose}
+            data-qa="move-to-project-close-btn"
             className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
           >
             <X size={20} />
@@ -117,6 +118,7 @@ export default function MoveToProjectModal({ task, projectId, onClose, onSuccess
               <select
                 value={selectedProjectId}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
+                data-qa="move-to-project-select"
                 className="w-full bg-[var(--bg-secondary)] border border-[var(--border-secondary)] text-[var(--text-primary)] text-sm font-['Inter'] rounded-md px-3 py-2 focus:outline-none focus:border-[var(--primary)] cursor-pointer"
               >
                 {projects.map((p) => (
@@ -137,6 +139,7 @@ export default function MoveToProjectModal({ task, projectId, onClose, onSuccess
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border-primary)]">
           <button
             onClick={onClose}
+            data-qa="move-to-project-cancel-btn"
             className="px-4 py-2 text-sm font-['Inter'] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-md"
           >
             Cancel
@@ -144,6 +147,7 @@ export default function MoveToProjectModal({ task, projectId, onClose, onSuccess
           <button
             onClick={handleSubmit}
             disabled={loading || fetchLoading || !selectedProjectId || projects.length === 0}
+            data-qa="move-to-project-submit-btn"
             className="px-4 py-2 text-sm font-['Inter'] font-medium text-[var(--primary-text)] bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
           >
             {loading ? 'Moving...' : 'Move Task'}

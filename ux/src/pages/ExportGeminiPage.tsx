@@ -17,6 +17,7 @@ export default function ExportGeminiPage() {
         </p>
         <Link
           to={projectId ? `/projects/${projectId}` : '/'}
+          data-qa="back-to-project-link"
           className="inline-flex items-center gap-1.5 text-sm text-[#00C896] hover:text-[#00C896]/80 transition-colors"
         >
           <ChevronLeft size={14} />

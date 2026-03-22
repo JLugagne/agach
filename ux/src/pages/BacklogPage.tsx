@@ -153,6 +153,7 @@ export default function BacklogPage() {
             <button
               onClick={handleMoveAllToTodo}
               disabled={movingAll}
+              data-qa="move-all-to-todo-btn"
               className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-md bg-[var(--primary)] text-white hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
               style={{ fontFamily: 'Inter, sans-serif' }}
             >
@@ -171,6 +172,7 @@ export default function BacklogPage() {
             <select
               value={selectedFeature}
               onChange={(e) => setSelectedFeature(e.target.value)}
+              data-qa="feature-filter-select"
               className="appearance-none bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-1.5 pr-8 text-[13px] text-[var(--text-primary)] cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
               style={{ fontFamily: 'Inter, sans-serif' }}
             >
@@ -217,6 +219,7 @@ export default function BacklogPage() {
                 <button
                   className="flex-1 min-w-0 text-left cursor-pointer"
                   onClick={() => setSelectedTaskId(task.id)}
+                  data-qa="task-open-btn"
                 >
                   <div className="text-[14px] text-[var(--text-primary)] truncate" style={{ fontFamily: 'Inter, sans-serif' }}>
                     {task.title}
@@ -244,6 +247,7 @@ export default function BacklogPage() {
                 <button
                   onClick={() => handleMoveToTodo(task.id)}
                   disabled={movingTaskId === task.id}
+                  data-qa="move-task-to-todo-btn"
                   className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-md bg-[var(--primary)] text-white hover:opacity-90 transition-opacity disabled:opacity-50 opacity-0 group-hover:opacity-100 flex-shrink-0 cursor-pointer"
                   style={{ fontFamily: 'Inter, sans-serif' }}
                   title="Move to Todo"

@@ -1,0 +1,15 @@
+# Build qa-seed binary (no frontend, no CGO needed)
+FROM golang:1.25-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY internal/ internal/
+COPY pkg/ pkg/
+COPY cmd/ cmd/
+# qa-seed does not embed the frontend, so no ux/ copy needed
+RUN go build -o /qa-seed ./cmd/qa-seed
+
+FROM alpine:3.21
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /qa-seed /qa-seed
+ENTRYPOINT ["/qa-seed"]

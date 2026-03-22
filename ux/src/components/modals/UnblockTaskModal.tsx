@@ -51,6 +51,7 @@ export default function UnblockTaskModal({ task, projectId, onClose, onSuccess }
           </h2>
           <button
             onClick={onClose}
+            data-qa="unblock-task-close-btn"
             className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
           >
             <X size={20} />
@@ -93,6 +94,7 @@ export default function UnblockTaskModal({ task, projectId, onClose, onSuccess }
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border-primary)]">
           <button
             onClick={onClose}
+            data-qa="unblock-task-cancel-btn"
             className="px-4 py-2 text-sm font-['Inter'] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-md"
           >
             Cancel
@@ -100,6 +102,7 @@ export default function UnblockTaskModal({ task, projectId, onClose, onSuccess }
           <button
             onClick={handleSubmit}
             disabled={loading}
+            data-qa="unblock-task-submit-btn"
             className="px-4 py-2 text-sm font-['Inter'] font-medium text-[var(--primary-text)] bg-[var(--status-progress)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
           >
             {loading ? 'Unblocking...' : 'Unblock Task'}

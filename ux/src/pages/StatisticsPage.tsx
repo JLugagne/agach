@@ -355,6 +355,7 @@ export default function StatisticsPage() {
               <button
                 key={d}
                 onClick={() => setTimeRange(d)}
+                data-qa={`time-range-${d}d-btn`}
                 className="px-3 py-1 rounded-full text-xs font-mono transition-colors"
                 style={{
                   backgroundColor: timeRange === d ? 'var(--primary)' : 'var(--bg-tertiary)',

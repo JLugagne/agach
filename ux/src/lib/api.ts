@@ -9,15 +9,20 @@ import type {
   SkillResponse, CreateSkillRequest, UpdateSkillRequest, AddSkillToAgentRequest,
   AssignAgentToProjectRequest, RemoveAgentFromProjectRequest,
   BulkReassignTasksRequest, BulkReassignTasksResponse, TasksByAgentResponse,
+  DockerfileResponse, CreateDockerfileRequest, UpdateDockerfileRequest, SetProjectDockerfileRequest,
 } from './types';
 
 export const authEvents = new EventTarget();
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const opts: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
+  const token = localStorage.getItem('agach_access_token');
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const opts: RequestInit = { method, headers };
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(path, opts);
   if (!res.ok) {
+    if (res.status === 401) authEvents.dispatchEvent(new Event('unauthorized'));
     const err: JSendResponse<unknown> = await res.json().catch(() => ({
       status: 'error' as const, error: { code: 'UNKNOWN', message: res.statusText },
     }));
@@ -155,3 +160,25 @@ export const addDependency = (projectId: string, taskId: string, data: AddDepend
 export const removeDependency = (projectId: string, taskId: string, depId: string) => request<void>('DELETE', `/api/projects/${projectId}/tasks/${taskId}/dependencies/${depId}`);
 export const listDependencies = (projectId: string, taskId: string) => request<TaskResponse[]>('GET', `/api/projects/${projectId}/tasks/${taskId}/dependencies`);
 export const listDependents = (projectId: string, taskId: string) => request<TaskResponse[]>('GET', `/api/projects/${projectId}/tasks/${taskId}/dependents`);
+
+// Dockerfiles (global)
+export const listDockerfiles = () => request<DockerfileResponse[]>('GET', '/api/dockerfiles');
+export const getDockerfile = (id: string) => request<DockerfileResponse>('GET', `/api/dockerfiles/${id}`);
+export const createDockerfile = (data: CreateDockerfileRequest) => request<DockerfileResponse>('POST', '/api/dockerfiles', data);
+export const updateDockerfile = (id: string, data: UpdateDockerfileRequest) => request<void>('PATCH', `/api/dockerfiles/${id}`, data);
+export const deleteDockerfile = (id: string) => request<void>('DELETE', `/api/dockerfiles/${id}`);
+
+// Account / profile
+export const getMe = () => request<{ id: string; email: string; display_name: string; role: string; created_at: string }>('GET', '/api/auth/me');
+export const updateProfile = (data: { display_name: string }) => request<{ id: string; email: string; display_name: string; role: string; created_at: string }>('PATCH', '/api/auth/me', data);
+export const changePassword = (data: { current_password: string; new_password: string }) => request<void>('POST', '/api/auth/me/password', data);
+
+// API Keys
+export const listAPIKeys = () => request<{ id: string; name: string; scopes: string[]; expires_at: string | null; last_used_at: string | null; created_at: string }[]>('GET', '/api/auth/apikeys');
+export const createAPIKey = (data: { name: string; scopes: string[]; expires_at?: string }) => request<{ api_key: string; id: string; name: string; scopes: string[]; expires_at: string | null; created_at: string }>('POST', '/api/auth/apikeys', data);
+export const revokeAPIKey = (id: string) => request<void>('DELETE', `/api/auth/apikeys/${id}`);
+
+// Project dockerfile assignment
+export const getProjectDockerfile = (projectId: string) => request<DockerfileResponse | null>('GET', `/api/projects/${projectId}/dockerfile`);
+export const setProjectDockerfile = (projectId: string, data: SetProjectDockerfileRequest) => request<void>('PUT', `/api/projects/${projectId}/dockerfile`, data);
+export const clearProjectDockerfile = (projectId: string) => request<void>('DELETE', `/api/projects/${projectId}/dockerfile`);

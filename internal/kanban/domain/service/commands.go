@@ -26,7 +26,7 @@ type BulkTaskInput struct {
 // Commands defines write operations for the Kanban system
 type Commands interface {
 	// Project commands
-	CreateProject(ctx context.Context, name, description, workDir, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
+	CreateProject(ctx context.Context, name, description, workDir, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
 	UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string, defaultRole *string) error
 	DeleteProject(ctx context.Context, projectID domain.ProjectID) error
 
@@ -126,4 +126,23 @@ type Commands interface {
 	// RemoveSkillFromAgent removes a skill assignment from an agent.
 	// Returns ErrSkillNotFound if the assignment does not exist.
 	RemoveSkillFromAgent(ctx context.Context, agentSlug, skillSlug string) error
+
+	// Dockerfile commands
+
+	// CreateDockerfile creates a new versioned dockerfile.
+	CreateDockerfile(ctx context.Context, slug, name, description, version, content string, isLatest bool, sortOrder int) (domain.Dockerfile, error)
+
+	// UpdateDockerfile updates a dockerfile's mutable fields.
+	UpdateDockerfile(ctx context.Context, dockerfileID domain.DockerfileID, name, description, content *string, isLatest *bool, sortOrder *int) error
+
+	// DeleteDockerfile deletes a dockerfile.
+	// Returns ErrDockerfileInUse if the dockerfile is assigned to any project.
+	DeleteDockerfile(ctx context.Context, dockerfileID domain.DockerfileID) error
+
+	// SetProjectDockerfile assigns a dockerfile to a project.
+	// Replaces any existing assignment.
+	SetProjectDockerfile(ctx context.Context, projectID domain.ProjectID, dockerfileID domain.DockerfileID) error
+
+	// ClearProjectDockerfile removes the dockerfile assignment from a project.
+	ClearProjectDockerfile(ctx context.Context, projectID domain.ProjectID) error
 }

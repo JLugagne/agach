@@ -54,7 +54,7 @@ func TestApp_CreateProject_Success(t *testing.T) {
 		return nil
 	}
 
-	project, err := a.CreateProject(ctx, "Test Project", "Description", "/tmp/test", "architect", "agent1", nil)
+	project, err := a.CreateProject(ctx, "Test Project", "Description", "/tmp/test", "", "architect", "agent1", nil)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, project.ID)
@@ -86,7 +86,7 @@ func TestApp_CreateProject_WithParent_Success(t *testing.T) {
 		return nil
 	}
 
-	project, err := a.CreateProject(ctx, "Child Project", "Description", "/tmp/child", "architect", "agent1", &parentID)
+	project, err := a.CreateProject(ctx, "Child Project", "Description", "/tmp/child", "", "architect", "agent1", &parentID)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, project.ID)
@@ -99,7 +99,7 @@ func TestApp_CreateProject_EmptyName_ReturnsError(t *testing.T) {
 	ctx := context.Background()
 	a, _, _, _, _, _, _ := setupTestApp()
 
-	_, err := a.CreateProject(ctx, "", "Description", "/tmp/test", "architect", "agent1", nil)
+	_, err := a.CreateProject(ctx, "", "Description", "/tmp/test", "", "architect", "agent1", nil)
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -116,7 +116,7 @@ func TestApp_CreateProject_ParentNotFound_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	_, err := a.CreateProject(ctx, "Child Project", "Description", "/tmp/child", "architect", "agent1", &parentID)
+	_, err := a.CreateProject(ctx, "Child Project", "Description", "/tmp/child", "", "architect", "agent1", &parentID)
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))

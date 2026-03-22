@@ -85,6 +85,7 @@ export default function RemoveAgentDialog({ projectId, agent, projectAgents, onC
                       value="reassign"
                       checked={action === 'reassign'}
                       onChange={() => setAction('reassign')}
+                      data-qa="remove-agent-reassign-radio"
                       className="accent-[#00C896]"
                     />
                     <span className="text-sm text-[var(--text-muted)]">Reassign to:</span>
@@ -92,6 +93,7 @@ export default function RemoveAgentDialog({ projectId, agent, projectAgents, onC
                       value={reassignTarget}
                       onChange={e => setReassignTarget(e.target.value)}
                       disabled={action !== 'reassign'}
+                      data-qa="remove-agent-reassign-select"
                       className="ml-1 text-sm rounded border border-border bg-[#111] text-[#F0F0F0] px-2 py-0.5 disabled:opacity-40"
                     >
                       <option value="">Select agent...</option>
@@ -107,6 +109,7 @@ export default function RemoveAgentDialog({ projectId, agent, projectAgents, onC
                       value="clear"
                       checked={action === 'clear'}
                       onChange={() => setAction('clear')}
+                      data-qa="remove-agent-clear-radio"
                       className="accent-[#00C896]"
                     />
                     <span className="text-sm text-[var(--text-muted)]">Clear assignment (tasks become unassigned)</span>
@@ -126,6 +129,7 @@ export default function RemoveAgentDialog({ projectId, agent, projectAgents, onC
             <div className="flex justify-end gap-2 mt-2">
               <button
                 onClick={onClose}
+                data-qa="remove-agent-cancel-btn"
                 className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[#F0F0F0] transition-colors"
               >
                 Cancel
@@ -133,6 +137,7 @@ export default function RemoveAgentDialog({ projectId, agent, projectAgents, onC
               <button
                 onClick={handleConfirm}
                 disabled={isConfirmDisabled}
+                data-qa="remove-agent-confirm-btn"
                 className="px-4 py-2 bg-[#FF3B30] text-white text-sm font-medium rounded-md hover:bg-[#FF3B30]/80 disabled:opacity-50 transition-colors"
               >
                 {saving ? 'Removing...' : 'Confirm Remove'}

@@ -85,4 +85,18 @@ type Queries interface {
 	// GetProjectTasksByAgent returns all tasks in a project whose assigned_role matches agentSlug.
 	// Used by the remove-agent dialog to show how many tasks are affected.
 	GetProjectTasksByAgent(ctx context.Context, projectID domain.ProjectID, agentSlug string) ([]domain.Task, error)
+
+	// Dockerfile queries
+
+	// GetDockerfile retrieves a dockerfile by ID.
+	GetDockerfile(ctx context.Context, dockerfileID domain.DockerfileID) (*domain.Dockerfile, error)
+
+	// GetDockerfileBySlugAndVersion retrieves a specific version of a dockerfile.
+	GetDockerfileBySlugAndVersion(ctx context.Context, slug, version string) (*domain.Dockerfile, error)
+
+	// ListDockerfiles returns all dockerfiles ordered by slug, sort_order, version.
+	ListDockerfiles(ctx context.Context) ([]domain.Dockerfile, error)
+
+	// GetProjectDockerfile returns the dockerfile currently assigned to a project, or nil.
+	GetProjectDockerfile(ctx context.Context, projectID domain.ProjectID) (*domain.Dockerfile, error)
 }

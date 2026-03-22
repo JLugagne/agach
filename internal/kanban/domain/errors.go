@@ -240,6 +240,32 @@ var (
 		Message: "feature does not belong to this project",
 	}
 
+	// Dockerfile errors
+	ErrDockerfileNotFound = &Error{
+		Code:    "DOCKERFILE_NOT_FOUND",
+		Message: "dockerfile not found",
+	}
+	ErrDockerfileAlreadyExists = &Error{
+		Code:    "DOCKERFILE_ALREADY_EXISTS",
+		Message: "dockerfile already exists with this slug",
+	}
+	ErrDockerfileSlugRequired = &Error{
+		Code:    "DOCKERFILE_SLUG_REQUIRED",
+		Message: "dockerfile slug is required",
+	}
+	ErrDockerfileNameRequired = &Error{
+		Code:    "DOCKERFILE_NAME_REQUIRED",
+		Message: "dockerfile name is required",
+	}
+	ErrDockerfileVersionRequired = &Error{
+		Code:    "DOCKERFILE_VERSION_REQUIRED",
+		Message: "dockerfile version is required",
+	}
+	ErrDockerfileInUse = &Error{
+		Code:    "DOCKERFILE_IN_USE",
+		Message: "dockerfile is still assigned to one or more projects",
+	}
+
 	// Aliases for backward compatibility
 	ErrDependencyCycle  = ErrCircularDependency
 	ErrWIPLimitExceeded = ErrWIPLimitReached

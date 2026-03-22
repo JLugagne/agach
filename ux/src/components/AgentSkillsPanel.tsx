@@ -103,6 +103,7 @@ export default function AgentSkillsPanel({ agentSlug, agentName: _agentName }: A
                   <button
                     onClick={() => handleRemove(skill.slug)}
                     disabled={saving}
+                    data-qa={`skill-remove-btn-${skill.slug}`}
                     className="p-1 rounded hover:bg-destructive/20 hover:text-destructive transition-colors"
                     title="Remove skill"
                   >
@@ -116,7 +117,7 @@ export default function AgentSkillsPanel({ agentSlug, agentName: _agentName }: A
           {allSkills.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">
               Create skills in the{' '}
-              <Link to="/skills" className="underline hover:text-foreground transition-colors">
+              <Link to="/skills" data-qa="skills-page-link" className="underline hover:text-foreground transition-colors">
                 Skills page
               </Link>{' '}
               first.
@@ -128,6 +129,7 @@ export default function AgentSkillsPanel({ agentSlug, agentName: _agentName }: A
               <select
                 value={addingSlug}
                 onChange={e => setAddingSlug(e.target.value)}
+                data-qa="skill-add-select"
                 className="flex-1 text-sm rounded border border-border bg-background px-2 py-1"
               >
                 <option value="">Select a skill...</option>
@@ -138,6 +140,7 @@ export default function AgentSkillsPanel({ agentSlug, agentName: _agentName }: A
               <button
                 onClick={handleAdd}
                 disabled={!addingSlug || saving}
+                data-qa="skill-add-btn"
                 className="px-2 py-1 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}

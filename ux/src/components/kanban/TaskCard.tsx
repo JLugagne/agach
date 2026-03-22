@@ -79,6 +79,7 @@ export default function TaskCard({ task, columnSlug, isNew, isHighlighted, selec
       style={{ ...dndStyle }}
     >
       <div
+        data-qa="task-card"
         onClick={handleClick}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -117,6 +118,7 @@ export default function TaskCard({ task, columnSlug, isNew, isHighlighted, selec
           <div
             {...attributes}
             {...listeners}
+            data-qa="task-card-drag-handle"
             className="flex-shrink-0 mt-0.5 text-[var(--text-dim)] opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity"
             onClick={(e) => e.stopPropagation()}
           >

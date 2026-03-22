@@ -235,6 +235,7 @@ export default function TaskContextMenu({
         return (
           <button
             key={item.action}
+            data-qa={`context-menu-${item.action}-btn`}
             onClick={() => {
               onAction(item.action);
               onClose();

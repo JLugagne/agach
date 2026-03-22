@@ -617,6 +617,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] flex-shrink-0">
           <div className="flex items-center gap-3">
             <button
+              data-qa="drawer-close-btn"
               onClick={onClose}
               className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
             >
@@ -647,6 +648,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                 {titleEditMode ? (
                   <div className="flex items-center gap-2 mb-2">
                     <input
+                      data-qa="task-title-input"
                       ref={titleInputRef}
                       value={titleDraft}
                       onChange={(e) => setTitleDraft(e.target.value)}
@@ -659,6 +661,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                   </div>
                 ) : (
                   <button
+                    data-qa="task-title-edit-btn"
                     onClick={startTitleEdit}
                     className="group w-full text-left mb-2"
                     title="Click to edit title"
@@ -673,6 +676,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                   {task.priority && (
                     <div className="relative" ref={priorityRef}>
                       <button
+                        data-qa="task-priority-btn"
                         onClick={() => setPriorityOpen((v) => !v)}
                         className="px-2 py-0.5 rounded text-[10px] font-['JetBrains_Mono'] font-bold uppercase cursor-pointer hover:opacity-80 transition-opacity"
                         style={{
@@ -687,6 +691,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                           {(['critical', 'high', 'medium', 'low'] as const).map((p) => (
                             <button
                               key={p}
+                              data-qa={`task-priority-option-${p}`}
                               onClick={() => handlePriorityChange(p)}
                               className={`w-full text-left px-3 py-1.5 text-[11px] font-['JetBrains_Mono'] font-bold uppercase flex items-center gap-2 transition-colors cursor-pointer ${
                                 p === task.priority ? 'bg-[var(--bg-elevated)]' : 'hover:bg-[var(--bg-secondary)]'
@@ -708,6 +713,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                   {/* Assigned role */}
                   <div className="relative" ref={roleRef}>
                     <button
+                      data-qa="task-role-btn"
                       onClick={() => setRoleOpen((v) => !v)}
                       className="text-[var(--text-secondary)] text-xs font-['JetBrains_Mono'] hover:text-[var(--primary)] transition-colors cursor-pointer"
                       title="Click to change assigned role"
@@ -719,6 +725,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                     {roleOpen && (
                       <div className="absolute top-full left-0 mt-1 z-10 bg-[var(--card-bg)] border border-[var(--border-primary)] rounded-md shadow-lg py-1 min-w-[160px] max-h-60 overflow-y-auto">
                         <button
+                          data-qa="task-role-unassign-btn"
                           onClick={() => handleRoleChange('')}
                           className="w-full text-left px-3 py-1.5 text-[11px] font-['JetBrains_Mono'] text-[var(--text-dim)] italic hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
                         >
@@ -727,6 +734,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                         {roles.map((role) => (
                           <button
                             key={role.slug}
+                            data-qa={`task-role-option-${role.slug}`}
                             onClick={() => handleRoleChange(role.slug)}
                             className={`w-full text-left px-3 py-1.5 text-[11px] font-['JetBrains_Mono'] flex items-center gap-2 transition-colors cursor-pointer ${
                               role.slug === task.assigned_role ? 'bg-[var(--bg-elevated)] text-[var(--primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'
@@ -742,6 +750,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                   {/* Estimated effort */}
                   <div className="relative" ref={effortRef}>
                     <button
+                      data-qa="task-effort-btn"
                       onClick={() => setEffortOpen((v) => !v)}
                       className="text-[var(--text-dim)] text-xs font-['JetBrains_Mono'] hover:text-[var(--primary)] transition-colors cursor-pointer"
                       title="Click to change estimated effort"
@@ -751,6 +760,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                     {effortOpen && (
                       <div className="absolute top-full left-0 mt-1 z-10 bg-[var(--card-bg)] border border-[var(--border-primary)] rounded-md shadow-lg py-1 min-w-[100px]">
                         <button
+                          data-qa="task-effort-clear-btn"
                           onClick={() => handleEffortChange('')}
                           className="w-full text-left px-3 py-1.5 text-[11px] font-['JetBrains_Mono'] text-[var(--text-dim)] italic hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
                         >
@@ -759,6 +769,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                         {EFFORT_OPTIONS.map((opt) => (
                           <button
                             key={opt}
+                            data-qa={`task-effort-option-${opt.toLowerCase()}`}
                             onClick={() => handleEffortChange(opt)}
                             className={`w-full text-left px-3 py-1.5 text-[11px] font-['JetBrains_Mono'] font-bold transition-colors cursor-pointer ${
                               opt === task.estimated_effort
@@ -804,6 +815,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                     >
                       {tag}
                       <button
+                        data-qa="task-remove-tag-btn"
                         onClick={() => removeTag(tag)}
                         className="text-[var(--text-dim)] hover:text-[var(--status-blocked)] transition-colors ml-0.5"
                         title="Remove tag"
@@ -814,6 +826,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                   ))}
                   <div className="flex items-center gap-1">
                     <input
+                      data-qa="task-tag-input"
                       value={tagInput}
                       onChange={(e) => setTagInput(e.target.value)}
                       onKeyDown={handleTagKeyDown}
@@ -821,6 +834,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                       className="bg-transparent border-b border-[var(--border-primary)] focus:border-[var(--primary)] text-[10px] font-['JetBrains_Mono'] text-[var(--text-secondary)] placeholder-[var(--text-dim)] focus:outline-none w-20 pb-0.5 transition-colors"
                     />
                     <button
+                      data-qa="task-add-tag-btn"
                       onClick={addTag}
                       className="text-[var(--text-dim)] hover:text-[var(--primary)] transition-colors"
                       title="Add tag"
@@ -848,6 +862,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                       >
                         <ArrowRight size={11} className="text-[var(--primary)] flex-shrink-0" />
                         <a
+                          data-qa="task-dependency-link"
                           href={url}
                           onClick={(e) => {
                             e.preventDefault();
@@ -864,6 +879,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                           depends on
                         </span>
                         <button
+                          data-qa="task-remove-dependency-btn"
                           onClick={() => handleRemoveDependency(dep.id)}
                           disabled={isRemoving}
                           title="Remove dependency"
@@ -888,6 +904,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                       >
                         <ArrowLeft size={11} className="text-[var(--status-progress)] flex-shrink-0" />
                         <a
+                          data-qa="task-dependent-link"
                           href={url}
                           onClick={(e) => {
                             e.preventDefault();
@@ -910,6 +927,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                   {/* Add dependency */}
                   {!depSearchOpen ? (
                     <button
+                      data-qa="task-add-dependency-btn"
                       onClick={openDepSearch}
                       className="flex items-center gap-1.5 px-2 py-1 text-[var(--text-dim)] hover:text-[var(--text-secondary)] text-xs font-['Inter'] transition-colors self-start mt-0.5"
                     >
@@ -920,6 +938,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                     <div className="relative mt-1" ref={depSearchRef}>
                       <div className="flex items-center gap-2">
                         <input
+                          data-qa="task-dependency-search-input"
                           ref={depSearchInputRef}
                           type="text"
                           value={depSearchQuery}
@@ -928,6 +947,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                           className="flex-1 bg-[var(--bg-secondary)] border border-[var(--border-primary)] focus:border-[var(--primary)] rounded-md px-3 py-1.5 text-[var(--text-primary)] text-xs font-['Inter'] placeholder-[var(--text-dim)] focus:outline-none transition-colors"
                         />
                         <button
+                          data-qa="task-dependency-search-close-btn"
                           onClick={closeDepSearch}
                           className="text-[var(--text-dim)] hover:text-[var(--text-secondary)] transition-colors flex-shrink-0"
                         >
@@ -950,6 +970,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                               return (
                                 <button
                                   key={t.id}
+                                  data-qa="task-dependency-result-btn"
                                   onClick={() => handleSelectDep(t)}
                                   disabled={depAdding}
                                   className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[var(--bg-secondary)] transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1003,6 +1024,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                   </h3>
                   {!summaryEditMode && (
                     <button
+                      data-qa="task-summary-edit-btn"
                       onClick={startSummaryEdit}
                       className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors text-xs font-['Inter']"
                     >
@@ -1015,6 +1037,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                 {summaryEditMode ? (
                   <div className="space-y-2">
                     <textarea
+                      data-qa="task-summary-input"
                       value={summaryDraft}
                       onChange={(e) => setSummaryDraft(e.target.value)}
                       rows={4}
@@ -1026,6 +1049,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                     )}
                     <div className="flex items-center gap-2">
                       <button
+                        data-qa="task-summary-save-btn"
                         onClick={saveSummary}
                         disabled={summarySaving}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-['Inter'] font-medium text-[var(--primary-text)] bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
@@ -1038,6 +1062,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                         Save
                       </button>
                       <button
+                        data-qa="task-summary-cancel-btn"
                         onClick={cancelSummaryEdit}
                         disabled={summarySaving}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-['Inter'] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 transition-colors rounded-md"
@@ -1062,6 +1087,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                   </h3>
                   {!descEditMode && (
                     <button
+                      data-qa="task-description-edit-btn"
                       onClick={startDescEdit}
                       className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors text-xs font-['Inter']"
                     >
@@ -1078,6 +1104,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                         <Loader2 size={13} className="text-[var(--primary)] animate-spin" />
                       )}
                       <button
+                        data-qa="task-description-attach-image-btn"
                         type="button"
                         onClick={() => descFileInputRef.current?.click()}
                         title="Attach image"
@@ -1094,6 +1121,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                       />
                     </div>
                     <textarea
+                      data-qa="task-description-input"
                       ref={descTextareaRef}
                       value={descDraft}
                       onChange={(e) => setDescDraft(e.target.value)}
@@ -1112,6 +1140,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                     )}
                     <div className="flex items-center gap-2">
                       <button
+                        data-qa="task-description-save-btn"
                         onClick={saveDesc}
                         disabled={descSaving}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-['Inter'] font-medium text-[var(--primary-text)] bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
@@ -1124,6 +1153,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                         Save
                       </button>
                       <button
+                        data-qa="task-description-cancel-btn"
                         onClick={cancelDescEdit}
                         disabled={descSaving}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-['Inter'] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 transition-colors rounded-md"
@@ -1148,6 +1178,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                   </h3>
                   {!resEditMode && (
                     <button
+                      data-qa="task-resolution-edit-btn"
                       onClick={startResEdit}
                       className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors text-xs font-['Inter']"
                     >
@@ -1160,6 +1191,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                 {resEditMode ? (
                   <div className="space-y-2">
                     <textarea
+                      data-qa="task-resolution-input"
                       value={resDraft}
                       onChange={(e) => setResDraft(e.target.value)}
                       rows={6}
@@ -1171,6 +1203,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                     )}
                     <div className="flex items-center gap-2">
                       <button
+                        data-qa="task-resolution-save-btn"
                         onClick={saveRes}
                         disabled={resSaving}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-['Inter'] font-medium text-[var(--primary-text)] bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
@@ -1183,6 +1216,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                         Save
                       </button>
                       <button
+                        data-qa="task-resolution-cancel-btn"
                         onClick={cancelResEdit}
                         disabled={resSaving}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-['Inter'] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 transition-colors rounded-md"
@@ -1236,6 +1270,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                         {f}
                       </span>
                       <button
+                        data-qa="task-remove-context-file-btn"
                         onClick={() => removeContextFile(f)}
                         className="text-[var(--text-dim)] hover:text-[var(--status-blocked)] transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
                         title="Remove file"
@@ -1247,6 +1282,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                 </div>
                 <div className="flex items-center gap-2">
                   <input
+                    data-qa="task-context-file-input"
                     value={contextFileInput}
                     onChange={(e) => setContextFileInput(e.target.value)}
                     onKeyDown={handleContextFileKeyDown}
@@ -1254,6 +1290,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                     className="flex-1 bg-[var(--bg-secondary)] border border-[var(--border-primary)] focus:border-[var(--primary)] rounded-md px-2 py-1 text-xs font-['JetBrains_Mono'] text-[var(--text-secondary)] placeholder-[var(--text-dim)] focus:outline-none transition-colors"
                   />
                   <button
+                    data-qa="task-add-context-file-btn"
                     onClick={addContextFile}
                     className="text-[var(--text-dim)] hover:text-[var(--primary)] transition-colors flex-shrink-0"
                     title="Add file"

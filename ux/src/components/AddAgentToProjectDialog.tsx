@@ -59,6 +59,7 @@ export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onCl
             <select
               value={selectedSlug}
               onChange={e => setSelectedSlug(e.target.value)}
+              data-qa="add-agent-select"
               className="w-full bg-[#111] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] focus:outline-none focus:border-[#00C896]/50"
             >
               <option value="">Select an agent...</option>
@@ -76,6 +77,7 @@ export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onCl
         <div className="flex justify-end gap-2 mt-2">
           <button
             onClick={onClose}
+            data-qa="add-agent-cancel-btn"
             className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[#F0F0F0] transition-colors"
           >
             Cancel
@@ -84,6 +86,7 @@ export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onCl
             <button
               onClick={handleAdd}
               disabled={!selectedSlug || saving}
+              data-qa="add-agent-confirm-btn"
               className="px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Adding...' : 'Add Agent'}

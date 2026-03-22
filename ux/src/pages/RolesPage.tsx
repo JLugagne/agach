@@ -130,6 +130,7 @@ export default function RolesPage() {
           </div>
           <button
             onClick={openCreate}
+            data-qa="new-role-btn"
             className="flex items-center gap-1.5 px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 transition-colors"
           >
             <Plus size={15} />
@@ -146,6 +147,7 @@ export default function RolesPage() {
             <p className="text-[var(--text-dim)] text-sm mb-4">No roles defined yet.</p>
             <button
               onClick={openCreate}
+              data-qa="roles-create-first-role-btn"
               className="text-sm text-[#00C896] hover:text-[#00C896]/80 transition-colors"
             >
               Create your first role
@@ -208,12 +210,13 @@ function RoleCard({
 }) {
   return (
     <div
+      data-qa="role-card"
       className={`rounded-lg bg-[#111111] border p-5 text-left transition-colors w-full ${
         isDefault ? 'border-[#00C896]/40' : 'border-[#1E1E1E] hover:border-[#252525]'
       }`}
     >
       <div className="flex items-start gap-3 mb-3">
-        <button onClick={onClick} className="text-xl cursor-pointer">{role.icon || '\u2B22'}</button>
+        <button onClick={onClick} data-qa="role-card-icon-btn" className="text-xl cursor-pointer">{role.icon || '\u2B22'}</button>
         <div className="flex-1 min-w-0 cursor-pointer" onClick={onClick}>
           <div className="flex items-center gap-2">
             <h3 className="font-heading text-[15px] text-[#F0F0F0] truncate">{role.name}</h3>
@@ -230,6 +233,7 @@ function RoleCard({
           {onSetDefault && (
             <button
               onClick={(e) => { e.stopPropagation(); onSetDefault(); }}
+              data-qa="role-card-set-default-btn"
               title={isDefault ? 'Unset default' : 'Set as default'}
               className={`transition-colors ${
                 isDefault
@@ -242,6 +246,7 @@ function RoleCard({
           )}
           <button
             onClick={(e) => { e.stopPropagation(); onClone(); }}
+            data-qa="role-card-clone-btn"
             title="Clone agent"
             className="p-1.5 rounded text-muted-foreground hover:text-blue-400 hover:bg-blue-400/10 transition-colors"
           >
@@ -347,6 +352,7 @@ function InlineEditField({ label, value, placeholder, monoFont, onSave }: Inline
         {!editing && (
           <button
             onClick={handleEdit}
+            data-qa="inline-edit-field-edit-btn"
             className="flex items-center gap-1 text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
             title={`Edit ${label}`}
           >
@@ -358,6 +364,7 @@ function InlineEditField({ label, value, placeholder, monoFont, onSave }: Inline
             <button
               onClick={handleCancel}
               disabled={saving}
+              data-qa="inline-edit-field-cancel-btn"
               className="flex items-center gap-1 text-xs text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors disabled:opacity-50"
             >
               <X size={12} />
@@ -366,6 +373,7 @@ function InlineEditField({ label, value, placeholder, monoFont, onSave }: Inline
             <button
               onClick={handleSave}
               disabled={saving}
+              data-qa="inline-edit-field-save-btn"
               className="flex items-center gap-1 text-xs text-[#00C896] hover:text-[#00C896]/80 transition-colors disabled:opacity-50"
             >
               <Check size={12} />
@@ -382,6 +390,7 @@ function InlineEditField({ label, value, placeholder, monoFont, onSave }: Inline
           onChange={handleTextareaChange}
           placeholder={placeholder}
           rows={6}
+          data-qa="inline-edit-field-textarea"
           className={`w-full bg-[#1A1A1A] border border-[#00C896]/40 rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/60 resize-none overflow-hidden ${monoFont ? 'font-mono text-xs' : ''}`}
         />
       ) : value ? (
@@ -536,6 +545,7 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
           </h2>
           <button
             onClick={onClose}
+            data-qa="role-modal-close-btn"
             className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
           >
             <X size={18} />
@@ -553,6 +563,7 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="e.g. Backend Developer"
+                data-qa="role-name-input"
                 className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
                 autoFocus
               />
@@ -565,6 +576,7 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
                 onChange={(e) => handleSlugChange(e.target.value)}
                 placeholder="backenddev"
                 disabled={isEdit}
+                data-qa="role-slug-input"
                 className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 disabled:opacity-50 font-mono"
               />
             </div>
@@ -580,6 +592,7 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
                 onChange={(e) => setIcon(e.target.value)}
                 placeholder="e.g. \uD83D\uDE80"
                 maxLength={10}
+                data-qa="role-modal-icon-input"
                 className="w-24 bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-center text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
               />
             </div>
@@ -590,6 +603,7 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
                   <button
                     key={c}
                     onClick={() => setColor(c)}
+                    data-qa="role-modal-color-btn"
                     className={`w-7 h-7 rounded-full border-2 transition-all ${
                       color === c ? 'border-white scale-110' : 'border-transparent'
                     }`}
@@ -616,6 +630,7 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe this role..."
                 rows={4}
+                data-qa="role-modal-description-textarea"
                 className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y"
               />
             </div>
@@ -633,6 +648,7 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
                   {tech}
                   <button
                     onClick={() => removeTech(tech)}
+                    data-qa="role-modal-remove-tech-btn"
                     className="text-[var(--text-dim)] hover:text-[#F06060] transition-colors"
                   >
                     <X size={10} />
@@ -651,6 +667,7 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
                 }
               }}
               placeholder="Type and press Enter"
+              data-qa="role-modal-tech-input"
               className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
             />
           </div>
@@ -672,6 +689,7 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
                 onChange={(e) => setPromptHint(e.target.value)}
                 placeholder="System prompt context for this role..."
                 rows={6}
+                data-qa="role-modal-prompt-hint-textarea"
                 className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y font-mono text-xs"
               />
             </div>
@@ -693,6 +711,7 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
               <button
                 onClick={handleDelete}
                 disabled={deleting}
+                data-qa="role-delete-btn"
                 className="flex items-center gap-1.5 text-sm text-[#F06060] hover:text-[#FF3B30] transition-colors disabled:opacity-50"
               >
                 <Trash2 size={14} />
@@ -703,6 +722,7 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
+              data-qa="role-cancel-btn"
               className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[#E0E0E0] transition-colors"
             >
               Cancel
@@ -710,6 +730,7 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
             <button
               onClick={handleSave}
               disabled={!name.trim() || !slug.trim() || saving}
+              data-qa="role-save-btn"
               className="px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Role'}

@@ -122,6 +122,19 @@ func (id SkillID) String() string {
 	return string(id)
 }
 
+// DockerfileID represents a unique dockerfile identifier
+type DockerfileID string
+
+// NewDockerfileID generates a new dockerfile ID
+func NewDockerfileID() DockerfileID {
+	return DockerfileID(shortID())
+}
+
+// String returns the string representation of a DockerfileID
+func (id DockerfileID) String() string {
+	return string(id)
+}
+
 // Priority represents task priority levels
 type Priority string
 
@@ -169,16 +182,18 @@ const (
 
 // Project represents a project or sub-project
 type Project struct {
-	ID             ProjectID  `json:"id"`
-	ParentID       *ProjectID `json:"parent_id"`
-	Name           string     `json:"name"`
-	Description    string     `json:"description"`
-	WorkDir        string     `json:"work_dir"`
-	DefaultRole    string     `json:"default_role"`
-	CreatedByRole  string     `json:"created_by_role"`
-	CreatedByAgent string     `json:"created_by_agent"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID             ProjectID    `json:"id"`
+	ParentID       *ProjectID   `json:"parent_id"`
+	Name           string       `json:"name"`
+	Description    string       `json:"description"`
+	WorkDir        string       `json:"work_dir"`
+	GitURL         string       `json:"git_url"`
+	DefaultRole    string       `json:"default_role"`
+	CreatedByRole  string       `json:"created_by_role"`
+	CreatedByAgent string       `json:"created_by_agent"`
+	DockerfileID   *DockerfileID `json:"dockerfile_id"`
+	CreatedAt      time.Time    `json:"created_at"`
+	UpdatedAt      time.Time    `json:"updated_at"`
 }
 
 func (p Project) IsFeature() bool {
@@ -213,6 +228,20 @@ type Skill struct {
 	SortOrder   int       `json:"sort_order"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// Dockerfile represents a Docker Compose service definition with versioning
+type Dockerfile struct {
+	ID          DockerfileID `json:"id"`
+	Slug        string       `json:"slug"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Version     string       `json:"version"`
+	Content     string       `json:"content"`
+	IsLatest    bool         `json:"is_latest"`
+	SortOrder   int          `json:"sort_order"`
+	CreatedAt   time.Time    `json:"created_at"`
+	UpdatedAt   time.Time    `json:"updated_at"`
 }
 
 // Column represents a kanban column

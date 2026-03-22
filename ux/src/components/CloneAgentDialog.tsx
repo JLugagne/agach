@@ -75,6 +75,7 @@ export default function CloneAgentDialog({ sourceRole, onClose, onSuccess }: Clo
           </h2>
           <button
             onClick={onClose}
+            data-qa="clone-agent-close-btn"
             className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
           >
             <X size={16} />
@@ -95,6 +96,7 @@ export default function CloneAgentDialog({ sourceRole, onClose, onSuccess }: Clo
               type="text"
               value={newSlug}
               onChange={(e) => handleSlugChange(e.target.value)}
+              data-qa="clone-agent-slug-input"
               className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm font-mono text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
               placeholder="new-agent-slug"
             />
@@ -111,6 +113,7 @@ export default function CloneAgentDialog({ sourceRole, onClose, onSuccess }: Clo
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
+              data-qa="clone-agent-name-input"
               className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
               placeholder="New Agent Name"
             />
@@ -127,6 +130,7 @@ export default function CloneAgentDialog({ sourceRole, onClose, onSuccess }: Clo
           <button
             onClick={onClose}
             disabled={loading}
+            data-qa="clone-agent-cancel-btn"
             className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[#E0E0E0] transition-colors disabled:opacity-50"
           >
             Cancel
@@ -134,6 +138,7 @@ export default function CloneAgentDialog({ sourceRole, onClose, onSuccess }: Clo
           <button
             onClick={handleSubmit}
             disabled={loading || !!slugError || !newSlug}
+            data-qa="clone-agent-submit-btn"
             className="flex items-center gap-2 px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 disabled:opacity-50 transition-colors"
           >
             {loading && <Loader2 size={14} className="animate-spin" />}

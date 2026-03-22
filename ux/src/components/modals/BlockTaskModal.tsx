@@ -65,6 +65,7 @@ export default function BlockTaskModal({ task, projectId, onClose, onSuccess }: 
           </h2>
           <button
             onClick={onClose}
+            data-qa="block-task-close-btn"
             className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
           >
             <X size={20} />
@@ -87,6 +88,7 @@ export default function BlockTaskModal({ task, projectId, onClose, onSuccess }: 
               onChange={(e) => setReason(e.target.value)}
               placeholder="Describe why this task is blocked (min 50 chars)..."
               rows={4}
+              data-qa="block-reason-input"
               className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-[var(--text-primary)] text-sm font-['Inter'] placeholder-[var(--text-dim)] resize-y focus:outline-none focus:border-[var(--primary)] transition-colors"
             />
             <p className="text-[var(--text-dim)] text-xs font-['Inter'] mt-1">
@@ -103,6 +105,7 @@ export default function BlockTaskModal({ task, projectId, onClose, onSuccess }: 
               value={agentName}
               onChange={(e) => setAgentName(e.target.value)}
               placeholder="e.g. human or agent identifier"
+              data-qa="block-agent-name-input"
               className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-[var(--text-primary)] text-sm font-['Inter'] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)] transition-colors"
             />
           </div>
@@ -116,6 +119,7 @@ export default function BlockTaskModal({ task, projectId, onClose, onSuccess }: 
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border-primary)]">
           <button
             onClick={onClose}
+            data-qa="block-task-cancel-btn"
             className="px-4 py-2 text-sm font-['Inter'] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-md"
           >
             Cancel
@@ -123,6 +127,7 @@ export default function BlockTaskModal({ task, projectId, onClose, onSuccess }: 
           <button
             onClick={handleSubmit}
             disabled={loading || reason.trim().length < 50 || agentName.trim().length === 0}
+            data-qa="block-task-submit-btn"
             className="px-4 py-2 text-sm font-['Inter'] font-medium text-white bg-[var(--status-blocked)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
           >
             {loading ? 'Blocking...' : 'Block Task'}

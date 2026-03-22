@@ -153,6 +153,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
 
   return (
     <div
+      data-qa="new-task-modal"
       className="fixed inset-0 z-50 flex items-center justify-center"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -166,6 +167,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
             New Task
           </h2>
           <button
+            data-qa="new-task-close-btn"
             onClick={onClose}
             className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
           >
@@ -181,6 +183,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
               Title <span className="text-[#F06060]">*</span>
             </label>
             <input
+              data-qa="new-task-title-input"
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -195,6 +198,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
               Summary <span className="text-[#F06060]">*</span>
             </label>
             <textarea
+              data-qa="new-task-summary-input"
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
               placeholder="Brief description of what needs to be done"
@@ -214,6 +218,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
                   <Loader2 size={13} className="text-[#00C896] animate-spin" />
                 )}
                 <button
+                  data-qa="new-task-attach-image-btn"
                   type="button"
                   onClick={() => descFileInputRef.current?.click()}
                   title="Attach image"
@@ -231,6 +236,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
               </div>
             </div>
             <textarea
+              data-qa="new-task-description-input"
               ref={descTextareaRef}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -253,6 +259,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
                 Priority
               </label>
               <select
+                data-qa="new-task-priority-select"
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
                 className="w-full bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-2 text-[#F0F0F0] text-sm font-['Inter'] focus:outline-none focus:border-[#00C896] transition-colors"
@@ -268,6 +275,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
                 Assigned Role
               </label>
               <select
+                data-qa="new-task-role-select"
                 value={assignedRole}
                 onChange={(e) => setAssignedRole(e.target.value)}
                 className="w-full bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-2 text-[#F0F0F0] text-sm font-['Inter'] focus:outline-none focus:border-[#00C896] transition-colors"
@@ -285,6 +293,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
           {/* Add to backlog */}
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <input
+              data-qa="new-task-backlog-checkbox"
               type="checkbox"
               checked={addToBacklog}
               onChange={(e) => setAddToBacklog(e.target.checked)}
@@ -300,6 +309,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
                 Feature
               </label>
               <select
+                data-qa="new-task-feature-select"
                 value={selectedFeatureId}
                 onChange={(e) => setSelectedFeatureId(e.target.value)}
                 className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] focus:outline-none focus:border-[#00C896]/50"
@@ -326,7 +336,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
                   className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#1E1E1E] text-[var(--text-muted)] text-xs font-['JetBrains_Mono']"
                 >
                   {tag}
-                  <button onClick={() => removeTag(tag)} className="text-[var(--text-dim)] hover:text-[#F06060]">
+                  <button data-qa="new-task-remove-tag-btn" onClick={() => removeTag(tag)} className="text-[var(--text-dim)] hover:text-[#F06060]">
                     <XCircle size={12} />
                   </button>
                 </span>
@@ -334,6 +344,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
             </div>
             <div className="flex gap-2">
               <input
+                data-qa="new-task-tag-input"
                 type="text"
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
@@ -347,6 +358,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
                 className="flex-1 bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-1.5 text-[#F0F0F0] text-xs font-['Inter'] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896] transition-colors"
               />
               <button
+                data-qa="new-task-add-tag-btn"
                 onClick={addTag}
                 disabled={!tagInput.trim()}
                 className="px-2 py-1.5 bg-[#1E1E1E] hover:bg-[#252525] disabled:opacity-30 rounded-md transition-colors"
@@ -370,7 +382,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
                   <span className="text-[#AAAAAA] text-xs font-['JetBrains_Mono'] truncate flex-1">
                     {f}
                   </span>
-                  <button onClick={() => removeFile(f)} className="text-[var(--text-dim)] hover:text-[#F06060]">
+                  <button data-qa="new-task-remove-file-btn" onClick={() => removeFile(f)} className="text-[var(--text-dim)] hover:text-[#F06060]">
                     <XCircle size={12} />
                   </button>
                 </div>
@@ -378,6 +390,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
             </div>
             <div className="flex gap-2">
               <input
+                data-qa="new-task-file-input"
                 type="text"
                 value={fileInput}
                 onChange={(e) => setFileInput(e.target.value)}
@@ -391,6 +404,7 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
                 className="flex-1 bg-[#0D0D0D] border border-[#1E1E1E] rounded-md px-3 py-1.5 text-[#F0F0F0] text-xs font-['JetBrains_Mono'] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896] transition-colors"
               />
               <button
+                data-qa="new-task-add-file-btn"
                 onClick={addFile}
                 disabled={!fileInput.trim()}
                 className="px-2 py-1.5 bg-[#1E1E1E] hover:bg-[#252525] disabled:opacity-30 rounded-md transition-colors"
@@ -406,12 +420,14 @@ export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRol
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#2A2A2A] flex-shrink-0">
           <button
+            data-qa="new-task-cancel-btn"
             onClick={onClose}
             className="px-4 py-2 text-sm font-['Inter'] text-[var(--text-muted)] hover:text-[#E0E0E0] transition-colors rounded-md"
           >
             Cancel
           </button>
           <button
+            data-qa="new-task-submit-btn"
             onClick={handleSubmit}
             disabled={loading || !title.trim() || !summary.trim()}
             className="px-4 py-2 text-sm font-['Inter'] font-medium text-[#0F0F0F] bg-[#00C896] hover:bg-[#00B886] disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"

@@ -1,16 +1,37 @@
-version: '3.8'
 services:
-  kanban:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: agach
+      POSTGRES_USER: agach
+      POSTGRES_PASSWORD: agach
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    restart: unless-stopped
+
+  agach:
     build: .
     ports:
-      - "127.0.0.1:8322:8322"  # HTTP (REST API + WebSocket)
-      - "127.0.0.1:8323:8323"  # MCP
-    volumes:
-      - ./data:/data
+      - "127.0.0.1:8322:8322"
     environment:
       - AGACH_HOST=0.0.0.0
       - AGACH_PORT=8322
-      - AGACH_MCP_HOST=0.0.0.0
-      - AGACH_MCP_PORT=8323
-      - AGACH_DATA_DIR=/data
+      - DATABASE_URL=postgres://agach:agach@postgres:5432/agach
+      - AGACH_JWT_SECRET=changeme_use_at_least_32_bytes_here
+    depends_on:
+      - postgres
+    networks:
+      - internal
     restart: unless-stopped
+
+networks:
+  internal:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  postgres_data:

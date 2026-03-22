@@ -337,6 +337,56 @@ func (s *authService) GetCurrentUser(ctx context.Context, actor domain.Actor) (d
 	return s.users.FindByID(ctx, actor.UserID)
 }
 
+func (s *authService) UpdateProfile(ctx context.Context, actor domain.Actor, displayName string) (domain.User, error) {
+	user, err := s.users.FindByID(ctx, actor.UserID)
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	user.DisplayName = displayName
+	user.UpdatedAt = time.Now()
+
+	if err := s.users.Update(ctx, user); err != nil {
+		return domain.User{}, err
+	}
+	return user, nil
+}
+
+func (s *authService) ChangePassword(ctx context.Context, actor domain.Actor, currentPassword, newPassword string) error {
+	if len(newPassword) < minPasswordLen {
+		return &domain.Error{
+			Code:    "PASSWORD_TOO_SHORT",
+			Message: fmt.Sprintf("password must be at least %d characters", minPasswordLen),
+		}
+	}
+
+	if strings.TrimSpace(newPassword) == "" {
+		return &domain.Error{
+			Code:    "PASSWORD_WHITESPACE",
+			Message: "password must not consist entirely of whitespace",
+		}
+	}
+
+	user, err := s.users.FindByID(ctx, actor.UserID)
+	if err != nil {
+		return err
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+		return domain.ErrInvalidCredentials
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcryptCost)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+
+	user.PasswordHash = string(hash)
+	user.UpdatedAt = time.Now()
+
+	return s.users.Update(ctx, user)
+}
+
 func (s *authService) issueToken(user domain.User, tokenType string, ttl time.Duration) (string, error) {
 	return issueToken(user, tokenType, ttl, s.secret)
 }

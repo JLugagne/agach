@@ -82,6 +82,7 @@ export default function BulkActionsBar({
       {context === 'todo' && (
         <>
           <button
+            data-qa="bulk-move-in-progress-btn"
             onClick={handleMoveInProgress}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--status-progress-bg)] text-[var(--status-progress)] text-xs font-['Inter'] font-medium hover:opacity-80 transition-opacity"
           >
@@ -89,6 +90,7 @@ export default function BulkActionsBar({
             Move to In Progress
           </button>
           <button
+            data-qa="bulk-block-btn"
             onClick={handleBlock}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--status-blocked-bg)] text-[var(--status-blocked)] text-xs font-['Inter'] font-medium hover:opacity-80 transition-opacity"
           >
@@ -101,6 +103,7 @@ export default function BulkActionsBar({
       {context === 'in_progress' && (
         <>
           <button
+            data-qa="bulk-move-todo-btn"
             onClick={handleMoveTodo}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--status-todo-bg)] text-[var(--status-todo)] text-xs font-['Inter'] font-medium hover:opacity-80 transition-opacity"
           >
@@ -108,6 +111,7 @@ export default function BulkActionsBar({
             Move to Todo
           </button>
           <button
+            data-qa="bulk-complete-btn"
             onClick={handleComplete}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--status-done-bg)] text-[var(--status-done)] text-xs font-['Inter'] font-medium hover:opacity-80 transition-opacity"
           >
@@ -115,6 +119,7 @@ export default function BulkActionsBar({
             Complete
           </button>
           <button
+            data-qa="bulk-block-btn"
             onClick={handleBlock}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--status-blocked-bg)] text-[var(--status-blocked)] text-xs font-['Inter'] font-medium hover:opacity-80 transition-opacity"
           >
@@ -126,6 +131,7 @@ export default function BulkActionsBar({
 
       {context === 'blocked' && (
         <button
+          data-qa="bulk-unblock-btn"
           onClick={handleUnblock}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--status-todo-bg)] text-[var(--status-todo)] text-xs font-['Inter'] font-medium hover:opacity-80 transition-opacity"
         >
@@ -136,6 +142,7 @@ export default function BulkActionsBar({
 
       {context === 'done' && (
         <button
+          data-qa="bulk-move-todo-btn"
           onClick={handleMoveTodo}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--status-todo-bg)] text-[var(--status-todo)] text-xs font-['Inter'] font-medium hover:opacity-80 transition-opacity"
         >
@@ -146,6 +153,7 @@ export default function BulkActionsBar({
 
       {/* Delete — always shown */}
       <button
+        data-qa="bulk-delete-btn"
         onClick={handleDelete}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#F0606015] text-[#F06060] text-xs font-['Inter'] font-medium hover:opacity-80 transition-opacity"
       >
@@ -157,6 +165,7 @@ export default function BulkActionsBar({
 
       {/* Cancel */}
       <button
+        data-qa="bulk-cancel-btn"
         onClick={onClear}
         className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors text-xs font-['Inter']"
       >

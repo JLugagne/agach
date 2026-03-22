@@ -60,6 +60,7 @@ export default function MarkWontDoModal({ task, projectId, onClose, onSuccess }:
           </h2>
           <button
             onClick={onClose}
+            data-qa="mark-wont-do-close-btn"
             className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
           >
             <X size={20} />
@@ -82,6 +83,7 @@ export default function MarkWontDoModal({ task, projectId, onClose, onSuccess }:
               onChange={(e) => setReason(e.target.value)}
               placeholder="Briefly explain why this won't be done..."
               rows={4}
+              data-qa="wont-do-reason-input"
               className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-[var(--text-primary)] text-sm font-['Inter'] placeholder-[var(--text-dim)] resize-y focus:outline-none focus:border-[var(--primary)] transition-colors"
             />
             <p className="text-[var(--text-dim)] text-xs font-['Inter'] mt-1">
@@ -98,6 +100,7 @@ export default function MarkWontDoModal({ task, projectId, onClose, onSuccess }:
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border-primary)]">
           <button
             onClick={onClose}
+            data-qa="mark-wont-do-cancel-btn"
             className="px-4 py-2 text-sm font-['Inter'] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-md"
           >
             Cancel
@@ -105,6 +108,7 @@ export default function MarkWontDoModal({ task, projectId, onClose, onSuccess }:
           <button
             onClick={handleSubmit}
             disabled={loading || reason.trim().length < 50}
+            data-qa="mark-wont-do-submit-btn"
             className="px-4 py-2 text-sm font-['Inter'] font-medium text-[var(--primary-text)] bg-[var(--status-progress)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
           >
             {loading ? 'Processing...' : "Mark as Won't Do"}

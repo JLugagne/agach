@@ -7,8 +7,7 @@ COPY ux/ ./
 RUN npm run build
 
 # Stage 2: Build Go backend
-FROM golang:1.25-alpine AS backend
-RUN apk add --no-cache gcc musl-dev sqlite-dev
+FROM golang:1.26-alpine AS backend
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
@@ -17,7 +16,7 @@ COPY pkg/ pkg/
 COPY cmd/ cmd/
 COPY ux/embed.go ux/embed.go
 COPY --from=frontend /app/ux/dist ux/dist/
-RUN CGO_ENABLED=1 go build -tags sqlite_fts5 -ldflags="-extldflags '-static'" -o /agach-server ./cmd/agach-server
+RUN go build -ldflags="-extldflags '-static'" -o /agach-server ./cmd/agach-server
 
 # Stage 3: Final image
 FROM alpine:3.21

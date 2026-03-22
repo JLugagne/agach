@@ -17,6 +17,7 @@ import TaskContextMenu from '../components/kanban/TaskContextMenu';
 import TaskActions from '../components/kanban/TaskActions';
 import NewTaskModal from '../components/kanban/NewTaskModal';
 import BulkActionsBar from '../components/kanban/BulkActionsBar';
+import FeatureDetailDrawer from '../components/kanban/FeatureDetailDrawer';
 
 const DONE_FILTER_OPTIONS = [
   { label: 'Last 1h', value: '1h' },
@@ -41,6 +42,29 @@ export default function KanbanPage() {
   const [doneSince, setDoneSince] = useState('');
 
   const [features, setFeatures] = useState<ProjectWithSummary[]>([]);
+  const [selectedFeature, setSelectedFeature] = useState<ProjectWithSummary | null>(null);
+
+  // Compute which column each feature belongs to
+  const featureColumnMap = useMemo((): Map<string, string> => {
+    const map = new Map<string, string>();
+    for (const feature of features) {
+      const s = feature.summary ?? feature.task_summary;
+      if (!s) {
+        map.set(feature.id, 'done');
+        continue;
+      }
+      if (s.in_progress_count > 0) {
+        map.set(feature.id, 'in_progress');
+      } else if (s.todo_count > 0) {
+        map.set(feature.id, 'todo');
+      } else if (s.blocked_count > 0) {
+        map.set(feature.id, 'blocked');
+      } else {
+        map.set(feature.id, 'done');
+      }
+    }
+    return map;
+  }, [features]);
 
   // Filter state
   const [includeChildren, setIncludeChildren] = useState(true);
@@ -253,13 +277,23 @@ export default function KanbanPage() {
     listProjectRoles(projectId).then(setRoles).catch(() => {});
   }, [projectId]);
 
+  const fetchFeatures = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const data = await listFeaturesActiveOnly(projectId);
+      setFeatures(data);
+    } catch {
+      setFeatures([]);
+    }
+  }, [projectId]);
+
   useEffect(() => {
     if (!projectId) return;
     listSubProjects(projectId).then((children) => {
       setChildProjectIds(new Set(children.map((c) => c.id)));
     }).catch(() => setChildProjectIds(new Set()));
-    listFeaturesActiveOnly(projectId).then(setFeatures).catch(() => setFeatures([]));
-  }, [projectId]);
+    fetchFeatures();
+  }, [projectId, fetchFeatures]);
 
   useEffect(() => {
     fetchBoard();
@@ -310,9 +344,12 @@ export default function KanbanPage() {
           type === 'project_updated'
         ) {
           fetchBoard();
+          if (type.startsWith('task_')) {
+            fetchFeatures();
+          }
         }
       },
-      [projectId, fetchBoard, childProjectIds],
+      [projectId, fetchBoard, fetchFeatures, childProjectIds],
     ),
   );
 
@@ -544,6 +581,7 @@ export default function KanbanPage() {
             <>
               <Link
                 to={`/projects/${parentProject.id}`}
+                data-qa="kanban-parent-project-link"
                 className="text-[var(--text-secondary)] text-lg font-['Newsreader'] hover:text-[var(--text-primary)] transition-colors"
               >
                 {parentProject.name}
@@ -569,11 +607,13 @@ export default function KanbanPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search tasks..."
+              data-qa="search-input"
               className="w-48 pl-8 pr-8 py-1.5 bg-[var(--bg-elevated)] border border-[var(--border-secondary)] text-[var(--text-primary)] text-xs font-['Inter'] rounded-md focus:outline-none focus:border-[var(--primary)] placeholder:text-[var(--text-muted)] transition-colors"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
+                data-qa="search-clear-btn"
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
               >
                 <X size={12} />
@@ -585,6 +625,7 @@ export default function KanbanPage() {
           {hasChildren && (
             <button
               onClick={() => setIncludeChildren((v) => !v)}
+              data-qa="kanban-toggle-subprojects-btn"
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-['JetBrains_Mono'] uppercase tracking-wider transition-colors ${
                 includeChildren
                   ? 'bg-[#8B5CF615] text-[#8B5CF6] border border-[#8B5CF630]'
@@ -605,6 +646,7 @@ export default function KanbanPage() {
                 <button
                   key={role.slug}
                   onClick={() => toggleRole(role.slug)}
+                  data-qa="kanban-role-filter-btn"
                   className={`flex items-center gap-1 px-2 py-1.5 rounded-md text-[10px] font-['JetBrains_Mono'] font-bold uppercase tracking-wider transition-colors border ${
                     isActive
                       ? 'border-current bg-[var(--bg-elevated)]'
@@ -625,6 +667,7 @@ export default function KanbanPage() {
                   setIncludeChildren(true);
                   setSearchQuery('');
                 }}
+                data-qa="kanban-clear-filters-btn"
                 className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors ml-1"
                 title="Clear all filters"
               >
@@ -639,6 +682,7 @@ export default function KanbanPage() {
             <select
               value={doneSince}
               onChange={(e) => setDoneSince(e.target.value)}
+              data-qa="done-filter-select"
               className="bg-[var(--bg-elevated)] border border-[var(--border-secondary)] text-[var(--text-secondary)] text-xs font-['JetBrains_Mono'] rounded px-2 py-1.5 focus:outline-none focus:border-[var(--primary)] cursor-pointer"
             >
               {DONE_FILTER_OPTIONS.map((opt) => (
@@ -648,6 +692,7 @@ export default function KanbanPage() {
           </div>
           <button
             onClick={() => setShowNewTask(true)}
+            data-qa="new-task-btn"
             className="flex items-center gap-1.5 px-4 py-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--primary-text)] text-sm font-['Inter'] font-medium rounded-md transition-colors"
           >
             <Plus size={16} />
@@ -698,6 +743,10 @@ export default function KanbanPage() {
                 isTaskSelected={(taskId) => selectedTaskIds.has(taskId)}
                 onTaskSelect={handleTaskSelect}
                 onRefresh={fetchBoard}
+                {...(features.length > 0 ? {
+                  features: features.filter(f => featureColumnMap.get(f.id) === col.slug),
+                  onFeatureClick: (feature) => setSelectedFeature(feature),
+                } : {})}
               />
             );
           })}
@@ -740,6 +789,19 @@ export default function KanbanPage() {
           />
         );
       })()}
+
+      {/* Feature detail drawer */}
+      {selectedFeature && (
+        <FeatureDetailDrawer
+          feature={selectedFeature}
+          projectId={projectId}
+          onClose={() => setSelectedFeature(null)}
+          onTaskClick={(taskId: string, _taskProjectId: string) => {
+            setSelectedFeature(null);
+            setSelectedTaskId(taskId);
+          }}
+        />
+      )}
 
       {/* New task modal */}
       {showNewTask && (
@@ -788,6 +850,7 @@ export default function KanbanPage() {
               <span className="text-[var(--text-primary)] text-xs font-['Inter'] font-semibold uppercase tracking-wider">Shortcuts</span>
               <button
                 onClick={() => setShowShortcutsHelp(false)}
+                data-qa="kanban-shortcuts-close-btn"
                 className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
               >
                 <X size={12} />

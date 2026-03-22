@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { useTheme } from '../components/ThemeContext';
 
@@ -8,6 +9,7 @@ const SANS = "'Geist', 'Inter', sans-serif";
 export default function LoginPage() {
   const { login } = useAuth();
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -30,6 +32,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
+      navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -232,6 +235,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required autoFocus autoComplete="username"
+                  data-qa="login-email-input"
                   placeholder="admin@agach.local"
                   style={{
                     width: '100%', padding: '11px 14px', borderRadius: '8px',
@@ -257,6 +261,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     required autoComplete="current-password"
+                    data-qa="login-password-input"
                     style={{
                       width: '100%', padding: '11px 44px 11px 14px', borderRadius: '8px',
                       fontFamily: MONO, fontSize: '13px',
@@ -271,6 +276,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPass(v => !v)}
+                    data-qa="toggle-password-visibility-btn"
                     style={{
                       position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
                       background: 'none', border: 'none', cursor: 'pointer', padding: '2px',
@@ -303,6 +309,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
+                data-qa="login-submit-btn"
                 style={{
                   width: '100%', padding: '13px',
                   borderRadius: '8px', fontSize: '15px', fontWeight: 600,
@@ -347,6 +354,7 @@ export default function LoginPage() {
                     key={label}
                     type="button"
                     disabled
+                    data-qa={`login-${label.toLowerCase()}-btn`}
                     className="btn-social"
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',

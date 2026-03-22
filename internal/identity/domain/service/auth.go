@@ -15,6 +15,8 @@ type AuthCommands interface {
 	Logout(ctx context.Context, refreshToken string) error
 	CreateAPIKey(ctx context.Context, actor domain.Actor, name string, scopes []string, expiresAt *time.Time) (key domain.APIKey, rawKey string, err error)
 	RevokeAPIKey(ctx context.Context, actor domain.Actor, keyID domain.APIKeyID) error
+	UpdateProfile(ctx context.Context, actor domain.Actor, displayName string) (domain.User, error)
+	ChangePassword(ctx context.Context, actor domain.Actor, currentPassword, newPassword string) error
 }
 
 type AuthQueries interface {

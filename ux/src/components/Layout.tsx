@@ -1,9 +1,10 @@
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { LayoutGrid, Users, Settings, Plus, AlertTriangle, Sun, Moon, BarChart3, Inbox, BookOpen } from 'lucide-react';
+import { LayoutGrid, Users, Settings, Plus, AlertTriangle, Sun, Moon, BarChart3, Inbox, BookOpen, Container, Key, LogOut, UserCircle, ChevronUp } from 'lucide-react';
 import { listFeaturesActiveOnly, getProject, getProjectSummary } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useTheme } from './ThemeContext';
+import { useAuth } from './AuthContext';
 import type { ProjectWithSummary, ProjectResponse, ProjectSummaryResponse } from '../lib/types';
 
 interface LayoutProps {
@@ -15,6 +16,9 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [parentProject, setParentProject] = useState<ProjectResponse | null>(null);
   const [activeFeatures, setActiveFeatures] = useState<ProjectWithSummary[]>([]);
@@ -108,6 +112,17 @@ export function Layout({ children }: LayoutProps) {
     ),
   );
 
+  // Close user menu on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    if (userMenuOpen) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [userMenuOpen]);
+
   const isActive = (path: string) => location.pathname === path;
   const isActivePrefix = (prefix: string) => location.pathname.startsWith(prefix);
 
@@ -119,7 +134,7 @@ export function Layout({ children }: LayoutProps) {
       {/* Sidebar */}
       <aside className="w-[220px] flex-shrink-0 bg-[var(--bg-secondary)] border-r border-[var(--border-primary)] flex flex-col">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2.5 h-[60px] px-4 border-b border-[var(--border-primary)] hover:opacity-80 transition-opacity flex-shrink-0">
+        <Link to="/" data-qa="logo-home-link" className="flex items-center gap-2.5 h-[60px] px-4 border-b border-[var(--border-primary)] hover:opacity-80 transition-opacity flex-shrink-0">
           <div className="w-8 h-8 flex items-center justify-center">
             <img src={theme === 'dark' ? "/logo-dark.svg" : "/logo-light.svg"} alt="Agach" className="w-full h-auto" />
           </div>
@@ -139,12 +154,14 @@ export function Layout({ children }: LayoutProps) {
                 label="Kanban"
                 active={isActive(`/projects/${projectId}`) || isActive(`/projects/${projectId}/board`)}
                 onClick={() => navigate(`/projects/${projectId}`)}
+                data-qa="nav-kanban-btn"
               />
               <NavItem
                 icon={<Inbox size={15} />}
                 label="Backlog"
                 active={isActive(`/projects/${projectId}/backlog`)}
                 onClick={() => navigate(`/projects/${projectId}/backlog`)}
+                data-qa="nav-backlog-btn"
                 badge={(() => {
                   const own = projectSummary?.backlog_count ?? 0;
                   // When at root project (no parentId), add features' backlog counts
@@ -163,18 +180,21 @@ export function Layout({ children }: LayoutProps) {
                 label="Roles"
                 active={isActive(`/projects/${projectId}/roles`)}
                 onClick={() => navigate(`/projects/${projectId}/roles`)}
+                data-qa="nav-roles-btn"
               />
               <NavItem
                 icon={<BarChart3 size={15} />}
                 label="Statistics"
                 active={isActive(`/projects/${projectId}/statistics`)}
                 onClick={() => navigate(`/projects/${projectId}/statistics`)}
+                data-qa="nav-statistics-btn"
               />
               <NavItem
                 icon={<Settings size={15} />}
                 label="Settings"
                 active={isActivePrefix(`/projects/${projectId}/settings`)}
                 onClick={() => navigate(`/projects/${projectId}/settings`)}
+                data-qa="nav-settings-btn"
               />
             </>
           ) : (
@@ -184,24 +204,28 @@ export function Layout({ children }: LayoutProps) {
                 label="Projects"
                 active={isActive('/')}
                 onClick={() => navigate('/')}
+                data-qa="nav-projects-btn"
               />
               <NavItem
                 icon={<Users size={15} />}
                 label="Roles"
                 active={isActive('/roles')}
                 onClick={() => navigate('/roles')}
+                data-qa="nav-roles-btn"
               />
               <NavItem
                 icon={<BookOpen size={15} />}
                 label="Skills"
                 active={isActive('/skills')}
                 onClick={() => navigate('/skills')}
+                data-qa="nav-skills-btn"
               />
               <NavItem
-                icon={<Settings size={15} />}
-                label="Settings"
-                active={false}
-                onClick={() => {}}
+                icon={<Container size={15} />}
+                label="Dockerfiles"
+                active={isActive('/dockerfiles')}
+                onClick={() => navigate('/dockerfiles')}
+                data-qa="nav-dockerfiles-btn"
               />
             </>
           )}
@@ -241,6 +265,7 @@ export function Layout({ children }: LayoutProps) {
                   <button
                     key={feat.id}
                     onClick={() => navigate(`/projects/${feat.id}`)}
+                    data-qa="nav-feature-btn"
                     className={`flex items-center gap-2.5 h-10 px-2.5 rounded-md w-full text-left transition-colors cursor-pointer ${
                       isCurrentFeature
                         ? 'bg-[var(--nav-bg-active)]'
@@ -280,6 +305,7 @@ export function Layout({ children }: LayoutProps) {
               <button
                 className="flex items-center gap-2 h-9 px-2.5 rounded-md w-full text-left hover:bg-[var(--nav-bg-active)]/50 transition-colors cursor-pointer group"
                 onClick={() => navigate(`/projects/${navProjectId}/features`)}
+                data-qa="nav-add-feature-btn"
               >
                 <Plus
                   size={13}
@@ -298,16 +324,80 @@ export function Layout({ children }: LayoutProps) {
 
         </div>
 
-        {/* Theme Switcher */}
-        <div className="p-[12px_10px] border-t border-[var(--border-primary)]">
+        {/* User Menu */}
+        <div ref={userMenuRef} className="p-[12px_10px] border-t border-[var(--border-primary)] relative">
+          {/* Popup menu */}
+          {userMenuOpen && (
+            <div className="absolute bottom-full left-2 right-2 mb-1 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-lg overflow-hidden z-50">
+              {/* User info header */}
+              <div className="px-3 py-2.5 border-b border-[var(--border-primary)]">
+                <p className="text-[12px] font-medium text-[var(--text-primary)] truncate" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  {user?.display_name || user?.email}
+                </p>
+                <p className="text-[11px] text-[var(--text-muted)] truncate" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  {user?.email}
+                </p>
+              </div>
+              {/* Theme toggle */}
+              <button
+                onClick={() => { toggleTheme(); setUserMenuOpen(false); }}
+                data-qa="theme-toggle-btn"
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-[var(--text-secondary)] hover:bg-[var(--nav-bg-active)]/50 hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                style={{ fontFamily: 'Inter, sans-serif' }}
+              >
+                {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+                {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+              </button>
+              {/* Account */}
+              <button
+                onClick={() => { navigate('/account'); setUserMenuOpen(false); }}
+                data-qa="user-menu-account-btn"
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-[var(--text-secondary)] hover:bg-[var(--nav-bg-active)]/50 hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                style={{ fontFamily: 'Inter, sans-serif' }}
+              >
+                <UserCircle size={14} />
+                Account
+              </button>
+              {/* API Keys */}
+              <button
+                onClick={() => { navigate('/account/api-keys'); setUserMenuOpen(false); }}
+                data-qa="user-menu-api-keys-btn"
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-[var(--text-secondary)] hover:bg-[var(--nav-bg-active)]/50 hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                style={{ fontFamily: 'Inter, sans-serif' }}
+              >
+                <Key size={14} />
+                API Keys
+              </button>
+              {/* Divider + Logout */}
+              <div className="border-t border-[var(--border-primary)]">
+                <button
+                  onClick={async () => { setUserMenuOpen(false); await logout(); navigate('/login'); }}
+                  data-qa="user-menu-logout-btn"
+                  className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                  style={{ fontFamily: 'Inter, sans-serif' }}
+                >
+                  <LogOut size={14} />
+                  Sign out
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Trigger button */}
           <button
-            onClick={toggleTheme}
+            onClick={() => setUserMenuOpen(v => !v)}
+            data-qa="user-menu-btn"
             className="flex items-center gap-2.5 h-9 px-2.5 rounded-md w-full text-left hover:bg-[var(--nav-bg-active)]/50 transition-colors cursor-pointer text-[var(--text-secondary)]"
           >
-            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-            <span className="text-[13px] font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>
-              {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+            <div className="w-6 h-6 rounded-full bg-[var(--primary)] flex items-center justify-center flex-shrink-0">
+              <span className="text-[11px] font-bold text-white" style={{ fontFamily: 'Inter, sans-serif' }}>
+                {(user?.display_name || user?.email || '?')[0].toUpperCase()}
+              </span>
+            </div>
+            <span className="text-[13px] font-medium flex-1 truncate" style={{ fontFamily: 'Inter, sans-serif' }}>
+              {user?.display_name || user?.email}
             </span>
+            <ChevronUp size={13} className={`flex-shrink-0 transition-transform ${userMenuOpen ? '' : 'rotate-180'}`} />
           </button>
         </div>
       </aside>
@@ -320,10 +410,11 @@ export function Layout({ children }: LayoutProps) {
   );
 }
 
-function NavItem({ icon, label, active, onClick, badge }: { icon: ReactNode; label: string; active: boolean; onClick: () => void; badge?: number }) {
+function NavItem({ icon, label, active, onClick, badge, 'data-qa': dataQa }: { icon: ReactNode; label: string; active: boolean; onClick: () => void; badge?: number; 'data-qa'?: string }) {
   return (
     <button
       onClick={onClick}
+      data-qa={dataQa}
       className={`flex items-center gap-2.5 h-9 px-2.5 rounded-md w-full text-left transition-colors cursor-pointer ${
         active ? 'bg-[var(--nav-bg-active)] text-[var(--nav-text-active)]' : 'text-[var(--text-secondary)] hover:bg-[var(--nav-bg-active)]/50 hover:text-[var(--text-primary)]'
       }`}

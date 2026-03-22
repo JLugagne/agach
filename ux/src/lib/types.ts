@@ -12,9 +12,11 @@ export interface ProjectResponse {
   name: string;
   description: string;
   work_dir: string;
+  git_url: string;
   created_by_role: string;
   created_by_agent: string;
   default_role: string;
+  dockerfile_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -38,6 +40,9 @@ export interface CreateProjectRequest {
   name: string;
   description?: string;
   work_dir?: string;
+  git_url?: string;
+  dockerfile_id?: string;
+  roles?: string[];
   parent_id?: string;
   created_by_role?: string;
   created_by_agent?: string;
@@ -333,6 +338,42 @@ export interface TasksByAgentResponse {
   agent_slug: string;
   task_count: number;
   tasks: TaskResponse[];
+}
+
+// Dockerfiles
+export interface DockerfileResponse {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  version: string;
+  content: string;
+  is_latest: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateDockerfileRequest {
+  slug: string;
+  name: string;
+  description?: string;
+  version: string;
+  content?: string;
+  is_latest?: boolean;
+  sort_order?: number;
+}
+
+export interface UpdateDockerfileRequest {
+  name?: string;
+  description?: string;
+  content?: string;
+  is_latest?: boolean;
+  sort_order?: number;
+}
+
+export interface SetProjectDockerfileRequest {
+  dockerfile_id: string;
 }
 
 // WebSocket

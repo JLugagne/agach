@@ -77,6 +77,7 @@ export default function ApproveWontDoModal({ task, projectId, onClose, onSuccess
           </h2>
           <button
             onClick={onClose}
+            data-qa="approve-wont-do-close-btn"
             className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
           >
             <X size={20} />
@@ -120,6 +121,7 @@ export default function ApproveWontDoModal({ task, projectId, onClose, onSuccess
                 onChange={(e) => setRejectionReason(e.target.value)}
                 placeholder="Explain why this request is being rejected..."
                 rows={3}
+                data-qa="wont-do-rejection-reason-input"
                 className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-[var(--text-primary)] text-sm font-['Inter'] placeholder-[var(--text-dim)] resize-y focus:outline-none focus:border-[var(--primary)] transition-colors"
               />
               <p className="text-[var(--text-dim)] text-xs font-['Inter'] mt-1">
@@ -138,6 +140,7 @@ export default function ApproveWontDoModal({ task, projectId, onClose, onSuccess
           <button
             onClick={handleReject}
             disabled={loading}
+            data-qa="wont-do-reject-btn"
             className="px-4 py-2 text-sm font-['Inter'] font-medium text-[var(--status-blocked)] border border-[var(--status-blocked)] hover:bg-[var(--status-blocked)] hover:text-white disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
           >
             {loading && rejecting ? 'Rejecting...' : 'Reject'}
@@ -146,6 +149,7 @@ export default function ApproveWontDoModal({ task, projectId, onClose, onSuccess
             <button
               onClick={handleApprove}
               disabled={loading}
+              data-qa="wont-do-approve-btn"
               className="px-4 py-2 text-sm font-['Inter'] font-medium text-[var(--primary-text)] bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
             >
               {loading ? 'Approving...' : "Approve Won't Do"}

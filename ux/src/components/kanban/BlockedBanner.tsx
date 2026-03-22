@@ -58,6 +58,7 @@ export default function BlockedBanner({ task, onUnblock }: BlockedBannerProps) {
 
           {onUnblock && (
             <button
+              data-qa="blocked-banner-unblock-btn"
               onClick={onUnblock}
               className="px-3 py-1.5 text-xs font-['Inter'] font-medium text-[var(--primary-text)] bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-md transition-colors"
             >

@@ -5,8 +5,15 @@
 -- ON DELETE CASCADE: deleting a feature project cascades to its tasks via project_id already;
 --   feature_id references the same projects table and also cascades for FK integrity.
 
-ALTER TABLE tasks
-    ADD COLUMN IF NOT EXISTS feature_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'tasks' AND column_name = 'feature_id'
+    ) THEN
+        ALTER TABLE tasks ADD COLUMN feature_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 -- Index for efficient "list tasks by feature" queries
 CREATE INDEX IF NOT EXISTS tasks_feature_id_idx ON tasks(feature_id) WHERE feature_id IS NOT NULL;

@@ -23,13 +23,15 @@ import (
 // ─────────────────────────────────────────────────────────────────────────────
 
 type mockAuthCommands struct {
-	registerFunc     func(ctx context.Context, email, password, displayName string) (domain.User, error)
-	loginFunc        func(ctx context.Context, email, password string) (string, string, error)
-	loginSSOFunc     func(ctx context.Context, provider, idToken, nonce string) (string, string, error)
-	refreshTokenFunc func(ctx context.Context, refreshToken string) (string, error)
-	logoutFunc       func(ctx context.Context, token string) error
-	createAPIKeyFunc func(ctx context.Context, actor domain.Actor, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string, error)
-	revokeAPIKeyFunc func(ctx context.Context, actor domain.Actor, keyID domain.APIKeyID) error
+	registerFunc      func(ctx context.Context, email, password, displayName string) (domain.User, error)
+	loginFunc         func(ctx context.Context, email, password string) (string, string, error)
+	loginSSOFunc      func(ctx context.Context, provider, idToken, nonce string) (string, string, error)
+	refreshTokenFunc  func(ctx context.Context, refreshToken string) (string, error)
+	logoutFunc        func(ctx context.Context, token string) error
+	createAPIKeyFunc  func(ctx context.Context, actor domain.Actor, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string, error)
+	revokeAPIKeyFunc  func(ctx context.Context, actor domain.Actor, keyID domain.APIKeyID) error
+	updateProfileFunc func(ctx context.Context, actor domain.Actor, displayName string) (domain.User, error)
+	changePasswordFunc func(ctx context.Context, actor domain.Actor, currentPassword, newPassword string) error
 }
 
 func (m *mockAuthCommands) Register(ctx context.Context, email, password, displayName string) (domain.User, error) {
@@ -58,6 +60,18 @@ func (m *mockAuthCommands) CreateAPIKey(ctx context.Context, actor domain.Actor,
 }
 func (m *mockAuthCommands) RevokeAPIKey(ctx context.Context, actor domain.Actor, keyID domain.APIKeyID) error {
 	return m.revokeAPIKeyFunc(ctx, actor, keyID)
+}
+func (m *mockAuthCommands) UpdateProfile(ctx context.Context, actor domain.Actor, displayName string) (domain.User, error) {
+	if m.updateProfileFunc != nil {
+		return m.updateProfileFunc(ctx, actor, displayName)
+	}
+	return domain.User{}, nil
+}
+func (m *mockAuthCommands) ChangePassword(ctx context.Context, actor domain.Actor, currentPassword, newPassword string) error {
+	if m.changePasswordFunc != nil {
+		return m.changePasswordFunc(ctx, actor, currentPassword, newPassword)
+	}
+	return nil
 }
 
 type mockAuthQueries struct {
