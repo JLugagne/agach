@@ -109,16 +109,15 @@ export default function Column({
             {column.name}
           </span>
           <span
-              className="px-1.5 py-0.5 rounded-md text-[10px] font-bold min-w-[20px] text-center"
-              style={{
-                backgroundColor: colors.countBg,
-                color: colors.countText,
-                fontFamily: 'JetBrains Mono, monospace',
-              }}
-            >
-              {tasks.length}
-            </span>
-          )}
+            className="px-1.5 py-0.5 rounded-md text-[10px] font-bold min-w-[20px] text-center"
+            style={{
+              backgroundColor: colors.countBg,
+              color: colors.countText,
+              fontFamily: 'JetBrains Mono, monospace',
+            }}
+          >
+            {tasks.length}
+          </span>
         </div>
         {onAddTask && (
           <button
