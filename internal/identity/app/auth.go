@@ -29,7 +29,8 @@ const (
 	minSecretLen      = 32
 	apiKeyPrefix      = "agach_"
 	accessTokenTTL    = 15 * time.Minute
-	refreshTokenTTL   = 7 * 24 * time.Hour
+	refreshTokenTTL         = 7 * 24 * time.Hour
+	refreshTokenTTLRemember = 30 * 24 * time.Hour
 	jwtClaimTokenType = "token_type"
 	tokenTypeAccess   = "access"
 	tokenTypeRefresh  = "refresh"
@@ -118,7 +119,7 @@ func (s *authService) Register(ctx context.Context, email, password, displayName
 	return user, nil
 }
 
-func (s *authService) Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error) {
+func (s *authService) Login(ctx context.Context, email, password string, rememberMe bool) (accessToken, refreshToken string, err error) {
 	if len(s.secret) < minSecretLen {
 		return "", "", &domain.Error{
 			Code:    "INSECURE_JWT_SECRET",
@@ -150,7 +151,11 @@ func (s *authService) Login(ctx context.Context, email, password string) (access
 	if err != nil {
 		return "", "", err
 	}
-	refreshToken, err = s.issueToken(user, tokenTypeRefresh, refreshTokenTTL)
+	rttl := refreshTokenTTL
+	if rememberMe {
+		rttl = refreshTokenTTLRemember
+	}
+	refreshToken, err = s.issueToken(user, tokenTypeRefresh, rttl)
 	return accessToken, refreshToken, err
 }
 

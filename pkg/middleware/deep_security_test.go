@@ -16,7 +16,6 @@ import (
 	"strings"
 	"testing"
 
-	identitydomain "github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/pkg/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,38 +25,30 @@ import (
 // Shared test helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-// deepSecurityMockAuth satisfies identityservice.AuthQueries for deep security tests.
+// deepSecurityMockAuth satisfies middleware.AuthValidator for deep security tests.
 type deepSecurityMockAuth struct {
-	validJWTs    map[string]identitydomain.Actor
-	validAPIKeys map[string]identitydomain.Actor
+	validJWTs    map[string]any
+	validAPIKeys map[string]any
 }
 
-func (m *deepSecurityMockAuth) ValidateJWT(_ context.Context, token string) (identitydomain.Actor, error) {
+func (m *deepSecurityMockAuth) ValidateJWT(_ context.Context, token string) (any, error) {
 	if a, ok := m.validJWTs[token]; ok {
 		return a, nil
 	}
-	return identitydomain.Actor{}, identitydomain.ErrUnauthorized
+	return nil, errUnauthorized
 }
 
-func (m *deepSecurityMockAuth) ValidateAPIKey(_ context.Context, key string) (identitydomain.Actor, error) {
+func (m *deepSecurityMockAuth) ValidateAPIKey(_ context.Context, key string) (any, error) {
 	if a, ok := m.validAPIKeys[key]; ok {
 		return a, nil
 	}
-	return identitydomain.Actor{}, identitydomain.ErrUnauthorized
-}
-
-func (m *deepSecurityMockAuth) ListAPIKeys(_ context.Context, _ identitydomain.Actor) ([]identitydomain.APIKey, error) {
-	return nil, nil
-}
-
-func (m *deepSecurityMockAuth) GetCurrentUser(_ context.Context, actor identitydomain.Actor) (identitydomain.User, error) {
-	return identitydomain.User{ID: actor.UserID, Email: actor.Email}, nil
+	return nil, errUnauthorized
 }
 
 func newDeepSecurityAuthHandler() http.Handler {
 	mock := &deepSecurityMockAuth{
-		validJWTs:    map[string]identitydomain.Actor{"valid-jwt-deep": {Email: "user@example.com", Role: identitydomain.RoleMember}},
-		validAPIKeys: map[string]identitydomain.Actor{"agach_validkey_deep": {Email: "user@example.com", Role: identitydomain.RoleMember}},
+		validJWTs:    map[string]any{"valid-jwt-deep": testActor{Email: "user@example.com"}},
+		validAPIKeys: map[string]any{"agach_validkey_deep": testActor{Email: "user@example.com"}},
 	}
 	return middleware.NewRequireAuth(mock)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -364,7 +355,7 @@ func TestDeepSecurity_RED_EmptyTokenAfterBearerPrefix(t *testing.T) {
 	// token, to confirm the middleware is responsible for the check.
 	called := false
 	panicIfEmptyToken := &deepSecurityMockAuth{
-		validJWTs: map[string]identitydomain.Actor{},
+		validJWTs: map[string]any{},
 	}
 	_ = panicIfEmptyToken // prevent unused warning
 
@@ -395,29 +386,21 @@ func TestDeepSecurity_RED_EmptyTokenAfterBearerPrefix(t *testing.T) {
 	}
 }
 
-// authCallRecorder is a minimal AuthQueries mock that invokes a callback when
+// authCallRecorder is a minimal AuthValidator mock that invokes a callback when
 // ValidateJWT is called, allowing tests to inspect the token value.
 type authCallRecorder struct {
 	onValidateJWT func(token string)
 }
 
-func (a *authCallRecorder) ValidateJWT(_ context.Context, token string) (identitydomain.Actor, error) {
+func (a *authCallRecorder) ValidateJWT(_ context.Context, token string) (any, error) {
 	if a.onValidateJWT != nil {
 		a.onValidateJWT(token)
 	}
-	return identitydomain.Actor{}, identitydomain.ErrUnauthorized
+	return nil, errUnauthorized
 }
 
-func (a *authCallRecorder) ValidateAPIKey(_ context.Context, _ string) (identitydomain.Actor, error) {
-	return identitydomain.Actor{}, identitydomain.ErrUnauthorized
-}
-
-func (a *authCallRecorder) ListAPIKeys(_ context.Context, _ identitydomain.Actor) ([]identitydomain.APIKey, error) {
-	return nil, nil
-}
-
-func (a *authCallRecorder) GetCurrentUser(_ context.Context, actor identitydomain.Actor) (identitydomain.User, error) {
-	return identitydomain.User{}, nil
+func (a *authCallRecorder) ValidateAPIKey(_ context.Context, _ string) (any, error) {
+	return nil, errUnauthorized
 }
 
 // TestDeepSecurity_GREEN_NonEmptyTokenIsForwardedToValidateJWT confirms that a

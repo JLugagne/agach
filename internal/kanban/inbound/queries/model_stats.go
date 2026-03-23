@@ -27,7 +27,6 @@ func NewModelStatsQueriesHandler(queries service.Queries, ctrl *controller.Contr
 func (h *ModelStatsQueriesHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/projects/{id}/stats/model-tokens", h.handleGetModelTokenStats).Methods("GET")
 	router.HandleFunc("/api/model-pricing", h.handleListModelPricing).Methods("GET")
-	router.HandleFunc("/api/projects/{id}/stats/features", h.handleGetFeatureStats).Methods("GET")
 }
 
 func (h *ModelStatsQueriesHandler) handleGetModelTokenStats(w http.ResponseWriter, r *http.Request) {
@@ -54,20 +53,4 @@ func (h *ModelStatsQueriesHandler) handleListModelPricing(w http.ResponseWriter,
 	}
 
 	h.controller.SendSuccess(w, r, pricing)
-}
-
-func (h *ModelStatsQueriesHandler) handleGetFeatureStats(w http.ResponseWriter, r *http.Request) {
-	projectID := domain.ProjectID(mux.Vars(r)["id"])
-
-	stats, err := h.queries.GetFeatureStats(r.Context(), projectID)
-	if err != nil {
-		if domain.IsDomainError(err) {
-			h.controller.SendFail(w, r, nil, err)
-		} else {
-			h.controller.SendError(w, r, err)
-		}
-		return
-	}
-
-	h.controller.SendSuccess(w, r, stats)
 }

@@ -86,7 +86,7 @@ export default function ApiKeysPage() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)]">
-      <div className="max-w-2xl mx-auto px-8 py-12 flex flex-col gap-8">
+      <div className="max-w-2xl mx-auto px-4 sm:px-8 py-6 sm:py-12 flex flex-col gap-8">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-[24px] font-medium text-[var(--text-primary)]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>

@@ -47,8 +47,7 @@ func TestToPublicColumn_RED_InvalidSlugPropagates(t *testing.T) {
 			Slug:     slug,
 			Name:     "Test Column",
 			Position: 0,
-			WIPLimit: 0,
-		}
+					}
 		result := converters.ToPublicColumn(col)
 
 		// RED assertion: after a fix, invalid slugs should not appear in output.
@@ -78,8 +77,7 @@ func TestToPublicColumn_GREEN_ValidSlugsPassThrough(t *testing.T) {
 			Slug:     tc.slug,
 			Name:     "Valid Column",
 			Position: 0,
-			WIPLimit: 0,
-		}
+					}
 		result := converters.ToPublicColumn(col)
 		assert.Equal(t, tc.expected, result.Slug,
 			"valid ColumnSlug %q should convert to %q", tc.slug, tc.expected)

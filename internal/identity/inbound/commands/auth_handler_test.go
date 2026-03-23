@@ -24,7 +24,7 @@ import (
 
 type mockAuthCommands struct {
 	registerFunc      func(ctx context.Context, email, password, displayName string) (domain.User, error)
-	loginFunc         func(ctx context.Context, email, password string) (string, string, error)
+	loginFunc         func(ctx context.Context, email, password string, rememberMe bool) (string, string, error)
 	loginSSOFunc      func(ctx context.Context, provider, idToken, nonce string) (string, string, error)
 	refreshTokenFunc  func(ctx context.Context, refreshToken string) (string, error)
 	logoutFunc        func(ctx context.Context, token string) error
@@ -37,8 +37,8 @@ type mockAuthCommands struct {
 func (m *mockAuthCommands) Register(ctx context.Context, email, password, displayName string) (domain.User, error) {
 	return m.registerFunc(ctx, email, password, displayName)
 }
-func (m *mockAuthCommands) Login(ctx context.Context, email, password string) (string, string, error) {
-	return m.loginFunc(ctx, email, password)
+func (m *mockAuthCommands) Login(ctx context.Context, email, password string, rememberMe bool) (string, string, error) {
+	return m.loginFunc(ctx, email, password, rememberMe)
 }
 func (m *mockAuthCommands) LoginSSO(ctx context.Context, provider, idToken, nonce string) (string, string, error) {
 	if m.loginSSOFunc != nil {
@@ -148,7 +148,7 @@ func TestAuthHandler_Register_Success(t *testing.T) {
 		registerFunc: func(_ context.Context, email, _, _ string) (domain.User, error) {
 			return user, nil
 		},
-		loginFunc: func(_ context.Context, _, _ string) (string, string, error) {
+		loginFunc: func(_ context.Context, _, _ string, _ bool) (string, string, error) {
 			return "access-token", "refresh-token", nil
 		},
 	}
@@ -238,7 +238,7 @@ func TestAuthHandler_Login_Success(t *testing.T) {
 	user := domain.User{ID: actor.UserID, Email: actor.Email}
 
 	cmds := &mockAuthCommands{
-		loginFunc: func(_ context.Context, _, _ string) (string, string, error) {
+		loginFunc: func(_ context.Context, _, _ string, _ bool) (string, string, error) {
 			return "access-token", "refresh-token", nil
 		},
 	}
@@ -262,7 +262,7 @@ func TestAuthHandler_Login_Success(t *testing.T) {
 
 func TestAuthHandler_Login_InvalidCredentials_ReturnsUnauthorized(t *testing.T) {
 	cmds := &mockAuthCommands{
-		loginFunc: func(_ context.Context, _, _ string) (string, string, error) {
+		loginFunc: func(_ context.Context, _, _ string, _ bool) (string, string, error) {
 			return "", "", domain.ErrInvalidCredentials
 		},
 	}
@@ -286,7 +286,7 @@ func TestAuthHandler_Login_InvalidCredentials_ReturnsUnauthorized(t *testing.T) 
 
 func TestAuthHandler_Login_SSOUser_ReturnsUnauthorized(t *testing.T) {
 	cmds := &mockAuthCommands{
-		loginFunc: func(_ context.Context, _, _ string) (string, string, error) {
+		loginFunc: func(_ context.Context, _, _ string, _ bool) (string, string, error) {
 			return "", "", domain.ErrSSOUserNoPassword
 		},
 	}
@@ -664,7 +664,7 @@ func TestAuthHandler_ActorFromRequest_InvalidAPIKey_ReturnsUnauthorized(t *testi
 
 func TestAuthHandler_RateLimiting_ExcessiveRequests_ReturnsTooManyRequests(t *testing.T) {
 	cmds := &mockAuthCommands{
-		loginFunc: func(_ context.Context, _, _ string) (string, string, error) {
+		loginFunc: func(_ context.Context, _, _ string, _ bool) (string, string, error) {
 			return "", "", domain.ErrInvalidCredentials
 		},
 	}
@@ -805,7 +805,7 @@ func TestAuthHandler_ActorFromRequest_Public_ValidJWT(t *testing.T) {
 
 func TestAuthHandler_RateLimiting_XRealIP(t *testing.T) {
 	cmds := &mockAuthCommands{
-		loginFunc: func(_ context.Context, _, _ string) (string, string, error) {
+		loginFunc: func(_ context.Context, _, _ string, _ bool) (string, string, error) {
 			return "", "", domain.ErrInvalidCredentials
 		},
 	}
@@ -832,7 +832,7 @@ func TestAuthHandler_RateLimiting_XRealIP(t *testing.T) {
 
 func TestAuthHandler_RateLimiting_XForwardedFor_MultipleIPs(t *testing.T) {
 	cmds := &mockAuthCommands{
-		loginFunc: func(_ context.Context, _, _ string) (string, string, error) {
+		loginFunc: func(_ context.Context, _, _ string, _ bool) (string, string, error) {
 			return "", "", domain.ErrInvalidCredentials
 		},
 	}

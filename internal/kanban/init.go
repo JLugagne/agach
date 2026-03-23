@@ -52,6 +52,7 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	appInstance := app.NewApp(app.Config{
 		Projects:     repos.Projects,
 		Agents:        repos.Agents,
+		Features:     repos.Features,
 		Tasks:        repos.Tasks,
 		Columns:      repos.Columns,
 		Comments:     repos.Comments,

@@ -80,7 +80,7 @@ type TaskRepository interface {
 // TaskFilters defines optional filters for listing tasks
 type TaskFilters struct {
 	ColumnSlug      *domain.ColumnSlug
-	FeatureID       *domain.ProjectID
+	FeatureID       *domain.FeatureID
 	AssignedRole    *string
 	Tag             *string
 	Priority        *domain.Priority

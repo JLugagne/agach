@@ -117,7 +117,7 @@ func TestSecurity_NewAuthService_ShortSecret_IsRejected_RED(t *testing.T) {
 
 	// A token issued with a 1-byte secret is insecure.
 	// RED: the service should error when the secret is too short, but currently it does not.
-	_, _, err = loginSvc.Login(ctx, "weak@example.com", "password123")
+	_, _, err = loginSvc.Login(ctx, "weak@example.com", "password123", false)
 	assert.Error(t, err, "Login (token issuance) must fail when the JWT secret is dangerously short (<32 bytes)")
 }
 
@@ -147,7 +147,7 @@ func TestSecurity_NewAuthService_AdequateSecret_Works_GREEN(t *testing.T) {
 	}
 	loginSvc := app.NewAuthService(loginUsers, &apikeystest.MockAPIKeyRepository{}, adequateSecret, nil)
 
-	access, refresh, err := loginSvc.Login(ctx, "adequate@example.com", "password123")
+	access, refresh, err := loginSvc.Login(ctx, "adequate@example.com", "password123", false)
 	require.NoError(t, err)
 	assert.NotEmpty(t, access)
 	assert.NotEmpty(t, refresh)
@@ -232,7 +232,7 @@ func TestSecurity_Logout_TokenIsInvalidated_RED(t *testing.T) {
 		UpdateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
 	loginSvc := app.NewAuthService(mockUsersLogin, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
-	accessToken, _, err := loginSvc.Login(ctx, "logout@example.com", "password123")
+	accessToken, _, err := loginSvc.Login(ctx, "logout@example.com", "password123", false)
 	require.NoError(t, err)
 	require.NotEmpty(t, accessToken)
 
@@ -454,7 +454,7 @@ func TestSecurity_ValidateJWT_RoleTakenFromDB_NotFromToken_GREEN(t *testing.T) {
 		UpdateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
 	loginSvc := app.NewAuthService(mockUsersIssue, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
-	accessToken, _, err := loginSvc.Login(ctx, adminUser.Email, "irrelevant")
+	accessToken, _, err := loginSvc.Login(ctx, adminUser.Email, "irrelevant", false)
 	// Login calls bcrypt.CompareHashAndPassword which will fail for placeholder hash,
 	// so we need to create a real user first.
 	// Use a real bcrypt hash to make this work.
@@ -482,7 +482,7 @@ func TestSecurity_ValidateJWT_RoleTakenFromDB_NotFromToken_GREEN(t *testing.T) {
 		UpdateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
 	loginSvc2 := app.NewAuthService(mockUsersLogin, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
-	adminToken, _, err := loginSvc2.Login(ctx, "wasadmin2@example.com", "password123")
+	adminToken, _, err := loginSvc2.Login(ctx, "wasadmin2@example.com", "password123", false)
 	require.NoError(t, err)
 
 	// Now the user has been demoted to member in the DB.

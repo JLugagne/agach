@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import type { ColumnWithTasksResponse, ProjectWithSummary, TaskWithDetailsResponse } from '../../lib/types';
+import type { ColumnWithTasksResponse, TaskWithDetailsResponse } from '../../lib/types';
 import TaskCard from './TaskCard';
-import FeatureCard from './FeatureCard';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { reorderTask } from '../../lib/api';
-import { AlertTriangle, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 interface ColumnProps {
   column: ColumnWithTasksResponse;
@@ -19,8 +18,6 @@ interface ColumnProps {
   isTaskSelected?: (taskId: string) => boolean;
   onTaskSelect?: (taskId: string, ctrlKey: boolean) => void;
   onRefresh?: () => void;
-  features?: ProjectWithSummary[];
-  onFeatureClick?: (feature: ProjectWithSummary) => void;
   onAddTask?: () => void;
 }
 
@@ -42,16 +39,12 @@ export default function Column({
   isTaskSelected,
   onTaskSelect,
   onRefresh,
-  features,
-  onFeatureClick,
   onAddTask,
 }: ColumnProps) {
   const colors = statusColorVars[column.slug] || statusColorVars.todo;
   const [localTasks, setLocalTasks] = useState<TaskWithDetailsResponse[] | null>(null);
 
   const tasks = localTasks ?? column.tasks ?? [];
-  const wipLimit = column.wip_limit;
-  const isAtWip = wipLimit > 0 && tasks.length >= wipLimit;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -115,24 +108,7 @@ export default function Column({
           >
             {column.name}
           </span>
-          {wipLimit > 0 ? (
-            <span
-              className="px-1.5 py-0.5 rounded-md text-[10px] font-bold min-w-[28px] text-center flex items-center gap-0.5"
-              style={{
-                backgroundColor: isAtWip
-                  ? 'color-mix(in srgb, var(--status-blocked) 15%, transparent)'
-                  : colors.countBg,
-                color: isAtWip ? 'var(--status-blocked)' : colors.countText,
-                fontFamily: 'JetBrains Mono, monospace',
-              }}
-            >
-              {isAtWip && (
-                <AlertTriangle size={10} className="flex-shrink-0" />
-              )}
-              {tasks.length}/{wipLimit}
-            </span>
-          ) : (
-            <span
+          <span
               className="px-1.5 py-0.5 rounded-md text-[10px] font-bold min-w-[20px] text-center"
               style={{
                 backgroundColor: colors.countBg,
@@ -158,15 +134,12 @@ export default function Column({
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           <div className="flex flex-col gap-3 overflow-y-auto flex-1">
-            {tasks.length === 0 && (features ?? []).length === 0 ? (
+            {tasks.length === 0 ? (
               <p className="text-[var(--text-muted)] text-xs text-center py-8" style={{ fontFamily: 'Inter, sans-serif' }}>
                 No tasks
               </p>
             ) : (
               <>
-                {(features ?? []).map((f) => (
-                  <FeatureCard key={f.id} feature={f} onClick={() => onFeatureClick?.(f)} />
-                ))}
                 {tasks.map((task) => (
                   <TaskCard
                     key={task.id}

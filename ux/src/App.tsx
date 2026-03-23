@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { type ReactNode } from 'react';
 import { Layout } from './components/Layout';
 import { ThemeProvider } from './components/ThemeContext';
@@ -9,6 +9,7 @@ import KanbanPage from './pages/KanbanPage';
 import RolesPage from './pages/RolesPage';
 import ProjectSettingsPage from './pages/ProjectSettingsPage';
 import FeaturesPage from './pages/FeaturesPage';
+import FeatureDetailPage from './pages/FeatureDetailPage';
 import ExportGeminiPage from './pages/ExportGeminiPage';
 import ExportClaudePage from './pages/ExportClaudePage';
 import StatisticsPage from './pages/StatisticsPage';
@@ -18,16 +19,24 @@ import DockerfilesPage from './pages/DockerfilesPage';
 import AccountPage from './pages/AccountPage';
 import ApiKeysPage from './pages/ApiKeysPage';
 
-function ProtectedRoute({ children }: { children: ReactNode }) {
+function ProtectedRoute() {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  return <>{children}</>;
+  return <Outlet />;
 }
 
 function PublicOnlyRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
   if (isAuthenticated) return <Navigate to="/" replace />;
   return <>{children}</>;
+}
+
+function ProtectedLayout() {
+  return (
+    <Layout>
+      <Outlet />
+    </Layout>
+  );
 }
 
 function App() {
@@ -37,23 +46,27 @@ function App() {
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
-            <Route path="/" element={<ProtectedRoute><Layout><HomePage /></Layout></ProtectedRoute>} />
-            <Route path="/projects/:projectId" element={<ProtectedRoute><Layout><KanbanPage /></Layout></ProtectedRoute>} />
-            <Route path="/projects/:projectId/board" element={<ProtectedRoute><Layout><KanbanPage /></Layout></ProtectedRoute>} />
-            <Route path="/projects/:projectId/backlog" element={<ProtectedRoute><Layout><BacklogPage /></Layout></ProtectedRoute>} />
-            <Route path="/projects/:projectId/settings" element={<ProtectedRoute><Layout><ProjectSettingsPage /></Layout></ProtectedRoute>} />
-            <Route path="/projects/:projectId/settings/agents" element={<ProtectedRoute><Layout><ProjectSettingsPage /></Layout></ProtectedRoute>} />
-            <Route path="/projects/:projectId/features" element={<ProtectedRoute><Layout><FeaturesPage /></Layout></ProtectedRoute>} />
-            <Route path="/projects/:projectId/settings/sub-projects" element={<ProtectedRoute><Layout><FeaturesPage /></Layout></ProtectedRoute>} />
-            <Route path="/projects/:projectId/export/gemini" element={<ProtectedRoute><Layout><ExportGeminiPage /></Layout></ProtectedRoute>} />
-            <Route path="/projects/:projectId/export/claude" element={<ProtectedRoute><Layout><ExportClaudePage /></Layout></ProtectedRoute>} />
-            <Route path="/projects/:projectId/statistics" element={<ProtectedRoute><Layout><StatisticsPage /></Layout></ProtectedRoute>} />
-            <Route path="/projects/:projectId/roles" element={<ProtectedRoute><Layout><RolesPage /></Layout></ProtectedRoute>} />
-            <Route path="/roles" element={<ProtectedRoute><Layout><RolesPage /></Layout></ProtectedRoute>} />
-            <Route path="/skills" element={<ProtectedRoute><Layout><SkillsPage /></Layout></ProtectedRoute>} />
-            <Route path="/dockerfiles" element={<ProtectedRoute><Layout><DockerfilesPage /></Layout></ProtectedRoute>} />
-            <Route path="/account" element={<ProtectedRoute><Layout><AccountPage /></Layout></ProtectedRoute>} />
-            <Route path="/account/api-keys" element={<ProtectedRoute><Layout><ApiKeysPage /></Layout></ProtectedRoute>} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<ProtectedLayout />}>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/projects/:projectId" element={<KanbanPage />} />
+                <Route path="/projects/:projectId/board" element={<KanbanPage />} />
+                <Route path="/projects/:projectId/backlog" element={<BacklogPage />} />
+                <Route path="/projects/:projectId/settings" element={<ProjectSettingsPage />} />
+                <Route path="/projects/:projectId/settings/agents" element={<ProjectSettingsPage />} />
+                <Route path="/projects/:projectId/features" element={<FeaturesPage />} />
+                <Route path="/projects/:projectId/features/:featureId" element={<FeatureDetailPage />} />
+                <Route path="/projects/:projectId/export/gemini" element={<ExportGeminiPage />} />
+                <Route path="/projects/:projectId/export/claude" element={<ExportClaudePage />} />
+                <Route path="/projects/:projectId/statistics" element={<StatisticsPage />} />
+                <Route path="/projects/:projectId/roles" element={<RolesPage />} />
+                <Route path="/roles" element={<RolesPage />} />
+                <Route path="/skills" element={<SkillsPage />} />
+                <Route path="/dockerfiles" element={<DockerfilesPage />} />
+                <Route path="/account" element={<AccountPage />} />
+                <Route path="/account/api-keys" element={<ApiKeysPage />} />
+              </Route>
+            </Route>
           </Routes>
         </AuthProvider>
       </BrowserRouter>

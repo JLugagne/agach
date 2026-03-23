@@ -72,7 +72,7 @@ func setupRepos(t *testing.T) *testRepos {
 
 	// Ensure columns via EnsureBacklog and seeding
 	todoCol := domain.Column{ID: domain.NewColumnID(), Slug: domain.ColumnTodo, Name: "To Do", Position: 0}
-	inProgressCol := domain.Column{ID: domain.NewColumnID(), Slug: domain.ColumnInProgress, Name: "In Progress", Position: 1, WIPLimit: 3}
+	inProgressCol := domain.Column{ID: domain.NewColumnID(), Slug: domain.ColumnInProgress, Name: "In Progress", Position: 1}
 	doneCol := domain.Column{ID: domain.NewColumnID(), Slug: domain.ColumnDone, Name: "Done", Position: 2}
 
 	// Use EnsureBacklog or seed columns directly — columns are typically created by migration.
@@ -97,12 +97,13 @@ func setupRepos(t *testing.T) *testRepos {
 		}
 	}
 
-	// Create a child project to use as featureProjectID in contract tests
-	featureProjectID := domain.NewProjectID()
-	err = repos.Projects.Create(ctx, domain.Project{
-		ID:        featureProjectID,
-		ParentID:  &projectID,
-		Name:      "Test Feature Project",
+	// Create a feature to use as featureProjectID in contract tests
+	featureID := domain.NewFeatureID()
+	err = repos.Features.Create(ctx, domain.Feature{
+		ID:        featureID,
+		ProjectID: projectID,
+		Name:      "Test Feature",
+		Status:    domain.FeatureStatusDraft,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	})
@@ -111,7 +112,7 @@ func setupRepos(t *testing.T) *testRepos {
 	return &testRepos{
 		Repositories:       repos,
 		projectID:          projectID,
-		featureProjectID:   featureProjectID,
+		featureProjectID:   featureID,
 		todoColumnID:       todoID,
 		inProgressColumnID: inProgressID,
 		doneColumnID:       doneID,

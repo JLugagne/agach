@@ -56,9 +56,6 @@ type Commands interface {
 	ApproveWontDo(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
 	RejectWontDo(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, reason string) error
 
-	// Column commands
-	UpdateColumnWIPLimit(ctx context.Context, projectID domain.ProjectID, columnSlug domain.ColumnSlug, wipLimit int) error
-
 	// Comment commands
 	CreateComment(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, authorRole, authorName string, authorType domain.AuthorType, content string) (domain.Comment, error)
 	UpdateComment(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID, content string) error
@@ -101,6 +98,12 @@ type Commands interface {
 	DeleteSkill(ctx context.Context, skillID domain.SkillID) error
 	AddSkillToAgent(ctx context.Context, agentSlug, skillSlug string) error
 	RemoveSkillFromAgent(ctx context.Context, agentSlug, skillSlug string) error
+
+	// Feature commands
+	CreateFeature(ctx context.Context, projectID domain.ProjectID, name, description, createdByRole, createdByAgent string) (domain.Feature, error)
+	UpdateFeature(ctx context.Context, featureID domain.FeatureID, name, description string) error
+	UpdateFeatureStatus(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus) error
+	DeleteFeature(ctx context.Context, featureID domain.FeatureID) error
 
 	// Dockerfile commands
 

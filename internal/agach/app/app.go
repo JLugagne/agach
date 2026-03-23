@@ -225,18 +225,7 @@ func (a *App) runWorker(ctx context.Context, id int, prefetch <-chan client.Next
 		// This will fail if the task has unresolved dependencies or WIP limit is exceeded.
 		if err := a.client.MoveTask(task.ProjectID, task.ID, "in_progress"); err != nil {
 			a.runningTasks.Delete(task.ID)
-			if strings.Contains(err.Error(), "WIP_LIMIT") || strings.Contains(err.Error(), "WIP limit") {
-				state = domain.WorkerState{ID: id, Status: domain.WorkerWaitingWIP, Past: past}
-				sendUpdate(state)
-				if waitErr := a.client.WaitForWIPSlot(ctx, task.ProjectID); waitErr != nil {
-					select {
-					case <-ctx.Done():
-						return
-					case <-time.After(5 * time.Second):
-					}
-				}
-			}
-			continue
+				continue
 		}
 
 		run := domain.TaskRun{

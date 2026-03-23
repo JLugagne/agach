@@ -4,21 +4,81 @@
 
 - Base URL: `http://localhost:8322`
 - All tests use `data-qa` attributes for element selection
-- The server must be running with a clean database (or a seeded test database)
+- The server must be running with a clean database (or a seeded test database via `cmd/qa-seed`)
 - Tests assume a Playwright project configured with `baseURL: process.env.BASE_URL ?? 'http://localhost:8322'`
-- Authentication: tests must log in as `admin@agach.local` / `admin` to obtain a bearer token
+- Authentication: global setup logs in as `admin@agach.local` / `admin` via the API, saves storage state to `/tmp/auth-state.json`, and all tests reuse it
 
 ### Playwright config essentials
 
 ```ts
 // playwright.config.ts
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
+  testDir: './tests',
+  fullyParallel: false,
+  workers: 1,
+  timeout: 15000,
+  reporter: [['html', { open: 'never' }], ['list']],
+  globalSetup: './global-setup.ts',
   use: {
     baseURL: process.env.BASE_URL ?? 'http://localhost:8322',
+    storageState: '/tmp/auth-state.json',
+    actionTimeout: 5000,
+    navigationTimeout: 1000,
     trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'on-first-retry',
   },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+  ],
 });
+```
+
+### Global Setup (global-setup.ts)
+
+The global setup authenticates once and saves the storage state:
+
+1. POST `/api/auth/login` with `{ email: 'admin@agach.local', password: 'admin' }`
+2. Extract `access_token` and `user` from the response
+3. Navigate to the app, inject `agach_access_token` and `agach_user` into localStorage
+4. Save storage state to `/tmp/auth-state.json`
+
+### Docker Compose (docker-compose.playwright.yml)
+
+Run the full E2E stack with:
+
+```bash
+docker compose -f docker-compose.playwright.yml up --build --abort-on-container-exit
+```
+
+Services:
+- **postgres** — PostgreSQL 17 with health check
+- **kanban** — App server (built from `Dockerfile`) connected to Postgres
+- **qa-seed** — Seeds deterministic test data (built from `Dockerfile.qa-seed`, runs `cmd/qa-seed`)
+- **playwright** — Playwright v1.58+ container, runs tests after qa-seed completes
+
+### Dockerfiles
+
+- `Dockerfile` — Production image: builds frontend (Node 22) + Go backend (PostgreSQL), exposes ports 8322 (HTTP) and 8323 (MCP)
+- `Dockerfile.local` — Local/dev image: same frontend+backend build using SQLite (CGO_ENABLED=1, static binary from scratch)
+- `Dockerfile.qa-seed` — Builds and runs `cmd/qa-seed` to populate deterministic test data
+
+### Test File Structure
+
+```
+playwright/
+  playwright.config.ts
+  global-setup.ts
+  package.json
+  tests/
+    01-home.spec.ts              — Home page & project creation
+    02-kanban-board.spec.ts      — Kanban board functionality
+    03-task-management.spec.ts   — Task CRUD operations
+    04-roles-features.spec.ts    — Agent and feature management
+    05-backlog-settings.spec.ts  — Backlog and project settings
+    06-skills-stats-export.spec.ts — Skills, statistics, export pages
+    07-theme-comments-ws-health.spec.ts — Theme, comments, WebSocket, API health
 ```
 
 ---
@@ -149,35 +209,42 @@ export default defineConfig({
   1. Click `[data-qa="nav-settings-btn"]`
 - **Expected**: URL changes to `/projects/:projectId/settings` and the Settings page is visible.
 
-#### 3.5 — Navigate to global Agents page
+#### 3.5 — Navigate to global Projects page
+
+- **Pre-conditions**: App is loaded.
+- **Steps**:
+  1. Click `[data-qa="nav-projects-btn"]` in the global sidebar
+- **Expected**: URL changes to `/` and the Projects list is displayed.
+
+#### 3.6 — Navigate to global Agents page
 
 - **Pre-conditions**: App is loaded (no project selected).
 - **Steps**:
   1. Click `[data-qa="nav-roles-btn"]` in the global sidebar
 - **Expected**: URL changes to `/roles` and the Agents page is displayed.
 
-#### 3.6 — Navigate to global Skills page
+#### 3.7 — Navigate to global Skills page
 
 - **Pre-conditions**: App is loaded.
 - **Steps**:
   1. Click `[data-qa="nav-skills-btn"]` in the global sidebar
 - **Expected**: URL changes to `/skills` and the Skills page heading is visible.
 
-#### 3.7 — Navigate to global Dockerfiles page
+#### 3.8 — Navigate to global Dockerfiles page
 
 - **Pre-conditions**: App is loaded.
 - **Steps**:
   1. Click `[data-qa="nav-dockerfiles-btn"]` in the global sidebar
 - **Expected**: URL changes to `/dockerfiles` and the Dockerfiles page is displayed.
 
-#### 3.8 — Home (logo) navigates to project list
+#### 3.9 — Home (logo) navigates to project list
 
 - **Pre-conditions**: User is on a project subpage.
 - **Steps**:
   1. Click `[data-qa="logo-home-link"]`
 - **Expected**: URL changes to `/` and the home page is rendered.
 
-#### 3.9 — User menu: navigate to Account
+#### 3.10 — User menu: navigate to Account
 
 - **Pre-conditions**: App is loaded.
 - **Steps**:
@@ -185,27 +252,34 @@ export default defineConfig({
   2. Click `[data-qa="user-menu-account-btn"]`
 - **Expected**: URL changes to `/account`.
 
-#### 3.10 — User menu: navigate to API Keys
+#### 3.11 — User menu: navigate to API Keys
 
 - **Pre-conditions**: App is loaded.
 - **Steps**:
   1. Click `[data-qa="user-menu-api-keys-btn"]`
 - **Expected**: URL changes to `/account/api-keys`.
 
-#### 3.11 — User menu: sign out
+#### 3.12 — User menu: sign out
 
 - **Pre-conditions**: User is logged in.
 - **Steps**:
   1. Click `[data-qa="user-menu-logout-btn"]`
 - **Expected**: User is logged out and redirected to the login page.
 
-#### 3.12 — Sidebar shows features list with add button
+#### 3.13 — Sidebar shows features list with add button
 
 - **Pre-conditions**: A project with features exists; on a project page.
 - **Steps**:
   1. Observe sidebar for `[data-qa="nav-feature-btn"]` items
   2. Observe `[data-qa="nav-add-feature-btn"]`
 - **Expected**: Feature links and "Add Feature" button are visible in the sidebar.
+
+#### 3.14 — Mobile menu button (responsive)
+
+- **Pre-conditions**: App is loaded on a mobile viewport.
+- **Steps**:
+  1. Observe `[data-qa="mobile-menu-btn"]`
+- **Expected**: A hamburger menu button is visible; clicking it opens the sidebar.
 
 ---
 
@@ -297,7 +371,21 @@ export default defineConfig({
   1. Press `/`
 - **Expected**: The `[data-qa="search-input"]` receives focus.
 
-#### 4.12 — Done column filter dropdown
+#### 4.12 — Keyboard shortcut "?" opens shortcuts help overlay
+
+- **Pre-conditions**: On the kanban board, no modal/drawer open.
+- **Steps**:
+  1. Press `?`
+- **Expected**: A shortcuts help overlay appears listing available keyboard shortcuts. Close via `[data-qa="kanban-shortcuts-close-btn"]` or clicking the backdrop.
+
+#### 4.13 — Blocked banner with unblock button
+
+- **Pre-conditions**: Viewing a task in the Blocked column (task drawer open or task selected).
+- **Steps**:
+  1. Observe the blocked banner on the task
+- **Expected**: A banner displays with an unblock action `[data-qa="blocked-banner-unblock-btn"]`.
+
+#### 4.14 — Done column filter dropdown
 
 - **Pre-conditions**: On the kanban board.
 - **Steps**:
@@ -305,21 +393,21 @@ export default defineConfig({
   2. Select a time range (e.g., "Last 24h")
 - **Expected**: Only tasks completed within the selected time range appear in the Done column.
 
-#### 4.13 — Toggle sub-projects visibility
+#### 4.15 — Toggle sub-projects visibility
 
 - **Pre-conditions**: A project with sub-projects (features) exists.
 - **Steps**:
   1. Click `[data-qa="kanban-toggle-subprojects-btn"]`
 - **Expected**: Tasks from sub-projects are included/excluded from the board.
 
-#### 4.14 — Role filter buttons
+#### 4.16 — Role filter buttons
 
 - **Pre-conditions**: Tasks assigned to different roles exist.
 - **Steps**:
   1. Click a `[data-qa="kanban-role-filter-btn"]` for a specific role
 - **Expected**: Only tasks assigned to that role are shown. Click `[data-qa="kanban-clear-filters-btn"]` to reset.
 
-#### 4.15 — Won't-do-requested badge is shown on blocked tasks
+#### 4.17 — Won't-do-requested badge is shown on blocked tasks
 
 - **Pre-conditions**: A task exists in the Blocked column with `wont_do_requested=1`.
 - **Steps**:
@@ -327,21 +415,21 @@ export default defineConfig({
   2. Observe the Blocked column
 - **Expected**: The task card shows a "Won't Do Requested" badge.
 
-#### 4.16 — Parent project link
+#### 4.18 — Parent project link
 
 - **Pre-conditions**: Viewing a sub-project (feature) board.
 - **Steps**:
   1. Observe `[data-qa="kanban-parent-project-link"]`
 - **Expected**: A link to the parent project is visible; clicking it navigates to the parent board.
 
-#### 4.17 — Bulk select tasks with Ctrl+click
+#### 4.19 — Bulk select tasks with Ctrl+click
 
 - **Pre-conditions**: Multiple tasks exist on the board.
 - **Steps**:
   1. Ctrl+click on two or more `[data-qa="task-card"]` elements
 - **Expected**: Selected tasks are highlighted; a bulk actions bar appears at the bottom.
 
-#### 4.18 — Bulk actions bar: move, block, delete
+#### 4.20 — Bulk actions bar: move, block, delete
 
 - **Pre-conditions**: Multiple tasks are selected.
 - **Steps**:
@@ -355,7 +443,7 @@ export default defineConfig({
   2. Click a bulk action
 - **Expected**: All selected tasks are affected; bulk bar disappears.
 
-#### 4.19 — Bulk actions: cancel
+#### 4.21 — Bulk actions: cancel
 
 - **Pre-conditions**: Bulk actions bar is visible.
 - **Steps**:
@@ -811,6 +899,44 @@ export default defineConfig({
   1. Observe `[data-qa="agent-slug-input"]`
 - **Expected**: The slug field is disabled and cannot be changed.
 
+#### 9.12 — Template variables toggle
+
+- **Pre-conditions**: Agent modal is open.
+- **Steps**:
+  1. Click `[data-qa="template-variables-toggle"]`
+- **Expected**: A panel showing available template variables for prompt templates expands/collapses.
+
+#### 9.13 — Inline edit prompt template field
+
+- **Pre-conditions**: Agent modal is open with an existing agent.
+- **Steps**:
+  1. Click `[data-qa="inline-edit-field-edit-btn"]` on a field
+  2. Edit the content in `[data-qa="inline-edit-field-textarea"]`
+  3. Click `[data-qa="inline-edit-field-save-btn"]`
+- **Expected**: The field value updates. Cancel via `[data-qa="inline-edit-field-cancel-btn"]`.
+
+#### 9.14 — Agent skills panel: view assigned skills
+
+- **Pre-conditions**: Agent modal is open; the agent has skills assigned.
+- **Steps**:
+  1. Observe the "Skills" section in the agent modal
+- **Expected**: Assigned skills are listed. A link `[data-qa="skills-page-link"]` to the global skills page is visible.
+
+#### 9.15 — Agent skills panel: add a skill
+
+- **Pre-conditions**: Agent modal is open; at least one unassigned skill exists.
+- **Steps**:
+  1. Select a skill from `[data-qa="skill-add-select"]`
+  2. Click `[data-qa="skill-add-btn"]`
+- **Expected**: The skill appears in the agent's assigned skills list.
+
+#### 9.16 — Agent skills panel: remove a skill
+
+- **Pre-conditions**: Agent has at least one skill assigned.
+- **Steps**:
+  1. Click the remove button next to an assigned skill
+- **Expected**: The skill is removed from the agent's assigned skills.
+
 ---
 
 ### 10. Features / Sub-projects
@@ -1261,6 +1387,13 @@ export default defineConfig({
 - **Steps**:
   1. Navigate to statistics
 - **Expected**: Zero counts displayed; no errors.
+
+#### 17.11 — Feature Statistics section
+
+- **Pre-conditions**: A project with features exists; features have tasks in various states.
+- **Steps**:
+  1. Scroll to the "Features" section on the Statistics page
+- **Expected**: Mini stat cards showing Total, Not Ready, Ready, In Progress, Done, and Blocked feature counts are displayed.
 
 ---
 

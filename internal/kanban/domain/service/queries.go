@@ -15,7 +15,6 @@ type Queries interface {
 	ListProjectsWithSummary(ctx context.Context) ([]domain.ProjectWithSummary, error)
 	ListSubProjects(ctx context.Context, parentID domain.ProjectID) ([]domain.Project, error)
 	ListSubProjectsWithSummary(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error)
-	ListFeaturesActiveOnly(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error)
 	GetProjectSummary(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectSummary, error)
 	GetProjectInfo(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectInfo, error)
 	// Agent queries (global)
@@ -64,11 +63,10 @@ type Queries interface {
 	// Model pricing queries
 	ListModelPricing(ctx context.Context) ([]domain.ModelPricing, error)
 
-	// Feature stats queries
+	// Feature queries
+	GetFeature(ctx context.Context, featureID domain.FeatureID) (*domain.Feature, error)
+	ListFeatures(ctx context.Context, projectID domain.ProjectID, statusFilter []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error)
 	GetFeatureStats(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error)
-
-	// GetWIPSlots returns the current WIP slot availability for the in_progress column.
-	GetWIPSlots(ctx context.Context, projectID domain.ProjectID) (*domain.WIPSlotsInfo, error)
 
 	// Skill queries
 	GetSkill(ctx context.Context, skillID domain.SkillID) (*domain.Skill, error)

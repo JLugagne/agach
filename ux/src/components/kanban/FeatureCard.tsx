@@ -1,14 +1,22 @@
 import { useState } from 'react';
 import { FolderGit2 } from 'lucide-react';
-import type { ProjectWithSummary } from '../../lib/types';
+import type { FeatureWithSummaryResponse, FeatureStatus } from '../../lib/types';
 
 interface FeatureCardProps {
-  feature: ProjectWithSummary;
+  feature: FeatureWithSummaryResponse;
   onClick: () => void;
 }
 
 const defaultBorder = 'color-mix(in srgb, var(--primary) 30%, transparent)';
 const hoverBorder = 'var(--primary)';
+
+const STATUS_BADGE_COLORS: Record<FeatureStatus, string> = {
+  draft: 'var(--text-muted)',
+  ready: 'var(--status-todo)',
+  in_progress: 'var(--status-progress)',
+  done: 'var(--status-done)',
+  blocked: '#FF3B30',
+};
 
 const segments = [
   {
@@ -37,15 +45,6 @@ const segments = [
   },
 ];
 
-function getCount(
-  feature: ProjectWithSummary,
-  key: 'todo_count' | 'in_progress_count' | 'done_count' | 'blocked_count',
-): number {
-  const summary = feature.summary ?? feature.task_summary;
-  if (!summary) return 0;
-  return summary[key] ?? 0;
-}
-
 const countKeys = {
   todo: 'todo_count',
   in_progress: 'in_progress_count',
@@ -55,6 +54,9 @@ const countKeys = {
 
 export default function FeatureCard({ feature, onClick }: FeatureCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+
+  const summary = feature.task_summary;
+  const statusColor = STATUS_BADGE_COLORS[feature.status] ?? 'var(--text-muted)';
 
   return (
     <div
@@ -70,15 +72,25 @@ export default function FeatureCard({ feature, onClick }: FeatureCardProps) {
       {/* Header row */}
       <div className="flex items-center gap-1.5 mb-2">
         <FolderGit2 size={12} className="text-[var(--primary)] flex-shrink-0" />
-        <p className="text-[var(--text-primary)] text-[13px] font-['Newsreader'] font-medium leading-snug truncate">
+        <p className="text-[var(--text-primary)] text-[13px] font-['Newsreader'] font-medium leading-snug truncate flex-1">
           {feature.name}
         </p>
+        <span
+          className="text-[9px] px-1.5 py-0.5 rounded-full font-['JetBrains_Mono'] font-bold uppercase tracking-wider flex-shrink-0"
+          style={{
+            color: statusColor,
+            backgroundColor: `color-mix(in srgb, ${statusColor} 15%, transparent)`,
+          }}
+          data-qa="feature-status-badge"
+        >
+          {feature.status.replace('_', ' ')}
+        </span>
       </div>
 
       {/* Status bar */}
       <div className="flex items-center gap-1 flex-wrap">
         {segments.map((seg) => {
-          const count = getCount(feature, countKeys[seg.key]);
+          const count = summary?.[countKeys[seg.key]] ?? 0;
           return (
             <div
               key={seg.key}

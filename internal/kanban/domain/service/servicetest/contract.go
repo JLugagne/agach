@@ -48,8 +48,7 @@ type MockCommands struct {
 	AddDependencyFunc        func(ctx context.Context, projectID domain.ProjectID, taskID, dependsOnTaskID domain.TaskID) error
 	RemoveDependencyFunc     func(ctx context.Context, projectID domain.ProjectID, taskID, dependsOnTaskID domain.TaskID) error
 	MarkTaskSeenFunc         func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
-	UpdateColumnWIPLimitFunc func(ctx context.Context, projectID domain.ProjectID, columnSlug domain.ColumnSlug, wipLimit int) error
-	MoveTaskToProjectFunc    func(ctx context.Context, sourceProjectID domain.ProjectID, taskID domain.TaskID, targetProjectID domain.ProjectID) error
+	MoveTaskToProjectFunc func(ctx context.Context, sourceProjectID domain.ProjectID, taskID domain.TaskID, targetProjectID domain.ProjectID) error
 	IncrementToolUsageFunc          func(ctx context.Context, projectID domain.ProjectID, toolName string) error
 	UpdateTaskSessionIDFunc         func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
 	CloneAgentFunc                   func(ctx context.Context, sourceSlug, newSlug, newName string) (domain.Role, error)
@@ -66,6 +65,10 @@ type MockCommands struct {
 	DeleteDockerfileFunc            func(ctx context.Context, dockerfileID domain.DockerfileID) error
 	SetProjectDockerfileFunc        func(ctx context.Context, projectID domain.ProjectID, dockerfileID domain.DockerfileID) error
 	ClearProjectDockerfileFunc      func(ctx context.Context, projectID domain.ProjectID) error
+	CreateFeatureFunc               func(ctx context.Context, projectID domain.ProjectID, name, description, createdByRole, createdByAgent string) (domain.Feature, error)
+	UpdateFeatureFunc               func(ctx context.Context, featureID domain.FeatureID, name, description string) error
+	UpdateFeatureStatusFunc         func(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus) error
+	DeleteFeatureFunc               func(ctx context.Context, featureID domain.FeatureID) error
 }
 
 func (m *MockCommands) CreateProject(ctx context.Context, name, description, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
@@ -271,13 +274,6 @@ func (m *MockCommands) MarkTaskSeen(ctx context.Context, projectID domain.Projec
 	return m.MarkTaskSeenFunc(ctx, projectID, taskID)
 }
 
-func (m *MockCommands) UpdateColumnWIPLimit(ctx context.Context, projectID domain.ProjectID, columnSlug domain.ColumnSlug, wipLimit int) error {
-	if m.UpdateColumnWIPLimitFunc == nil {
-		panic("called not defined UpdateColumnWIPLimitFunc")
-	}
-	return m.UpdateColumnWIPLimitFunc(ctx, projectID, columnSlug, wipLimit)
-}
-
 func (m *MockCommands) MoveTaskToProject(ctx context.Context, sourceProjectID domain.ProjectID, taskID domain.TaskID, targetProjectID domain.ProjectID) error {
 	if m.MoveTaskToProjectFunc == nil {
 		panic("called not defined MoveTaskToProjectFunc")
@@ -397,6 +393,34 @@ func (m *MockCommands) ClearProjectDockerfile(ctx context.Context, projectID dom
 	return m.ClearProjectDockerfileFunc(ctx, projectID)
 }
 
+func (m *MockCommands) CreateFeature(ctx context.Context, projectID domain.ProjectID, name, description, createdByRole, createdByAgent string) (domain.Feature, error) {
+	if m.CreateFeatureFunc == nil {
+		panic("called not defined CreateFeatureFunc")
+	}
+	return m.CreateFeatureFunc(ctx, projectID, name, description, createdByRole, createdByAgent)
+}
+
+func (m *MockCommands) UpdateFeature(ctx context.Context, featureID domain.FeatureID, name, description string) error {
+	if m.UpdateFeatureFunc == nil {
+		panic("called not defined UpdateFeatureFunc")
+	}
+	return m.UpdateFeatureFunc(ctx, featureID, name, description)
+}
+
+func (m *MockCommands) UpdateFeatureStatus(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus) error {
+	if m.UpdateFeatureStatusFunc == nil {
+		panic("called not defined UpdateFeatureStatusFunc")
+	}
+	return m.UpdateFeatureStatusFunc(ctx, featureID, status)
+}
+
+func (m *MockCommands) DeleteFeature(ctx context.Context, featureID domain.FeatureID) error {
+	if m.DeleteFeatureFunc == nil {
+		panic("called not defined DeleteFeatureFunc")
+	}
+	return m.DeleteFeatureFunc(ctx, featureID)
+}
+
 // MockQueries is a function-based mock implementation of the service.Queries interface.
 type MockQueries struct {
 	GetProjectFunc                  func(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error)
@@ -415,7 +439,6 @@ type MockQueries struct {
 	ListTasksFunc                   func(ctx context.Context, projectID domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error)
 	GetNextTaskFunc                 func(ctx context.Context, projectID domain.ProjectID, role string, featureID *domain.ProjectID) (*domain.Task, error)
 	GetNextTasksFunc                func(ctx context.Context, projectID domain.ProjectID, role string, count int, featureID *domain.ProjectID) ([]domain.Task, error)
-	ListFeaturesActiveOnlyFunc      func(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error)
 	GetDependencyContextFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.DependencyContext, error)
 	GetColumnFunc                   func(ctx context.Context, projectID domain.ProjectID, columnID domain.ColumnID) (*domain.Column, error)
 	GetColumnBySlugFunc             func(ctx context.Context, projectID domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error)
@@ -429,7 +452,6 @@ type MockQueries struct {
 	GetToolUsageForProjectFunc      func(ctx context.Context, projectID domain.ProjectID) ([]domain.ToolUsageStat, error)
 	GetTimelineFunc                 func(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error)
 	GetColdStartStatsFunc           func(ctx context.Context, projectID domain.ProjectID) ([]domain.AgentColdStartStat, error)
-	GetWIPSlotsFunc                 func(ctx context.Context, projectID domain.ProjectID) (*domain.WIPSlotsInfo, error)
 	GetSkillFunc                    func(ctx context.Context, skillID domain.SkillID) (*domain.Skill, error)
 	GetSkillBySlugFunc              func(ctx context.Context, slug string) (*domain.Skill, error)
 	ListSkillsFunc                  func(ctx context.Context) ([]domain.Skill, error)
@@ -441,6 +463,8 @@ type MockQueries struct {
 	GetProjectDockerfileFunc        func(ctx context.Context, projectID domain.ProjectID) (*domain.Dockerfile, error)
 	GetModelTokenStatsFunc          func(ctx context.Context, projectID domain.ProjectID) ([]domain.ModelTokenStat, error)
 	ListModelPricingFunc            func(ctx context.Context) ([]domain.ModelPricing, error)
+	GetFeatureFunc                  func(ctx context.Context, featureID domain.FeatureID) (*domain.Feature, error)
+	ListFeaturesFunc                func(ctx context.Context, projectID domain.ProjectID, statusFilter []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error)
 	GetFeatureStatsFunc             func(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error)
 }
 
@@ -556,13 +580,6 @@ func (m *MockQueries) GetNextTasks(ctx context.Context, projectID domain.Project
 	return m.GetNextTasksFunc(ctx, projectID, role, count, featureID)
 }
 
-func (m *MockQueries) ListFeaturesActiveOnly(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error) {
-	if m.ListFeaturesActiveOnlyFunc == nil {
-		panic("called not defined ListFeaturesActiveOnlyFunc")
-	}
-	return m.ListFeaturesActiveOnlyFunc(ctx, parentID)
-}
-
 func (m *MockQueries) GetDependencyContext(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.DependencyContext, error) {
 	if m.GetDependencyContextFunc == nil {
 		panic("called not defined GetDependencyContextFunc")
@@ -654,13 +671,6 @@ func (m *MockQueries) GetColdStartStats(ctx context.Context, projectID domain.Pr
 	return m.GetColdStartStatsFunc(ctx, projectID)
 }
 
-func (m *MockQueries) GetWIPSlots(ctx context.Context, projectID domain.ProjectID) (*domain.WIPSlotsInfo, error) {
-	if m.GetWIPSlotsFunc == nil {
-		panic("called not defined GetWIPSlotsFunc")
-	}
-	return m.GetWIPSlotsFunc(ctx, projectID)
-}
-
 func (m *MockQueries) GetSkill(ctx context.Context, skillID domain.SkillID) (*domain.Skill, error) {
 	if m.GetSkillFunc == nil {
 		panic("called not defined GetSkillFunc")
@@ -736,6 +746,20 @@ func (m *MockQueries) ListModelPricing(ctx context.Context) ([]domain.ModelPrici
 		return nil, nil
 	}
 	return m.ListModelPricingFunc(ctx)
+}
+
+func (m *MockQueries) GetFeature(ctx context.Context, featureID domain.FeatureID) (*domain.Feature, error) {
+	if m.GetFeatureFunc == nil {
+		return &domain.Feature{ID: featureID}, nil
+	}
+	return m.GetFeatureFunc(ctx, featureID)
+}
+
+func (m *MockQueries) ListFeatures(ctx context.Context, projectID domain.ProjectID, statusFilter []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error) {
+	if m.ListFeaturesFunc == nil {
+		return nil, nil
+	}
+	return m.ListFeaturesFunc(ctx, projectID, statusFilter)
 }
 
 func (m *MockQueries) GetFeatureStats(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error) {

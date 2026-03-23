@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/identity"
+	service "github.com/JLugagne/agach-mcp/internal/identity/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/kanban"
 	"github.com/JLugagne/agach-mcp/internal/svrconfig"
 	"github.com/JLugagne/agach-mcp/pkg/controller"
@@ -86,7 +87,7 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, j
 	identitySystem.RegisterRoutes(httpRouter, ctrl)
 
 	// Auth middleware for protected routes
-	requireAuth := middleware.NewRequireAuth(identitySystem.AuthQueries)
+	requireAuth := middleware.NewRequireAuth(&authValidatorAdapter{q: identitySystem.AuthQueries})
 
 	// Initialize Kanban HTTP system under auth middleware
 	kanbanRouter := httpRouter.PathPrefix("").Subrouter()
@@ -181,6 +182,21 @@ func (h *spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// SPA fallback: serve index.html for all non-file routes
 	r.URL.Path = "/"
 	h.staticFS.ServeHTTP(w, r)
+}
+
+// authValidatorAdapter wraps identity's AuthQueries (which returns domain.Actor)
+// into middleware.AuthValidator (which returns any), so that pkg/middleware
+// does not import from internal/.
+type authValidatorAdapter struct {
+	q service.AuthQueries
+}
+
+func (a *authValidatorAdapter) ValidateJWT(ctx context.Context, token string) (any, error) {
+	return a.q.ValidateJWT(ctx, token)
+}
+
+func (a *authValidatorAdapter) ValidateAPIKey(ctx context.Context, rawKey string) (any, error) {
+	return a.q.ValidateAPIKey(ctx, rawKey)
 }
 
 func getEnv(key, defaultValue string) string {

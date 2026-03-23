@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { Plus, FolderTree, X, Search } from 'lucide-react';
-import { getBoard, getProject, getTask, createTask, listProjectAgents, listSubProjects, listFeaturesActiveOnly, moveTask as apiMoveTask, markTaskSeen, updateTask } from '../lib/api';
+import { getBoard, getProject, getTask, createTask, listProjectAgents, listFeatures, moveTask as apiMoveTask, markTaskSeen, updateTask } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type {
   BoardResponse,
   ColumnWithTasksResponse,
   ProjectResponse,
-  ProjectWithSummary,
+  FeatureWithSummaryResponse,
   AgentResponse,
   TaskWithDetailsResponse,
 } from '../lib/types';
@@ -41,30 +41,8 @@ export default function KanbanPage() {
   const [loading, setLoading] = useState(true);
   const [doneSince, setDoneSince] = useState('');
 
-  const [features, setFeatures] = useState<ProjectWithSummary[]>([]);
-  const [selectedFeature, setSelectedFeature] = useState<ProjectWithSummary | null>(null);
-
-  // Compute which column each feature belongs to
-  const featureColumnMap = useMemo((): Map<string, string> => {
-    const map = new Map<string, string>();
-    for (const feature of features) {
-      const s = feature.summary ?? feature.task_summary;
-      if (!s) {
-        map.set(feature.id, 'done');
-        continue;
-      }
-      if (s.in_progress_count > 0) {
-        map.set(feature.id, 'in_progress');
-      } else if (s.todo_count > 0) {
-        map.set(feature.id, 'todo');
-      } else if (s.blocked_count > 0) {
-        map.set(feature.id, 'blocked');
-      } else {
-        map.set(feature.id, 'done');
-      }
-    }
-    return map;
-  }, [features]);
+  const [features, setFeatures] = useState<FeatureWithSummaryResponse[]>([]);
+  const [selectedFeature, setSelectedFeature] = useState<FeatureWithSummaryResponse | null>(null);
 
   // Filter state
   const [includeChildren, setIncludeChildren] = useState(true);
@@ -77,7 +55,8 @@ export default function KanbanPage() {
     for (const r of roles) map[r.slug] = r.color;
     return map;
   }, [roles]);
-  const [childProjectIds, setChildProjectIds] = useState<Set<string>>(new Set());
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [childProjectIds, _setChildProjectIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -280,7 +259,7 @@ export default function KanbanPage() {
   const fetchFeatures = useCallback(async () => {
     if (!projectId) return;
     try {
-      const data = await listFeaturesActiveOnly(projectId);
+      const data = await listFeatures(projectId);
       setFeatures(data ?? []);
     } catch {
       setFeatures([]);
@@ -289,9 +268,6 @@ export default function KanbanPage() {
 
   useEffect(() => {
     if (!projectId) return;
-    listSubProjects(projectId).then((children) => {
-      setChildProjectIds(new Set((children ?? []).map((c) => c.id)));
-    }).catch(() => setChildProjectIds(new Set()));
     fetchFeatures();
   }, [projectId, fetchFeatures]);
 
@@ -575,7 +551,7 @@ export default function KanbanPage() {
   return (
     <div className="flex flex-col h-full bg-[var(--bg-primary)]">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-8 py-5 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 sm:px-8 py-4 sm:py-5 flex-shrink-0">
         <div>
           {parentProject ? (
             <>
@@ -725,7 +701,7 @@ export default function KanbanPage() {
           <p className="text-[var(--text-dim)] text-sm font-['Inter']">No board data available.</p>
         </div>
       ) : (
-        <div className="flex gap-5 px-8 pb-6 flex-1 overflow-x-auto overflow-y-hidden min-h-0">
+        <div className="flex gap-5 px-4 sm:px-8 pb-6 flex-1 overflow-x-auto overflow-y-hidden min-h-0">
           {filteredBoard.columns.map((col) => {
             const displayCol =
               col.slug === 'done' && col.tasks && col.tasks.length > 0
@@ -758,10 +734,6 @@ export default function KanbanPage() {
                 onTaskSelect={handleTaskSelect}
                 onRefresh={fetchBoard}
                 onAddTask={col.slug === 'todo' ? () => setShowNewTask(true) : undefined}
-                {...(features.length > 0 ? {
-                  features: features.filter(f => featureColumnMap.get(f.id) === col.slug),
-                  onFeatureClick: (feature) => setSelectedFeature(feature),
-                } : {})}
               />
             );
           })}

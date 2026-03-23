@@ -100,7 +100,6 @@ interface ColumnWithTasksResponse {
   slug: string;
   name: string;
   position: number;
-  wip_limit: number;
   created_at: string;
   tasks: TaskResponse[];
 }
@@ -274,6 +273,14 @@ export async function deleteAgent(
   await apiRequest<void>(request, 'DELETE', `/api/agents/${slug}`);
 }
 
+export async function assignAgentToProject(
+  request: APIRequestContext,
+  projectId: string,
+  agentSlug: string,
+): Promise<void> {
+  await apiRequest<void>(request, 'POST', `/api/projects/${projectId}/agents`, { agent_slug: agentSlug });
+}
+
 // Backward compatibility aliases
 export const createRole = createAgent;
 export const deleteRole = deleteAgent;
@@ -366,6 +373,57 @@ export async function getBoard(
   projectId: string,
 ): Promise<BoardResponse> {
   return apiRequest<BoardResponse>(request, 'GET', `/api/projects/${projectId}/board`);
+}
+
+export async function blockTask(
+  request: APIRequestContext,
+  projectId: string,
+  taskId: string,
+  blockedReason: string,
+  blockedByAgent?: string,
+): Promise<TaskResponse> {
+  const body: Record<string, unknown> = { blocked_reason: blockedReason };
+  if (blockedByAgent) body.blocked_by_agent = blockedByAgent;
+  return apiRequest<TaskResponse>(
+    request,
+    'POST',
+    `/api/projects/${projectId}/tasks/${taskId}/block`,
+    body,
+  );
+}
+
+export async function requestWontDo(
+  request: APIRequestContext,
+  projectId: string,
+  taskId: string,
+  reason: string,
+  requestedBy?: string,
+): Promise<TaskResponse> {
+  const body: Record<string, unknown> = { wont_do_reason: reason };
+  if (requestedBy) body.wont_do_requested_by = requestedBy;
+  return apiRequest<TaskResponse>(
+    request,
+    'POST',
+    `/api/projects/${projectId}/tasks/${taskId}/wont-do`,
+    body,
+  );
+}
+
+export async function completeTask(
+  request: APIRequestContext,
+  projectId: string,
+  taskId: string,
+  completionSummary: string,
+  completedByAgent?: string,
+): Promise<TaskResponse> {
+  const body: Record<string, unknown> = { completion_summary: completionSummary };
+  if (completedByAgent) body.completed_by_agent = completedByAgent;
+  return apiRequest<TaskResponse>(
+    request,
+    'POST',
+    `/api/projects/${projectId}/tasks/${taskId}/complete`,
+    body,
+  );
 }
 
 // Auth

@@ -217,9 +217,40 @@ export interface UpdateTaskRequest {
   feature_id?: string | null;
 }
 
-// A Feature is a project with parent_id set.
-// The API returns ProjectWithSummary for features.
-export type FeatureResponse = ProjectWithSummary;
+// Features
+export type FeatureStatus = 'draft' | 'ready' | 'in_progress' | 'done' | 'blocked';
+
+export interface FeatureResponse {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string;
+  status: FeatureStatus;
+  created_by_role: string;
+  created_by_agent: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FeatureWithSummaryResponse extends FeatureResponse {
+  task_summary: ProjectSummaryResponse;
+}
+
+export interface CreateFeatureRequest {
+  name: string;
+  description?: string;
+  created_by_role?: string;
+  created_by_agent?: string;
+}
+
+export interface UpdateFeatureRequest {
+  name?: string;
+  description?: string;
+}
+
+export interface UpdateFeatureStatusRequest {
+  status: FeatureStatus;
+}
 
 export interface MoveTaskRequest {
   target_column: string;
@@ -275,7 +306,6 @@ export interface ColumnResponse {
   slug: string;
   name: string;
   position: number;
-  wip_limit: number;
   created_at: string;
 }
 

@@ -17,7 +17,7 @@ var testJWTSecret = []byte("test-secret-key-that-is-long-enough-32bytes")
 
 func newTestAuthCommands(mockUsers *userstest.MockUserRepository, mockAPIKeys *apikeystest.MockAPIKeyRepository) interface {
 	Register(ctx context.Context, email, password, displayName string) (domain.User, error)
-	Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
+	Login(ctx context.Context, email, password string, rememberMe bool) (accessToken, refreshToken string, err error)
 	RefreshToken(ctx context.Context, refreshToken string) (newAccessToken string, err error)
 	Logout(ctx context.Context, token string) error
 	CreateAPIKey(ctx context.Context, actor domain.Actor, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string, error)
@@ -123,7 +123,7 @@ func TestAuthService_Login_Success(t *testing.T) {
 	}
 	loginSvc := newTestAuthCommands(loginUsers, &apikeystest.MockAPIKeyRepository{})
 
-	accessToken, refreshToken, err := loginSvc.Login(ctx, "login@example.com", "password123")
+	accessToken, refreshToken, err := loginSvc.Login(ctx, "login@example.com", "password123", false)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, accessToken)
@@ -140,7 +140,7 @@ func TestAuthService_Login_UserNotFound_ReturnsInvalidCredentials(t *testing.T) 
 	}
 	svc := newTestAuthCommands(mockUsers, &apikeystest.MockAPIKeyRepository{})
 
-	_, _, err := svc.Login(ctx, "unknown@example.com", "password123")
+	_, _, err := svc.Login(ctx, "unknown@example.com", "password123", false)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrInvalidCredentials)
@@ -167,7 +167,7 @@ func TestAuthService_Login_WrongPassword_ReturnsInvalidCredentials(t *testing.T)
 	}
 	loginSvc := newTestAuthCommands(loginUsers, &apikeystest.MockAPIKeyRepository{})
 
-	_, _, err = loginSvc.Login(ctx, "wrongpw@example.com", "wrongpassword")
+	_, _, err = loginSvc.Login(ctx, "wrongpw@example.com", "wrongpassword", false)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrInvalidCredentials)
@@ -188,7 +188,7 @@ func TestAuthService_Login_SSOUserNoPassword_ReturnsError(t *testing.T) {
 	}
 	svc := newTestAuthCommands(mockUsers, &apikeystest.MockAPIKeyRepository{})
 
-	_, _, err := svc.Login(ctx, "sso@example.com", "any")
+	_, _, err := svc.Login(ctx, "sso@example.com", "any", false)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrSSOUserNoPassword)
@@ -232,7 +232,7 @@ func TestAuthService_RefreshToken_Success(t *testing.T) {
 		UpdateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
 	loginSvc := newTestAuthCommands(loginUsers, &apikeystest.MockAPIKeyRepository{})
-	_, refreshToken, err := loginSvc.Login(ctx, "refresh@example.com", "password123")
+	_, refreshToken, err := loginSvc.Login(ctx, "refresh@example.com", "password123", false)
 	require.NoError(t, err)
 
 	// Now refresh the token.
@@ -284,7 +284,7 @@ func TestAuthService_RefreshToken_AccessTokenRejected(t *testing.T) {
 		UpdateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
 	loginSvc := app.NewAuthService(loginUsers, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
-	accessToken, _, err := loginSvc.Login(ctx, "access@example.com", "password123")
+	accessToken, _, err := loginSvc.Login(ctx, "access@example.com", "password123", false)
 	require.NoError(t, err)
 
 	// Attempt to use access token as refresh token.
@@ -324,7 +324,7 @@ func TestAuthService_ValidateJWT_Success(t *testing.T) {
 		UpdateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
 	loginSvc := app.NewAuthService(loginUsers, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
-	accessToken, _, err := loginSvc.Login(ctx, "validate@example.com", "password123")
+	accessToken, _, err := loginSvc.Login(ctx, "validate@example.com", "password123", false)
 	require.NoError(t, err)
 
 	validateUsers := &userstest.MockUserRepository{
@@ -372,7 +372,7 @@ func TestAuthService_ValidateJWT_RefreshTokenRejected(t *testing.T) {
 		UpdateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
 	loginSvc := app.NewAuthService(loginUsers, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
-	_, refreshToken, err := loginSvc.Login(ctx, "rejectrefresh@example.com", "password123")
+	_, refreshToken, err := loginSvc.Login(ctx, "rejectrefresh@example.com", "password123", false)
 	require.NoError(t, err)
 
 	// Attempt to use refresh token as access token.
@@ -403,7 +403,7 @@ func TestAuthService_ValidateJWT_UserNotFound_ReturnsUnauthorized(t *testing.T) 
 		UpdateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
 	loginSvc := app.NewAuthService(loginUsers, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
-	accessToken, _, err := loginSvc.Login(ctx, "deleted@example.com", "password123")
+	accessToken, _, err := loginSvc.Login(ctx, "deleted@example.com", "password123", false)
 	require.NoError(t, err)
 
 	// User was deleted after token was issued.

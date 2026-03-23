@@ -7,38 +7,6 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
 )
 
-// Column Commands
-
-func (a *App) UpdateColumnWIPLimit(ctx context.Context, projectID domain.ProjectID, columnSlug domain.ColumnSlug, wipLimit int) error {
-	logger := a.logger.WithContext(ctx).WithFields(map[string]interface{}{
-		"projectID":  projectID,
-		"columnSlug": columnSlug,
-		"wipLimit":   wipLimit,
-	})
-
-	if columnSlug != domain.ColumnInProgress {
-		return domain.ErrInvalidColumn
-	}
-
-	if wipLimit < 0 {
-		return domain.ErrInvalidColumn
-	}
-
-	column, err := a.columns.FindBySlug(ctx, projectID, columnSlug)
-	if err != nil {
-		logger.WithError(err).Error("failed to find column")
-		return errors.Join(domain.ErrColumnNotFound, err)
-	}
-
-	if err := a.columns.UpdateWIPLimit(ctx, projectID, column.ID, wipLimit); err != nil {
-		logger.WithError(err).Error("failed to update WIP limit")
-		return err
-	}
-
-	logger.Info("WIP limit updated")
-	return nil
-}
-
 // Column Queries (columns are read-only, created automatically with projects)
 
 func (a *App) GetColumn(ctx context.Context, projectID domain.ProjectID, columnID domain.ColumnID) (*domain.Column, error) {

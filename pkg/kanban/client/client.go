@@ -440,28 +440,3 @@ func (c *Client) AddDependency(projectID, taskID, dependsOnTaskID string) error 
 	return err
 }
 
-// WIPSlotsResult holds WIP slot info returned by the server
-type WIPSlotsResult struct {
-	WIPLimit   int `json:"wip_limit"`
-	InProgress int `json:"in_progress"`
-	FreeSlots  int `json:"free_slots"`
-}
-
-func (c *Client) GetWIPSlots(projectID string) (*WIPSlotsResult, error) {
-	resp, err := c.do(http.MethodGet, "/api/projects/"+url.PathEscape(projectID)+"/wip-slots", nil)
-	if err != nil {
-		return nil, err
-	}
-	result, err := decodeResponse[WIPSlotsResult](resp)
-	if err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// WaitForWIPSlot blocks until the SSE stream for the given project emits any event
-// (task_moved out of in_progress, task_completed, task_blocked) or the context is cancelled.
-// Callers should re-check GetWIPSlots after this returns.
-func (c *Client) WaitForWIPSlot(ctx context.Context, projectID string) error {
-	return c.WaitForNextTask(ctx, projectID)
-}

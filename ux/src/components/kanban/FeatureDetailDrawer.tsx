@@ -1,16 +1,25 @@
 import { useEffect, useState } from 'react';
-import { X, Loader2 } from 'lucide-react';
-import type { ProjectWithSummary, TaskWithDetailsResponse } from '../../lib/types';
+import { X, Loader2, ExternalLink, MessageCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import type { FeatureWithSummaryResponse, FeatureStatus, TaskWithDetailsResponse } from '../../lib/types';
 import { listTasks } from '../../lib/api';
 
 interface FeatureDetailDrawerProps {
-  feature: ProjectWithSummary;
+  feature: FeatureWithSummaryResponse;
   projectId: string;
   onClose: () => void;
   onTaskClick: (taskId: string, taskProjectId: string) => void;
 }
 
-// Status bar segments (same as FeatureCard.tsx)
+const STATUS_BADGE_COLORS: Record<FeatureStatus, string> = {
+  draft: 'var(--text-muted)',
+  ready: 'var(--status-todo)',
+  in_progress: 'var(--status-progress)',
+  done: 'var(--status-done)',
+  blocked: '#FF3B30',
+};
+
+// Status bar segments
 const segments = [
   {
     key: 'todo' as const,
@@ -45,16 +54,7 @@ const countKeys = {
   blocked: 'blocked_count',
 } as const;
 
-function getCount(
-  feature: ProjectWithSummary,
-  key: 'todo_count' | 'in_progress_count' | 'done_count' | 'blocked_count',
-): number {
-  const summary = feature.summary ?? feature.task_summary;
-  if (!summary) return 0;
-  return summary[key] ?? 0;
-}
-
-// Priority pill vars (same as TaskCard.tsx)
+// Priority pill vars
 const priorityPillVars: Record<string, { text: string; bg: string }> = {
   critical: { text: 'var(--priority-critical)', bg: 'var(--priority-critical-bg)' },
   high: { text: 'var(--priority-high)', bg: 'var(--priority-high-bg)' },
@@ -72,29 +72,24 @@ const TASK_GROUPS: { slug: string; label: string; dot: string }[] = [
 
 // Derive column slug from task fields
 function getTaskSlug(task: TaskWithDetailsResponse): string {
-  // TaskWithDetailsResponse doesn't carry column slug directly,
-  // but is_blocked drives column placement
   if (task.is_blocked) return 'blocked';
-  // We rely on the column_id mapping; since we don't have column list here,
-  // we use heuristics from the task fields
   if (task.completed_at) return 'done';
-  // Fallback: use column_id presence — but we don't have slug.
-  // The API returns tasks with their current column_id; for the drawer we
-  // can infer status from is_blocked / completed_at / started_at
   if (task.started_at) return 'in_progress';
   return 'todo';
 }
 
-export default function FeatureDetailDrawer({ feature, onClose, onTaskClick, projectId: _projectId }: FeatureDetailDrawerProps) {
+export default function FeatureDetailDrawer({ feature, onClose, onTaskClick, projectId }: FeatureDetailDrawerProps) {
   const [tasks, setTasks] = useState<TaskWithDetailsResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const statusColor = STATUS_BADGE_COLORS[feature.status] ?? 'var(--text-muted)';
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    listTasks(feature.id)
+    listTasks(projectId, { feature_id: feature.id })
       .then((data) => {
         if (!cancelled) {
           setTasks(data);
@@ -108,7 +103,7 @@ export default function FeatureDetailDrawer({ feature, onClose, onTaskClick, pro
         }
       });
     return () => { cancelled = true; };
-  }, [feature.id]);
+  }, [feature.id, projectId]);
 
   // Group tasks by status slug
   const grouped: Record<string, TaskWithDetailsResponse[]> = {};
@@ -117,6 +112,8 @@ export default function FeatureDetailDrawer({ feature, onClose, onTaskClick, pro
     if (!grouped[slug]) grouped[slug] = [];
     grouped[slug].push(task);
   }
+
+  const summary = feature.task_summary;
 
   return (
     <div
@@ -131,17 +128,46 @@ export default function FeatureDetailDrawer({ feature, onClose, onTaskClick, pro
         className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
         style={{ borderColor: 'var(--border-subtle)' }}
       >
-        <h2
-          className="font-['Newsreader'] text-base font-semibold text-[var(--text-primary)] truncate flex-1 mr-2"
-        >
-          {feature.name}
-        </h2>
-        <button
-          onClick={onClose}
-          className="flex-shrink-0 p-1 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-        >
-          <X size={16} />
-        </button>
+        <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+          <h2
+            className="font-['Newsreader'] text-base font-semibold text-[var(--text-primary)] truncate"
+          >
+            {feature.name}
+          </h2>
+          <span
+            className="text-[9px] px-1.5 py-0.5 rounded-full font-['JetBrains_Mono'] font-bold uppercase tracking-wider flex-shrink-0"
+            style={{
+              color: statusColor,
+              backgroundColor: `color-mix(in srgb, ${statusColor} 15%, transparent)`,
+            }}
+            data-qa="feature-drawer-status-badge"
+          >
+            {feature.status.replace('_', ' ')}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <Link
+            to={`/projects/${projectId}/features/${feature.id}`}
+            data-qa="feature-open-full-page-link"
+            className="p-1 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            title="Open full page"
+          >
+            <ExternalLink size={14} />
+          </Link>
+          <button
+            data-qa="feature-chat-btn"
+            className="p-1 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            title="Chat"
+          >
+            <MessageCircle size={14} />
+          </button>
+          <button
+            onClick={onClose}
+            className="flex-shrink-0 p-1 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
       </div>
 
       {/* Scrollable body */}
@@ -155,26 +181,28 @@ export default function FeatureDetailDrawer({ feature, onClose, onTaskClick, pro
         )}
 
         {/* Status summary bar */}
-        <div className="flex items-center gap-1 flex-wrap">
-          {segments.map((seg) => {
-            const count = getCount(feature, countKeys[seg.key]);
-            return (
-              <div
-                key={seg.key}
-                className="flex items-center gap-1 px-1.5 py-[2px] rounded"
-                style={{ backgroundColor: seg.bg }}
-              >
+        {summary && (
+          <div className="flex items-center gap-1 flex-wrap">
+            {segments.map((seg) => {
+              const count = summary[countKeys[seg.key]] ?? 0;
+              return (
                 <div
-                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: seg.dot }}
-                />
-                <span className="font-['JetBrains_Mono'] text-[9px] text-[var(--text-secondary)]">
-                  {count} {seg.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+                  key={seg.key}
+                  className="flex items-center gap-1 px-1.5 py-[2px] rounded"
+                  style={{ backgroundColor: seg.bg }}
+                >
+                  <div
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: seg.dot }}
+                  />
+                  <span className="font-['JetBrains_Mono'] text-[9px] text-[var(--text-secondary)]">
+                    {count} {seg.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Task list */}
         {loading ? (
@@ -209,7 +237,7 @@ export default function FeatureDetailDrawer({ feature, onClose, onTaskClick, pro
                       return (
                         <div
                           key={task.id}
-                          onClick={() => onTaskClick(task.id, feature.id)}
+                          onClick={() => onTaskClick(task.id, projectId)}
                           className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors"
                           style={{ backgroundColor: 'transparent' }}
                           onMouseEnter={(e) => {

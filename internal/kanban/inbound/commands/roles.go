@@ -16,14 +16,16 @@ import (
 // AgentCommandsHandler handles role write operations
 type AgentCommandsHandler struct {
 	commands   service.Commands
+	queries    service.Queries
 	controller *controller.Controller
 	hub        *websocket.Hub
 }
 
 // NewAgentCommandsHandler creates a new role commands handler
-func NewAgentCommandsHandler(commands service.Commands, ctrl *controller.Controller, hub *websocket.Hub) *AgentCommandsHandler {
+func NewAgentCommandsHandler(commands service.Commands, queries service.Queries, ctrl *controller.Controller, hub *websocket.Hub) *AgentCommandsHandler {
 	return &AgentCommandsHandler{
 		commands:   commands,
+		queries:    queries,
 		controller: ctrl,
 		hub:        hub,
 	}
@@ -127,12 +129,15 @@ func (h *AgentCommandsHandler) UpdateAgent(w http.ResponseWriter, r *http.Reques
 		sortOrder = *req.SortOrder
 	}
 
-	// We need RoleID but have slug - this requires a query first
-	// This violates clean separation but is pragmatic for REST API
-	// Alternative: create UpdateAgentBySlug in Commands
-	roleID := domain.RoleID(slug) // HACK: for now assume slug == id, fix later
+	// Resolve slug to actual role ID
+	agent, err := h.queries.GetAgentBySlug(r.Context(), slug)
+	if err != nil || agent == nil {
+		h.controller.SendFail(w, r, nil, domain.ErrRoleNotFound)
+		return
+	}
+	roleID := agent.ID
 
-	err := h.commands.UpdateAgent(
+	err = h.commands.UpdateAgent(
 		r.Context(),
 		roleID,
 		name,
@@ -170,10 +175,15 @@ func (h *AgentCommandsHandler) DeleteAgent(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Same slug/ID issue as UpdateAgent
-	roleID := domain.RoleID(slug)
+	// Resolve slug to actual role ID
+	agent, err := h.queries.GetAgentBySlug(r.Context(), slug)
+	if err != nil || agent == nil {
+		h.controller.SendFail(w, r, nil, domain.ErrRoleNotFound)
+		return
+	}
+	roleID := agent.ID
 
-	err := h.commands.DeleteAgent(r.Context(), roleID)
+	err = h.commands.DeleteAgent(r.Context(), roleID)
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)

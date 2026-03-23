@@ -10,12 +10,13 @@ import (
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
+	agentsrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/agents"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/columns"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/comments"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dependencies"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dockerfiles"
+	featuresrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/features"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects"
-	agentsrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/agents"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/skills"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/toolusage"
@@ -29,15 +30,16 @@ var migrationsFS embed.FS
 
 // Repositories holds all PostgreSQL repository implementations.
 type Repositories struct {
-	Projects    projects.ProjectRepository
-	Agents      agentsrepo.AgentRepository
-	Tasks       tasks.TaskRepository
-	Columns     columns.ColumnRepository
-	Comments    comments.CommentRepository
+	Projects     projects.ProjectRepository
+	Agents       agentsrepo.AgentRepository
+	Tasks        tasks.TaskRepository
+	Columns      columns.ColumnRepository
+	Comments     comments.CommentRepository
 	Dependencies dependencies.DependencyRepository
-	ToolUsage   toolusage.ToolUsageRepository
-	Skills      skills.SkillRepository
-	Dockerfiles dockerfiles.DockerfileRepository
+	ToolUsage    toolusage.ToolUsageRepository
+	Skills       skills.SkillRepository
+	Dockerfiles  dockerfiles.DockerfileRepository
+	Features     featuresrepo.FeatureRepository
 }
 
 // NewRepositories creates all repository implementations backed by a pgxpool.Pool and runs migrations.
@@ -70,6 +72,7 @@ func NewRepositories(pool *pgxpool.Pool) (*Repositories, error) {
 		ToolUsage:    &toolUsageRepository{base},
 		Skills:       &skillRepository{base},
 		Dockerfiles:  &dockerfileRepository{base},
+		Features:     &featureRepository{base},
 	}, nil
 }
 
@@ -152,19 +155,18 @@ func (r *projectRepository) Create(ctx context.Context, p domain.Project) error 
 		slug     domain.ColumnSlug
 		name     string
 		position int
-		wipLimit int
 	}{
-		{domain.ColumnTodo, "To Do", 0, 0},
-		{domain.ColumnInProgress, "In Progress", 1, 3},
-		{domain.ColumnDone, "Done", 2, 0},
-		{domain.ColumnBlocked, "Blocked", 3, 0},
+		{domain.ColumnTodo, "To Do", 0},
+		{domain.ColumnInProgress, "In Progress", 1},
+		{domain.ColumnDone, "Done", 2},
+		{domain.ColumnBlocked, "Blocked", 3},
 	}
 	for _, cd := range colDefs {
 		colID := string(domain.NewColumnID())
 		_, err := r.pool.Exec(ctx, `
-			INSERT INTO columns (id, project_id, slug, name, position, wip_limit, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-			colID, string(p.ID), string(cd.slug), cd.name, cd.position, cd.wipLimit,
+			INSERT INTO columns (id, project_id, slug, name, position, created_at)
+			VALUES ($1, $2, $3, $4, $5, NOW())`,
+			colID, string(p.ID), string(cd.slug), cd.name, cd.position,
 		)
 		if err != nil {
 			return fmt.Errorf("create default column %s: %w", cd.slug, err)
@@ -316,86 +318,6 @@ func (r *projectRepository) CountChildren(ctx context.Context, id domain.Project
 		return 0, fmt.Errorf("count children: %w", err)
 	}
 	return count, nil
-}
-
-func (r *projectRepository) ListFeaturesActiveOnly(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error) {
-	const query = `
-        WITH child_projects AS (
-            SELECT id, parent_id, name, description, created_by_role, created_by_agent,
-                   default_role, COALESCE(git_url,'') AS git_url, dockerfile_id, created_at, updated_at
-            FROM projects
-            WHERE parent_id = $1
-        ),
-        task_counts AS (
-            SELECT
-                t.project_id,
-                COUNT(*) FILTER (WHERE col.slug = 'backlog')     AS backlog_count,
-                COUNT(*) FILTER (WHERE col.slug = 'todo')        AS todo_count,
-                COUNT(*) FILTER (WHERE col.slug = 'in_progress') AS in_progress_count,
-                COUNT(*) FILTER (WHERE col.slug = 'done')        AS done_count,
-                COUNT(*) FILTER (WHERE col.slug = 'blocked')     AS blocked_count
-            FROM tasks t
-            JOIN columns col ON col.id = t.column_id
-            WHERE t.project_id IN (SELECT id FROM child_projects)
-            GROUP BY t.project_id
-        )
-        SELECT
-            cp.id, cp.parent_id, cp.name, cp.description,
-            cp.created_by_role, cp.created_by_agent, cp.default_role, cp.git_url,
-            cp.dockerfile_id, cp.created_at, cp.updated_at,
-            COALESCE(tc.backlog_count, 0)      AS backlog_count,
-            COALESCE(tc.todo_count, 0)         AS todo_count,
-            COALESCE(tc.in_progress_count, 0)  AS in_progress_count,
-            COALESCE(tc.done_count, 0)         AS done_count,
-            COALESCE(tc.blocked_count, 0)      AS blocked_count
-        FROM child_projects cp
-        LEFT JOIN task_counts tc ON tc.project_id = cp.id
-        WHERE
-            COALESCE(tc.todo_count, 0) +
-            COALESCE(tc.in_progress_count, 0) +
-            COALESCE(tc.blocked_count, 0) > 0
-        ORDER BY cp.name ASC
-    `
-
-	rows, err := r.pool.Query(ctx, query, string(parentID))
-	if err != nil {
-		return nil, fmt.Errorf("ListFeaturesActiveOnly: %w", err)
-	}
-	defer rows.Close()
-
-	var results []domain.ProjectWithSummary
-	for rows.Next() {
-		var p domain.ProjectWithSummary
-		var parentIDStr *string
-		var dockerfileIDStr *string
-		err := rows.Scan(
-			(*string)(&p.ID), &parentIDStr, &p.Name, &p.Description,
-			&p.CreatedByRole, &p.CreatedByAgent, &p.DefaultRole, &p.GitURL,
-			&dockerfileIDStr, &p.CreatedAt, &p.UpdatedAt,
-			&p.TaskSummary.BacklogCount,
-			&p.TaskSummary.TodoCount,
-			&p.TaskSummary.InProgressCount,
-			&p.TaskSummary.DoneCount,
-			&p.TaskSummary.BlockedCount,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("ListFeaturesActiveOnly scan: %w", err)
-		}
-		if parentIDStr != nil {
-			pid := domain.ProjectID(*parentIDStr)
-			p.ParentID = &pid
-		}
-		if dockerfileIDStr != nil {
-			did := domain.DockerfileID(*dockerfileIDStr)
-			p.DockerfileID = &did
-		}
-		p.ChildrenCount = 0
-		results = append(results, p)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("ListFeaturesActiveOnly rows: %w", err)
-	}
-	return results, nil
 }
 
 func (r *projectRepository) ListModelPricing(ctx context.Context) ([]domain.ModelPricing, error) {
@@ -822,8 +744,8 @@ func scanTask(row pgx.Row) (*domain.Task, error) {
 		return nil, err
 	}
 	if featureIDStr != nil {
-		pid := domain.ProjectID(*featureIDStr)
-		t.FeatureID = &pid
+		fid := domain.FeatureID(*featureIDStr)
+		t.FeatureID = &fid
 	}
 	t.IsBlocked = isBlocked == 1
 	t.WontDoRequested = wontDoRequested == 1
@@ -858,8 +780,8 @@ func scanTaskRows(rows pgx.Rows) ([]domain.Task, error) {
 			return nil, err
 		}
 		if featureIDStr != nil {
-			pid := domain.ProjectID(*featureIDStr)
-			t.FeatureID = &pid
+			fid := domain.FeatureID(*featureIDStr)
+			t.FeatureID = &fid
 		}
 		t.IsBlocked = isBlocked == 1
 		t.WontDoRequested = wontDoRequested == 1
@@ -878,8 +800,8 @@ func boolToInt(b bool) int {
 	return 0
 }
 
-// featureIDOrNil returns a string representation of a ProjectID pointer, or nil if the pointer is nil.
-func featureIDOrNil(id *domain.ProjectID) interface{} {
+// featureIDOrNil returns a string representation of a FeatureID pointer, or nil if the pointer is nil.
+func featureIDOrNil(id *domain.FeatureID) interface{} {
 	if id == nil {
 		return nil
 	}
@@ -1049,8 +971,8 @@ func (r *taskRepository) List(ctx context.Context, projectID domain.ProjectID, f
 			return nil, err
 		}
 		if featureIDStr != nil {
-			pid := domain.ProjectID(*featureIDStr)
-			t.FeatureID = &pid
+			fid := domain.FeatureID(*featureIDStr)
+			t.FeatureID = &fid
 		}
 		t.IsBlocked = isBlocked == 1
 		t.WontDoRequested = wontDoRequested == 1
@@ -1503,7 +1425,7 @@ func (r *columnRepository) FindByID(ctx context.Context, projectID domain.Projec
 	}
 
 	row := r.pool.QueryRow(ctx, `
-		SELECT id, slug, name, position, wip_limit, created_at
+		SELECT id, slug, name, position, created_at
 		FROM columns WHERE project_id=$1 AND id=$2`,
 		string(projectID), string(id))
 	return scanColumn(row)
@@ -1511,7 +1433,7 @@ func (r *columnRepository) FindByID(ctx context.Context, projectID domain.Projec
 
 func (r *columnRepository) FindBySlug(ctx context.Context, projectID domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT id, slug, name, position, wip_limit, created_at
+		SELECT id, slug, name, position, created_at
 		FROM columns WHERE project_id=$1 AND slug=$2`,
 		string(projectID), string(slug))
 	col, err := scanColumn(row)
@@ -1523,7 +1445,7 @@ func (r *columnRepository) FindBySlug(ctx context.Context, projectID domain.Proj
 
 func (r *columnRepository) List(ctx context.Context, projectID domain.ProjectID) ([]domain.Column, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, slug, name, position, wip_limit, created_at
+		SELECT id, slug, name, position, created_at
 		FROM columns WHERE project_id=$1 ORDER BY position ASC`,
 		string(projectID))
 	if err != nil {
@@ -1542,17 +1464,10 @@ func (r *columnRepository) List(ctx context.Context, projectID domain.ProjectID)
 	return result, rows.Err()
 }
 
-func (r *columnRepository) UpdateWIPLimit(ctx context.Context, projectID domain.ProjectID, columnID domain.ColumnID, wipLimit int) error {
-	_, err := r.pool.Exec(ctx, `
-		UPDATE columns SET wip_limit=$1 WHERE project_id=$2 AND id=$3`,
-		wipLimit, string(projectID), string(columnID))
-	return err
-}
-
 func (r *columnRepository) EnsureBacklog(ctx context.Context, projectID domain.ProjectID) (*domain.Column, error) {
 	// Try to get existing backlog
 	row := r.pool.QueryRow(ctx, `
-		SELECT id, slug, name, position, wip_limit, created_at
+		SELECT id, slug, name, position, created_at
 		FROM columns WHERE project_id=$1 AND slug='backlog'`,
 		string(projectID))
 	col, err := scanColumn(row)
@@ -1566,8 +1481,8 @@ func (r *columnRepository) EnsureBacklog(ctx context.Context, projectID domain.P
 	// Create backlog column
 	colID := string(domain.NewColumnID())
 	_, err = r.pool.Exec(ctx, `
-		INSERT INTO columns (id, project_id, slug, name, position, wip_limit, created_at)
-		VALUES ($1, $2, 'backlog', 'Backlog', -1, 0, NOW())
+		INSERT INTO columns (id, project_id, slug, name, position, created_at)
+		VALUES ($1, $2, 'backlog', 'Backlog', -1, NOW())
 		ON CONFLICT (project_id, slug) DO NOTHING`,
 		colID, string(projectID),
 	)
@@ -1577,7 +1492,7 @@ func (r *columnRepository) EnsureBacklog(ctx context.Context, projectID domain.P
 
 	// Fetch the created/existing backlog
 	row = r.pool.QueryRow(ctx, `
-		SELECT id, slug, name, position, wip_limit, created_at
+		SELECT id, slug, name, position, created_at
 		FROM columns WHERE project_id=$1 AND slug='backlog'`,
 		string(projectID))
 	return scanColumn(row)
@@ -1585,7 +1500,7 @@ func (r *columnRepository) EnsureBacklog(ctx context.Context, projectID domain.P
 
 func scanColumn(row pgx.Row) (*domain.Column, error) {
 	var col domain.Column
-	err := row.Scan((*string)(&col.ID), (*string)(&col.Slug), &col.Name, &col.Position, &col.WIPLimit, &col.CreatedAt)
+	err := row.Scan((*string)(&col.ID), (*string)(&col.Slug), &col.Name, &col.Position, &col.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrColumnNotFound
@@ -1597,7 +1512,7 @@ func scanColumn(row pgx.Row) (*domain.Column, error) {
 
 func scanColumnRow(rows pgx.Rows) (*domain.Column, error) {
 	var col domain.Column
-	err := rows.Scan((*string)(&col.ID), (*string)(&col.Slug), &col.Name, &col.Position, &col.WIPLimit, &col.CreatedAt)
+	err := rows.Scan((*string)(&col.ID), (*string)(&col.Slug), &col.Name, &col.Position, &col.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -1994,6 +1909,175 @@ func (r *modelPricingRepository) Upsert(ctx context.Context, p domain.ModelPrici
 	return err
 }
 
+// ----------------------------
+// featureRepository
+// ----------------------------
+
+type featureRepository struct{ *baseRepository }
+
+func (r *featureRepository) Create(ctx context.Context, feature domain.Feature) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO features (id, project_id, name, description, status, created_by_role, created_by_agent, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		string(feature.ID), string(feature.ProjectID), feature.Name, feature.Description,
+		string(feature.Status), feature.CreatedByRole, feature.CreatedByAgent,
+		feature.CreatedAt, feature.UpdatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("create feature: %w", err)
+	}
+	return nil
+}
+
+func (r *featureRepository) FindByID(ctx context.Context, id domain.FeatureID) (*domain.Feature, error) {
+	row := r.pool.QueryRow(ctx, `
+		SELECT id, project_id, name, description, status, created_by_role, created_by_agent, created_at, updated_at
+		FROM features WHERE id = $1`, string(id))
+	var f domain.Feature
+	err := row.Scan(
+		(*string)(&f.ID), (*string)(&f.ProjectID), &f.Name, &f.Description,
+		(*string)(&f.Status), &f.CreatedByRole, &f.CreatedByAgent, &f.CreatedAt, &f.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrFeatureNotFound
+		}
+		return nil, fmt.Errorf("find feature by id: %w", err)
+	}
+	return &f, nil
+}
+
+func (r *featureRepository) List(ctx context.Context, projectID domain.ProjectID, statusFilter []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error) {
+	args := []any{string(projectID)}
+	query := `
+		SELECT f.id, f.project_id, f.name, f.description, f.status, f.created_by_role, f.created_by_agent, f.created_at, f.updated_at,
+			COALESCE(SUM(CASE WHEN c.slug = 'backlog'     THEN 1 ELSE 0 END), 0) AS backlog_count,
+			COALESCE(SUM(CASE WHEN c.slug = 'todo'        THEN 1 ELSE 0 END), 0) AS todo_count,
+			COALESCE(SUM(CASE WHEN c.slug = 'in_progress' THEN 1 ELSE 0 END), 0) AS in_progress_count,
+			COALESCE(SUM(CASE WHEN c.slug = 'done'        THEN 1 ELSE 0 END), 0) AS done_count,
+			COALESCE(SUM(CASE WHEN c.slug = 'blocked'     THEN 1 ELSE 0 END), 0) AS blocked_count
+		FROM features f
+		LEFT JOIN tasks t ON t.feature_id = f.id
+		LEFT JOIN columns c ON c.id = t.column_id
+		WHERE f.project_id = $1`
+
+	if len(statusFilter) > 0 {
+		statuses := make([]string, len(statusFilter))
+		for i, s := range statusFilter {
+			statuses[i] = string(s)
+		}
+		args = append(args, statuses)
+		query += fmt.Sprintf(` AND f.status = ANY($%d)`, len(args))
+	}
+	query += ` GROUP BY f.id ORDER BY f.created_at ASC`
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list features: %w", err)
+	}
+	defer rows.Close()
+
+	var result []domain.FeatureWithTaskSummary
+	for rows.Next() {
+		var fw domain.FeatureWithTaskSummary
+		err := rows.Scan(
+			(*string)(&fw.ID), (*string)(&fw.ProjectID), &fw.Name, &fw.Description,
+			(*string)(&fw.Status), &fw.CreatedByRole, &fw.CreatedByAgent, &fw.CreatedAt, &fw.UpdatedAt,
+			&fw.TaskSummary.BacklogCount,
+			&fw.TaskSummary.TodoCount,
+			&fw.TaskSummary.InProgressCount,
+			&fw.TaskSummary.DoneCount,
+			&fw.TaskSummary.BlockedCount,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan feature row: %w", err)
+		}
+		result = append(result, fw)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list features rows: %w", err)
+	}
+	return result, nil
+}
+
+func (r *featureRepository) Update(ctx context.Context, feature domain.Feature) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE features SET name=$1, description=$2, updated_at=$3
+		WHERE id=$4`,
+		feature.Name, feature.Description, feature.UpdatedAt, string(feature.ID),
+	)
+	if err != nil {
+		return fmt.Errorf("update feature: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrFeatureNotFound
+	}
+	return nil
+}
+
+func (r *featureRepository) UpdateStatus(ctx context.Context, id domain.FeatureID, status domain.FeatureStatus) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE features SET status=$1, updated_at=NOW()
+		WHERE id=$2`,
+		string(status), string(id),
+	)
+	if err != nil {
+		return fmt.Errorf("update feature status: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrFeatureNotFound
+	}
+	return nil
+}
+
+func (r *featureRepository) Delete(ctx context.Context, id domain.FeatureID) error {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM features WHERE id=$1`, string(id))
+	if err != nil {
+		return fmt.Errorf("delete feature: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrFeatureNotFound
+	}
+	return nil
+}
+
+func (r *featureRepository) GetStats(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT status, COUNT(*) FROM features WHERE project_id=$1 GROUP BY status`,
+		string(projectID),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get feature stats: %w", err)
+	}
+	defer rows.Close()
+
+	stats := &domain.FeatureStats{}
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, fmt.Errorf("scan feature stats: %w", err)
+		}
+		stats.TotalCount += count
+		switch domain.FeatureStatus(status) {
+		case domain.FeatureStatusDraft:
+			stats.NotReadyCount += count
+		case domain.FeatureStatusReady:
+			stats.ReadyCount += count
+		case domain.FeatureStatusInProgress:
+			stats.InProgressCount += count
+		case domain.FeatureStatusDone:
+			stats.DoneCount += count
+		case domain.FeatureStatusBlocked:
+			stats.BlockedCount += count
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("feature stats rows: %w", err)
+	}
+	return stats, nil
+}
+
 // compile-time interface checks
 var (
 	_ projects.ProjectRepository        = (*projectRepository)(nil)
@@ -2004,4 +2088,5 @@ var (
 	_ dependencies.DependencyRepository = (*dependencyRepository)(nil)
 	_ toolusage.ToolUsageRepository     = (*toolUsageRepository)(nil)
 	_ skills.SkillRepository            = (*skillRepository)(nil)
+	_ featuresrepo.FeatureRepository    = (*featureRepository)(nil)
 )

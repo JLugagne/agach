@@ -9,7 +9,7 @@ import (
 
 type AuthCommands interface {
 	Register(ctx context.Context, email, password, displayName string) (domain.User, error)
-	Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
+	Login(ctx context.Context, email, password string, rememberMe bool) (accessToken, refreshToken string, err error)
 	LoginSSO(ctx context.Context, provider, code, redirectURI string) (accessToken, refreshToken string, err error)
 	RefreshToken(ctx context.Context, refreshToken string) (newAccessToken string, err error)
 	Logout(ctx context.Context, refreshToken string) error

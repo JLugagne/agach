@@ -24,8 +24,7 @@ type MockColumnRepository struct {
 	FindByIDFunc       func(ctx context.Context, projectID domain.ProjectID, id domain.ColumnID) (*domain.Column, error)
 	FindBySlugFunc     func(ctx context.Context, projectID domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error)
 	ListFunc           func(ctx context.Context, projectID domain.ProjectID) ([]domain.Column, error)
-	UpdateWIPLimitFunc func(ctx context.Context, projectID domain.ProjectID, columnID domain.ColumnID, wipLimit int) error
-	EnsureBacklogFunc  func(ctx context.Context, projectID domain.ProjectID) (*domain.Column, error)
+	EnsureBacklogFunc func(ctx context.Context, projectID domain.ProjectID) (*domain.Column, error)
 }
 
 func (m *MockColumnRepository) FindByID(ctx context.Context, projectID domain.ProjectID, id domain.ColumnID) (*domain.Column, error) {
@@ -47,13 +46,6 @@ func (m *MockColumnRepository) List(ctx context.Context, projectID domain.Projec
 		panic("called not defined ListFunc")
 	}
 	return m.ListFunc(ctx, projectID)
-}
-
-func (m *MockColumnRepository) UpdateWIPLimit(ctx context.Context, projectID domain.ProjectID, columnID domain.ColumnID, wipLimit int) error {
-	if m.UpdateWIPLimitFunc == nil {
-		panic("called not defined UpdateWIPLimitFunc")
-	}
-	return m.UpdateWIPLimitFunc(ctx, projectID, columnID, wipLimit)
 }
 
 func (m *MockColumnRepository) EnsureBacklog(ctx context.Context, projectID domain.ProjectID) (*domain.Column, error) {
@@ -107,7 +99,6 @@ func ColumnsContractTesting(t *testing.T, repo columns.ColumnRepository, project
 		assert.Equal(t, domain.ColumnTodo, column.Slug)
 		assert.Equal(t, "To Do", column.Name)
 		assert.Equal(t, 0, column.Position)
-		assert.Equal(t, 0, column.WIPLimit, "Todo column should have no WIP limit")
 	})
 
 	t.Run("Contract: FindBySlug retrieves in_progress column", func(t *testing.T) {
@@ -117,7 +108,6 @@ func ColumnsContractTesting(t *testing.T, repo columns.ColumnRepository, project
 		assert.Equal(t, domain.ColumnInProgress, column.Slug)
 		assert.Equal(t, "In Progress", column.Name)
 		assert.Equal(t, 1, column.Position)
-		assert.Equal(t, 3, column.WIPLimit, "In Progress column should have WIP limit of 3")
 	})
 
 	t.Run("Contract: FindBySlug retrieves done column", func(t *testing.T) {
@@ -127,7 +117,6 @@ func ColumnsContractTesting(t *testing.T, repo columns.ColumnRepository, project
 		assert.Equal(t, domain.ColumnDone, column.Slug)
 		assert.Equal(t, "Done", column.Name)
 		assert.Equal(t, 2, column.Position)
-		assert.Equal(t, 0, column.WIPLimit, "Done column should have no WIP limit")
 	})
 
 	t.Run("Contract: FindBySlug retrieves blocked column", func(t *testing.T) {
@@ -137,7 +126,6 @@ func ColumnsContractTesting(t *testing.T, repo columns.ColumnRepository, project
 		assert.Equal(t, domain.ColumnBlocked, column.Slug)
 		assert.Equal(t, "Blocked", column.Name)
 		assert.Equal(t, 3, column.Position)
-		assert.Equal(t, 0, column.WIPLimit, "Blocked column should have no WIP limit")
 	})
 
 	t.Run("Contract: FindBySlug returns error for invalid slug", func(t *testing.T) {

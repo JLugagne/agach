@@ -14,7 +14,6 @@ func TestToPublicColumn(t *testing.T) {
 		Slug:     domain.ColumnTodo,
 		Name:     "To Do",
 		Position: 0,
-		WIPLimit: 0,
 	}
 
 	result := converters.ToPublicColumn(column)
@@ -23,7 +22,6 @@ func TestToPublicColumn(t *testing.T) {
 	assert.Equal(t, "todo", result.Slug)
 	assert.Equal(t, "To Do", result.Name)
 	assert.Equal(t, 0, result.Position)
-	assert.Equal(t, 0, result.WIPLimit)
 }
 
 func TestToPublicColumns(t *testing.T) {

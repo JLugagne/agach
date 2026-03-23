@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	refreshCookieName = "refresh_token"
-	refreshCookiePath = "/api/auth/refresh"
-	refreshCookieTTL  = 7 * 24 * time.Hour
+	refreshCookieName      = "refresh_token"
+	refreshCookiePath      = "/api/auth/refresh"
+	refreshCookieTTL       = 7 * 24 * time.Hour
+	rememberMeCookieTTL    = 30 * 24 * time.Hour
 )
 
 // AuthCommandsHandler handles authentication HTTP endpoints.
@@ -71,8 +72,9 @@ type registerRequest struct {
 }
 
 type loginRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required"`
+	Email      string `json:"email" validate:"required,email"`
+	Password   string `json:"password" validate:"required"`
+	RememberMe bool   `json:"remember_me"`
 }
 
 type createAPIKeyRequest struct {
@@ -104,13 +106,13 @@ func (h *AuthCommandsHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.commands.Login(r.Context(), req.Email, req.Password)
+	accessToken, refreshToken, err := h.commands.Login(r.Context(), req.Email, req.Password, false)
 	if err != nil {
 		h.handleAuthError(w, r, err)
 		return
 	}
 
-	h.setRefreshCookie(w, r, refreshToken)
+	h.setRefreshCookie(w, r, refreshToken, false)
 	h.controller.SendSuccess(w, r, map[string]interface{}{
 		"user":         toPublicUser(user),
 		"access_token": accessToken,
@@ -131,7 +133,7 @@ func (h *AuthCommandsHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.commands.Login(r.Context(), req.Email, req.Password)
+	accessToken, refreshToken, err := h.commands.Login(r.Context(), req.Email, req.Password, req.RememberMe)
 	if err != nil {
 		h.handleAuthError(w, r, err)
 		return
@@ -149,7 +151,7 @@ func (h *AuthCommandsHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.setRefreshCookie(w, r, refreshToken)
+	h.setRefreshCookie(w, r, refreshToken, req.RememberMe)
 	h.controller.SendSuccess(w, r, map[string]interface{}{
 		"user":         toPublicUser(user),
 		"access_token": accessToken,
@@ -385,12 +387,16 @@ func (h *AuthCommandsHandler) handleAuthError(w http.ResponseWriter, r *http.Req
 	}
 }
 
-func (h *AuthCommandsHandler) setRefreshCookie(w http.ResponseWriter, r *http.Request, token string) {
+func (h *AuthCommandsHandler) setRefreshCookie(w http.ResponseWriter, r *http.Request, token string, rememberMe bool) {
+	ttl := refreshCookieTTL
+	if rememberMe {
+		ttl = rememberMeCookieTTL
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     refreshCookieName,
 		Value:    token,
 		Path:     refreshCookiePath,
-		MaxAge:   int(refreshCookieTTL.Seconds()),
+		MaxAge:   int(ttl.Seconds()),
 		HttpOnly: true,
 		Secure:   isSecure(r),
 		SameSite: http.SameSiteStrictMode,

@@ -30,8 +30,7 @@ type MockProjectRepository struct {
 	DeleteFunc                 func(ctx context.Context, id domain.ProjectID) ([]domain.ProjectID, error)
 	GetSummaryFunc             func(ctx context.Context, id domain.ProjectID) (*domain.ProjectSummary, error)
 	CountChildrenFunc          func(ctx context.Context, id domain.ProjectID) (int, error)
-	ListFeaturesActiveOnlyFunc func(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error)
-	ListModelPricingFunc       func(ctx context.Context) ([]domain.ModelPricing, error)
+	ListModelPricingFunc func(ctx context.Context) ([]domain.ModelPricing, error)
 }
 
 func (m *MockProjectRepository) Create(ctx context.Context, project domain.Project) error {
@@ -88,13 +87,6 @@ func (m *MockProjectRepository) CountChildren(ctx context.Context, id domain.Pro
 		panic("called not defined CountChildrenFunc")
 	}
 	return m.CountChildrenFunc(ctx, id)
-}
-
-func (m *MockProjectRepository) ListFeaturesActiveOnly(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error) {
-	if m.ListFeaturesActiveOnlyFunc == nil {
-		panic("called not defined ListFeaturesActiveOnlyFunc")
-	}
-	return m.ListFeaturesActiveOnlyFunc(ctx, parentID)
 }
 
 func (m *MockProjectRepository) ListModelPricing(ctx context.Context) ([]domain.ModelPricing, error) {
@@ -364,24 +356,6 @@ func ProjectsContractTesting(t *testing.T, repo projects.ProjectRepository) {
 		assert.True(t, ids[subsub1ID], "SubSub1 should be in tree")
 	})
 
-	t.Run("Contract: IsFeature returns false for root project", func(t *testing.T) {
-		root := domain.Project{
-			ID:   domain.NewProjectID(),
-			Name: "Root Project",
-		}
-		assert.False(t, root.IsFeature(), "Root project should not be a feature")
-	})
-
-	t.Run("Contract: IsFeature returns true for child project", func(t *testing.T) {
-		rootID := domain.NewProjectID()
-		child := domain.Project{
-			ID:       domain.NewProjectID(),
-			ParentID: &rootID,
-			Name:     "Child Feature",
-		}
-		assert.True(t, child.IsFeature(), "Child project should be a feature")
-	})
-
 	t.Run("Contract: CountChildren returns correct count", func(t *testing.T) {
 		parentID := domain.NewProjectID()
 		parent := domain.Project{
@@ -425,152 +399,13 @@ func ProjectsContractTesting(t *testing.T, repo projects.ProjectRepository) {
 	})
 }
 
-// ProjectFeaturesContractTesting tests the ListFeaturesActiveOnly method.
-// It requires a createTaskInColumn func that, given a projectID and column slug,
-// creates tasks in the DB so the repo can count them.
-//
-// Parameters:
-//   - t: testing.T
-//   - repo: the ProjectRepository under test
-//   - parentProjectID: an existing root project to use as parent
-//   - createTaskInColumn: a callback to insert a task row into the given project's given column slug.
+// ProjectFeaturesContractTesting is removed — features are now a separate entity.
+// This stub is kept to avoid breaking callers; it does nothing.
 func ProjectFeaturesContractTesting(
-	t *testing.T,
-	repo projects.ProjectRepository,
-	parentProjectID domain.ProjectID,
-	createTaskInColumn func(t *testing.T, projectID domain.ProjectID, columnSlug domain.ColumnSlug),
+	_ *testing.T,
+	_ projects.ProjectRepository,
+	_ domain.ProjectID,
+	_ func(t *testing.T, projectID domain.ProjectID, columnSlug domain.ColumnSlug),
 ) {
-	ctx := context.Background()
-
-	t.Run("Contract: ListFeaturesActiveOnly returns empty when no features exist", func(t *testing.T) {
-		results, err := repo.ListFeaturesActiveOnly(ctx, parentProjectID)
-		require.NoError(t, err)
-		_ = results
-	})
-
-	t.Run("Contract: ListFeaturesActiveOnly includes feature with todo tasks", func(t *testing.T) {
-		featureWithTodo := domain.Project{
-			ID:       domain.NewProjectID(),
-			ParentID: &parentProjectID,
-			Name:     "Feature With Todo",
-		}
-		require.NoError(t, repo.Create(ctx, featureWithTodo))
-
-		createTaskInColumn(t, featureWithTodo.ID, domain.ColumnTodo)
-
-		results, err := repo.ListFeaturesActiveOnly(ctx, parentProjectID)
-		require.NoError(t, err)
-
-		found := false
-		for _, r := range results {
-			if r.ID == featureWithTodo.ID {
-				found = true
-				assert.GreaterOrEqual(t, r.TaskSummary.TodoCount, 1, "Should have at least 1 todo task")
-			}
-		}
-		assert.True(t, found, "Feature with todo task should appear in active features")
-	})
-
-	t.Run("Contract: ListFeaturesActiveOnly includes feature with in_progress tasks", func(t *testing.T) {
-		featureInProgress := domain.Project{
-			ID:       domain.NewProjectID(),
-			ParentID: &parentProjectID,
-			Name:     "Feature In Progress",
-		}
-		require.NoError(t, repo.Create(ctx, featureInProgress))
-
-		createTaskInColumn(t, featureInProgress.ID, domain.ColumnInProgress)
-
-		results, err := repo.ListFeaturesActiveOnly(ctx, parentProjectID)
-		require.NoError(t, err)
-
-		found := false
-		for _, r := range results {
-			if r.ID == featureInProgress.ID {
-				found = true
-				assert.GreaterOrEqual(t, r.TaskSummary.InProgressCount, 1)
-			}
-		}
-		assert.True(t, found, "Feature with in_progress task should appear in active features")
-	})
-
-	t.Run("Contract: ListFeaturesActiveOnly includes feature with blocked tasks", func(t *testing.T) {
-		featureBlocked := domain.Project{
-			ID:       domain.NewProjectID(),
-			ParentID: &parentProjectID,
-			Name:     "Feature Blocked",
-		}
-		require.NoError(t, repo.Create(ctx, featureBlocked))
-
-		createTaskInColumn(t, featureBlocked.ID, domain.ColumnBlocked)
-
-		results, err := repo.ListFeaturesActiveOnly(ctx, parentProjectID)
-		require.NoError(t, err)
-
-		found := false
-		for _, r := range results {
-			if r.ID == featureBlocked.ID {
-				found = true
-				assert.GreaterOrEqual(t, r.TaskSummary.BlockedCount, 1)
-			}
-		}
-		assert.True(t, found, "Feature with blocked task should appear in active features")
-	})
-
-	t.Run("Contract: ListFeaturesActiveOnly excludes feature with only done tasks", func(t *testing.T) {
-		featureDone := domain.Project{
-			ID:       domain.NewProjectID(),
-			ParentID: &parentProjectID,
-			Name:     "Feature Done Only",
-		}
-		require.NoError(t, repo.Create(ctx, featureDone))
-
-		createTaskInColumn(t, featureDone.ID, domain.ColumnDone)
-
-		results, err := repo.ListFeaturesActiveOnly(ctx, parentProjectID)
-		require.NoError(t, err)
-
-		for _, r := range results {
-			assert.NotEqual(t, featureDone.ID, r.ID, "Feature with only done tasks should NOT appear in active features")
-		}
-	})
-
-	t.Run("Contract: ListFeaturesActiveOnly excludes feature with no tasks", func(t *testing.T) {
-		emptyFeature := domain.Project{
-			ID:       domain.NewProjectID(),
-			ParentID: &parentProjectID,
-			Name:     "Empty Feature",
-		}
-		require.NoError(t, repo.Create(ctx, emptyFeature))
-
-		results, err := repo.ListFeaturesActiveOnly(ctx, parentProjectID)
-		require.NoError(t, err)
-
-		for _, r := range results {
-			assert.NotEqual(t, emptyFeature.ID, r.ID, "Empty feature should NOT appear in active features")
-		}
-	})
-
-	t.Run("Contract: ListFeaturesActiveOnly excludes features of other parents", func(t *testing.T) {
-		otherRoot := domain.Project{
-			ID:   domain.NewProjectID(),
-			Name: "Other Root",
-		}
-		require.NoError(t, repo.Create(ctx, otherRoot))
-
-		otherFeature := domain.Project{
-			ID:       domain.NewProjectID(),
-			ParentID: &otherRoot.ID,
-			Name:     "Other Feature",
-		}
-		require.NoError(t, repo.Create(ctx, otherFeature))
-		createTaskInColumn(t, otherFeature.ID, domain.ColumnTodo)
-
-		results, err := repo.ListFeaturesActiveOnly(ctx, parentProjectID)
-		require.NoError(t, err)
-
-		for _, r := range results {
-			assert.NotEqual(t, otherFeature.ID, r.ID, "Feature of another parent should not appear")
-		}
-	})
 }
+

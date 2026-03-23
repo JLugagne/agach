@@ -3,14 +3,14 @@ import { useParams } from 'react-router-dom';
 import { Loader2, ArrowRight, ArrowRightToLine, ChevronDown } from 'lucide-react';
 import { listTasks, moveTask, listFeatures, getProjectSummary, listColumns } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
-import type { TaskWithDetailsResponse, ProjectWithSummary, ProjectSummaryResponse, ColumnWithTasksResponse } from '../lib/types';
+import type { TaskWithDetailsResponse, FeatureWithSummaryResponse, ProjectSummaryResponse, ColumnWithTasksResponse } from '../lib/types';
 import TaskDrawer from '../components/kanban/TaskDrawer';
 
 export default function BacklogPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [tasks, setTasks] = useState<TaskWithDetailsResponse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [features, setFeatures] = useState<ProjectWithSummary[]>([]);
+  const [features, setFeatures] = useState<FeatureWithSummaryResponse[]>([]);
   const [selectedFeature, setSelectedFeature] = useState<string>('');
   const [summary, setSummary] = useState<ProjectSummaryResponse | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -180,7 +180,7 @@ export default function BacklogPage() {
                 All features {summary ? `(${summary.backlog_count})` : ''}
               </option>
               {features.map((feat) => {
-                const featSummary = feat.task_summary ?? feat.summary;
+                const featSummary = feat.task_summary;
                 const backlogCount = featSummary?.backlog_count ?? 0;
                 return (
                   <option key={feat.id} value={feat.id}>

@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, AlertTriangle, Star } from 'lucide-react';
-import { getProject, updateProject, deleteProject, listProjectAgents, listColumns, updateColumnWIPLimit } from '../lib/api';
+import { getProject, updateProject, deleteProject, listProjectAgents } from '../lib/api';
 import SettingsLayout from '../components/settings/SettingsLayout';
 import DeleteConfirmModal from '../components/ui/DeleteConfirmModal';
 import AddAgentToProjectDialog from '../components/AddAgentToProjectDialog';
 import RemoveAgentDialog from '../components/RemoveAgentDialog';
 import { useWebSocket } from '../hooks/useWebSocket';
-import type { ProjectResponse, ColumnResponse, AgentResponse, WSEvent } from '../lib/types';
+import type { ProjectResponse, AgentResponse, WSEvent } from '../lib/types';
 
 function ProjectAgentsSection({ projectId, defaultRole, onDefaultRoleChange }: { projectId: string; defaultRole: string; onDefaultRoleChange: (slug: string) => void }) {
   const [agents, setAgents] = useState<AgentResponse[]>([]);
@@ -147,29 +147,16 @@ export default function ProjectSettingsPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [defaultRole, setDefaultRole] = useState<string>('');
-  const [columns, setColumns] = useState<ColumnResponse[]>([]);
-  const [wipLimits, setWipLimits] = useState<Record<string, number>>({});
-  const [wipSaving, setWipSaving] = useState(false);
-  const [wipSaved, setWipSaved] = useState(false);
 
   const fetchProject = useCallback(async () => {
     if (!projectId) return;
     try {
-      const [p, cols] = await Promise.all([
-        getProject(projectId),
-        listColumns(projectId).catch(() => [] as ColumnResponse[]),
-      ]);
+      const p = await getProject(projectId);
       setProject(p);
       setName(p.name);
       setDescription(p.description);
       setGitUrl(p.git_url || '');
       setDefaultRole(p.default_role ?? '');
-      setColumns(cols);
-      const limits: Record<string, number> = {};
-      for (const col of cols) {
-        limits[col.slug] = col.wip_limit;
-      }
-      setWipLimits(limits);
     } catch {
       // ignore
     } finally {
@@ -198,26 +185,6 @@ export default function ProjectSettingsPage() {
       // ignore
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleSaveWipLimits = async () => {
-    if (!projectId) return;
-    setWipSaving(true);
-    setWipSaved(false);
-    try {
-      await Promise.all(
-        columns
-          .filter((col) => wipLimits[col.slug] !== col.wip_limit)
-          .map((col) => updateColumnWIPLimit(projectId, col.slug, wipLimits[col.slug] ?? 0)),
-      );
-      setWipSaved(true);
-      setTimeout(() => setWipSaved(false), 2000);
-      fetchProject();
-    } catch {
-      // ignore
-    } finally {
-      setWipSaving(false);
     }
   };
 
@@ -319,46 +286,6 @@ export default function ProjectSettingsPage() {
               {saving ? 'Saving...' : saved ? 'Saved' : 'Save Changes'}
             </button>
           </section>
-
-          {/* WIP Limits */}
-          {columns.length > 0 && (
-            <section className="mb-12">
-              <h2 className="text-lg text-[var(--text-primary)] mb-4" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>Column WIP Limits</h2>
-              <p className="text-xs text-[var(--text-muted)] mb-4">
-                Set to 0 for no limit. Agents will be prevented from moving tasks into a column that has reached its limit.
-              </p>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                {columns.map((col) => (
-                  <div key={col.slug}>
-                    <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">
-                      {col.name}
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={wipLimits[col.slug] ?? 0}
-                      onChange={(e) =>
-                        setWipLimits((prev) => ({
-                          ...prev,
-                          [col.slug]: Math.max(0, parseInt(e.target.value) || 0),
-                        }))
-                      }
-                      data-qa={`wip-limit-${col.slug}-input`}
-                      className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]/50"
-                    />
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={handleSaveWipLimits}
-                disabled={wipSaving}
-                data-qa="save-wip-limits-btn"
-                className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-text)] text-sm font-medium rounded-md hover:bg-[var(--primary-hover)]/80 disabled:opacity-50 transition-colors"
-              >
-                {wipSaving ? 'Saving...' : wipSaved ? 'Saved' : 'Save WIP Limits'}
-              </button>
-            </section>
-          )}
 
           {/* Danger Zone */}
           <section className="border border-[#FF3B30]/30 rounded-lg p-5">

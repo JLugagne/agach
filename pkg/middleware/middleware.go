@@ -10,10 +10,16 @@ import (
 	"sync"
 	"time"
 
-	identityservice "github.com/JLugagne/agach-mcp/internal/identity/domain/service"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 )
+
+// AuthValidator is the interface the auth middleware needs. It is intentionally
+// narrow so that pkg/middleware does not depend on internal/identity.
+type AuthValidator interface {
+	ValidateJWT(ctx context.Context, token string) (any, error)
+	ValidateAPIKey(ctx context.Context, rawKey string) (any, error)
+}
 
 type responseWriter struct {
 	http.ResponseWriter
@@ -61,7 +67,7 @@ func unauthorized(w http.ResponseWriter) {
 	_, _ = w.Write([]byte(`{"status":"fail","error":{"code":"UNAUTHORIZED","message":"authentication required"}}`))
 }
 
-func NewRequireAuth(authQueries identityservice.AuthQueries) func(http.Handler) http.Handler {
+func NewRequireAuth(authQueries AuthValidator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("X-Content-Type-Options", "nosniff")

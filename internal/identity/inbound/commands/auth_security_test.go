@@ -39,7 +39,7 @@ import (
 // rate-limited regardless of the forged X-Forwarded-For value.
 func TestSecurity_GREEN_RateLimitBypass_XForwardedFor_SameRemoteAddr(t *testing.T) {
 	cmds := &mockAuthCommands{
-		loginFunc: func(_ context.Context, _, _ string) (string, string, error) {
+		loginFunc: func(_ context.Context, _, _ string, _ bool) (string, string, error) {
 			return "", "", domain.ErrInvalidCredentials
 		},
 	}
@@ -79,7 +79,7 @@ func TestSecurity_GREEN_RateLimitBypass_XForwardedFor_SameRemoteAddr(t *testing.
 func TestSecurity_GREEN_NoBodySizeLimit_LargePayloadRejected(t *testing.T) {
 	loginCalled := false
 	cmds := &mockAuthCommands{
-		loginFunc: func(_ context.Context, _, _ string) (string, string, error) {
+		loginFunc: func(_ context.Context, _, _ string, _ bool) (string, string, error) {
 			loginCalled = true
 			return "", "", domain.ErrInvalidCredentials
 		},
@@ -171,7 +171,7 @@ func TestSecurity_GREEN_XForwardedProto_NotTrustedWithoutConfig(t *testing.T) {
 	actor := domain.Actor{UserID: domain.NewUserID(), Email: "u@example.com", Role: domain.RoleMember}
 	user := domain.User{ID: actor.UserID, Email: actor.Email}
 	cmds := &mockAuthCommands{
-		loginFunc: func(_ context.Context, _, _ string) (string, string, error) {
+		loginFunc: func(_ context.Context, _, _ string, _ bool) (string, string, error) {
 			return "access-token", "refresh-token", nil
 		},
 	}

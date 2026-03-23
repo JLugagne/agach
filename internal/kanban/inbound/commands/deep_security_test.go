@@ -19,8 +19,7 @@ package commands_test
 //          10 000-entry arrays pass validation and reach the service layer.
 //  SEC-05  Negative token counts accepted — UpdateTaskRequest integer fields
 //          have no min=0 constraint; negative values corrupt statistics.
-//  SEC-06  Arbitrary column slug injected verbatim — UpdateWIPLimit accepts
-//          any string as the column slug without validating against allowed set.
+//  SEC-06  (Removed — WIP limits no longer enforced)
 //  SEC-07  Internal errors leak raw messages — controller.SendFail exposes
 //          raw error.Error() text for non-apierror.Error values.
 //  SEC-08  UpdateTaskRequest.Model field has no size limit — missing max= tag.
@@ -605,103 +604,6 @@ func TestSecurity_SEC05_PositiveTokenCountsAccepted_GREEN(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode,
 		"SEC-05 GREEN: positive token counts must be accepted")
 	assert.True(t, updateCalled, "SEC-05 GREEN: UpdateTask must be reached")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SEC-06  Arbitrary column slug injected verbatim
-// ─────────────────────────────────────────────────────────────────────────────
-
-// TestSecurity_SEC06_ArbitraryColumnSlugInjected_RED demonstrates that the
-// UpdateWIPLimit handler passes the URL path segment directly to the service as
-// a domain.ColumnSlug without validating it against the allowed set
-// {backlog, todo, in_progress, done, blocked}.
-//
-// columns.go line 45:
-//
-//	slug := domain.ColumnSlug(mux.Vars(r)["slug"])
-//
-// There is no validation before this value reaches UpdateColumnWIPLimit.
-// An attacker can trigger behaviour with non-existent column names, and the
-// service/database layer must absorb the load of looking up non-existent slugs.
-func TestSecurity_SEC06_ArbitraryColumnSlugInjected_RED(t *testing.T) {
-	wipCalled := false
-	var receivedSlug domain.ColumnSlug
-
-	cmds := &servicetest.MockCommands{
-		UpdateColumnWIPLimitFunc: func(ctx context.Context, pID domain.ProjectID, slug domain.ColumnSlug, wipLimit int) error {
-			wipCalled = true
-			receivedSlug = slug
-			return nil
-		},
-	}
-	qrs := &servicetest.MockQueries{}
-	projectID := domain.NewProjectID()
-
-	router := newDeepSecurityRouter(t, newTestApp(cmds, qrs))
-	srv := httptest.NewServer(router)
-	t.Cleanup(srv.Close)
-
-	// Inject an arbitrary slug that is not a valid column.
-	arbitrarySlug := "'; DROP TABLE columns; --"
-	url := fmt.Sprintf("%s/api/projects/%s/columns/%s/wip-limit",
-		srv.URL, projectID.String(), arbitrarySlug)
-
-	body, _ := json.Marshal(map[string]int{"wip_limit": 5})
-	req, err := http.NewRequest(http.MethodPatch, url, bytes.NewReader(body))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	// Note: gorilla/mux percent-decodes the path segment, so the injected value
-	// arrives at the handler (potentially URL-decoded). The assertion focuses on
-	// whether an invalid slug is passed into the service.
-	if wipCalled {
-		t.Errorf("SEC-06 RED: UpdateColumnWIPLimit called with unvalidated slug=%q — "+
-			"the handler does not reject slugs outside the allowed set; "+
-			"fix: validate slug against domain.ColumnBacklog/ColumnTodo/ColumnInProgress/"+
-			"ColumnDone/ColumnBlocked before calling the service",
-			receivedSlug)
-	}
-
-	assert.NotEqual(t, http.StatusNoContent, resp.StatusCode,
-		"SEC-06 RED: invalid column slug must return 4xx, not 204")
-}
-
-// TestSecurity_SEC06_ValidColumnSlugAccepted_GREEN verifies that a known slug
-// reaches the service and returns 204.
-func TestSecurity_SEC06_ValidColumnSlugAccepted_GREEN(t *testing.T) {
-	wipCalled := false
-	cmds := &servicetest.MockCommands{
-		UpdateColumnWIPLimitFunc: func(ctx context.Context, pID domain.ProjectID, slug domain.ColumnSlug, wipLimit int) error {
-			wipCalled = true
-			return nil
-		},
-	}
-	qrs := &servicetest.MockQueries{}
-	projectID := domain.NewProjectID()
-
-	router := newDeepSecurityRouter(t, newTestApp(cmds, qrs))
-	srv := httptest.NewServer(router)
-	t.Cleanup(srv.Close)
-
-	url := fmt.Sprintf("%s/api/projects/%s/columns/in_progress/wip-limit",
-		srv.URL, projectID.String())
-
-	body, _ := json.Marshal(map[string]int{"wip_limit": 3})
-	req, err := http.NewRequest(http.MethodPatch, url, bytes.NewReader(body))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode,
-		"SEC-06 GREEN: valid slug 'in_progress' must return 204")
-	assert.True(t, wipCalled, "SEC-06 GREEN: service must be reached for valid slug")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

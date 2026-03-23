@@ -18,13 +18,13 @@ type App interface {
 // NewRouter wires all command handlers onto the given router.
 func NewRouter(router *mux.Router, app App, ctrl *controller.Controller, hub *websocket.Hub, sseHub *sse.Hub) {
 	NewProjectCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
-	NewAgentCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
+	NewAgentCommandsHandler(app, app, ctrl, hub).RegisterRoutes(router)
 	NewTaskCommandsHandler(app, ctrl, hub, sseHub).RegisterRoutes(router)
 	NewCommentCommandsHandlerWithQueries(app, app, ctrl, hub).RegisterRoutes(router)
 	NewImageCommandsHandler(app, ctrl).RegisterRoutes(router)
 	NewSeenCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
-	NewColumnCommandsHandler(app, ctrl).RegisterRoutes(router)
 	NewProjectAgentCommandsHandler(app, app, ctrl, hub).RegisterRoutes(router)
 	NewSkillCommandsHandler(app, app, ctrl, hub).RegisterRoutes(router)
 	NewDockerfileCommandsHandler(app, ctrl).RegisterRoutes(router)
+	NewFeatureCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
 }

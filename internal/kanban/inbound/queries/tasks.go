@@ -42,7 +42,6 @@ func (h *TaskQueriesHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/projects/{id}/board", h.GetBoard).Methods("GET")
 	router.HandleFunc("/api/projects/{id}/columns", h.ListColumns).Methods("GET")
 	router.HandleFunc("/api/projects/{id}/next-tasks", h.GetNextTasks).Methods("GET")
-	router.HandleFunc("/api/projects/{id}/wip-slots", h.GetWIPSlots).Methods("GET")
 	router.HandleFunc("/api/projects/{projectId}/agents/{slug}/tasks", h.ListTasksByAgent).Methods("GET")
 }
 
@@ -408,23 +407,6 @@ func (h *TaskQueriesHandler) ListColumns(w http.ResponseWriter, r *http.Request)
 	}
 
 	h.controller.SendSuccess(w, r, converters.ToPublicColumns(columns))
-}
-
-// GetWIPSlots gets the WIP slots information for a project
-func (h *TaskQueriesHandler) GetWIPSlots(w http.ResponseWriter, r *http.Request) {
-	projectID := domain.ProjectID(mux.Vars(r)["id"])
-
-	info, err := h.queries.GetWIPSlots(r.Context(), projectID)
-	if err != nil {
-		if domain.IsDomainError(err) {
-			h.controller.SendFail(w, r, nil, err)
-		} else {
-			h.controller.SendError(w, r, err)
-		}
-		return
-	}
-
-	h.controller.SendSuccess(w, r, info)
 }
 
 // ListTasksByAgent returns all tasks assigned to a given agent within a project

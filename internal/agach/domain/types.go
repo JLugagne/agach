@@ -30,11 +30,10 @@ type RunConfig struct {
 type WorkerStatus string
 
 const (
-	WorkerIdle        WorkerStatus = "idle"
-	WorkerRunning     WorkerStatus = "running"
-	WorkerDone        WorkerStatus = "done"
-	WorkerError       WorkerStatus = "error"
-	WorkerWaitingWIP  WorkerStatus = "waiting_wip"
+	WorkerIdle    WorkerStatus = "idle"
+	WorkerRunning WorkerStatus = "running"
+	WorkerDone    WorkerStatus = "done"
+	WorkerError   WorkerStatus = "error"
 )
 
 // TaskRun holds information about a task execution

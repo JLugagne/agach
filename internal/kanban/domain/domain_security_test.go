@@ -10,7 +10,7 @@ package domain_test
 //  1. Unbounded string lengths in domain types (DoS / storage exhaustion)
 //  2. Invalid Priority value silently accepted as "medium"
 //  3. Invalid AuthorType silently accepted with no validation
-//  4. Negative/zero WIPLimit on Column has no validation method in domain
+//  4. (Removed — WIP limits no longer enforced)
 
 import (
 	"strings"
@@ -223,60 +223,3 @@ func TestSecurity_GREEN_ValidAuthorTypesAreAccepted(t *testing.T) {
 	assert.NotEqual(t, domain.AuthorTypeAgent, domain.AuthorTypeHuman)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 6. Negative WIPLimit on Column — no domain-level validation
-// ─────────────────────────────────────────────────────────────────────────────
-
-// TestSecurity_RED_NegativeWIPLimitAccepted demonstrates that a Column can be
-// created with a negative WIPLimit. The check in tasks.go is
-// "if targetColumn.WIPLimit > 0 { enforce limit }" — a negative value therefore
-// disables WIP enforcement entirely (treated as "unlimited"), allowing an
-// attacker to store wipLimit=-1 and bypass all concurrency caps.
-//
-// RED: domain.Column has no validation that WIPLimit >= 0.
-// Fix: add a method Column.IsWIPLimitValid() or validate at domain/app level that
-// wipLimit must be >= 0 (0 = unlimited, positive = capped).
-func TestSecurity_RED_NegativeWIPLimitAccepted(t *testing.T) {
-	col := domain.Column{
-		ID:       domain.NewColumnID(),
-		Slug:     domain.ColumnInProgress,
-		Name:     "In Progress",
-		Position: 1,
-		WIPLimit: -99, // negative value — should be rejected
-	}
-
-	// RED: the domain type accepts a negative WIPLimit without any validation.
-	// Because MoveTask checks "WIPLimit > 0", a WIPLimit of -99 means "no limit"
-	// and all existing tasks bypass the cap.
-	assert.Equal(t, -99, col.WIPLimit,
-		"RED: domain.Column accepts WIPLimit=-99; this disables WIP enforcement because "+
-			"MoveTask only enforces when WIPLimit > 0; "+
-			"fix: validate wipLimit >= 0 in UpdateColumnWIPLimit() in the app layer or add a domain method")
-}
-
-// TestSecurity_GREEN_ZeroWIPLimitMeansUnlimited verifies that WIPLimit == 0 is
-// treated as "no limit" (the documented behaviour).
-func TestSecurity_GREEN_ZeroWIPLimitMeansUnlimited(t *testing.T) {
-	col := domain.Column{
-		ID:       domain.NewColumnID(),
-		Slug:     domain.ColumnInProgress,
-		Name:     "In Progress",
-		Position: 1,
-		WIPLimit: 0, // 0 = unlimited
-	}
-	// WIPLimit == 0 must pass without error (no constraint violated).
-	assert.Equal(t, 0, col.WIPLimit)
-}
-
-// TestSecurity_GREEN_PositiveWIPLimitIsAccepted verifies a positive WIPLimit is
-// stored correctly.
-func TestSecurity_GREEN_PositiveWIPLimitIsAccepted(t *testing.T) {
-	col := domain.Column{
-		ID:       domain.NewColumnID(),
-		Slug:     domain.ColumnInProgress,
-		Name:     "In Progress",
-		Position: 1,
-		WIPLimit: 3,
-	}
-	assert.Equal(t, 3, col.WIPLimit)
-}

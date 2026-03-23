@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const isDark = theme === 'dark';
@@ -31,7 +32,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
       navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -286,7 +287,20 @@ export default function LoginPage() {
                     {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-                <div style={{ textAlign: 'right', marginTop: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
+                  <label
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', color: textSecondary, fontFamily: MONO }}
+                    data-qa="remember-me-label"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={e => setRememberMe(e.target.checked)}
+                      data-qa="remember-me-checkbox"
+                      style={{ accentColor: accent, width: '14px', height: '14px', cursor: 'pointer' }}
+                    />
+                    Remember me
+                  </label>
                   <span style={{ fontSize: '12px', color: accent, cursor: 'pointer', fontFamily: MONO }}>
                     Forgot password?
                   </span>

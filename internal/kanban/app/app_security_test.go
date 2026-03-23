@@ -7,14 +7,12 @@ package app_test
 //   - GREEN test (TestSecurity_GREEN_*): expected to PASS today or after the fix
 //
 // Vulnerabilities covered:
-//  1. Negative WIP limit accepted by UpdateColumnWIPLimit — disables WIP enforcement
-//  2. WIP limit bypass: MoveTask counts the task being moved in the WIP check
-//  3. State machine: BlockTask accepts an already-blocked task (double-block)
-//  4. State machine: RequestWontDo accepts an already-wont-do-requested task
-//  5. State machine: CompleteTask accepted on a todo-column task (no in_progress guard)
-//  6. Token integer accumulation: negative token values accepted, corrupting counters
-//  7. State machine: MoveTask allows arbitrary column transitions (e.g. done → todo bypass)
-//  8. Missing completion summary minimum length enforcement in app layer
+//  1. State machine: BlockTask accepts an already-blocked task (double-block)
+//  2. State machine: RequestWontDo accepts an already-wont-do-requested task
+//  3. State machine: CompleteTask accepted on a todo-column task (no in_progress guard)
+//  4. Token integer accumulation: negative token values accepted, corrupting counters
+//  5. State machine: MoveTask allows arbitrary column transitions (e.g. done → todo bypass)
+//  6. Missing completion summary minimum length enforcement in app layer
 
 import (
 	"context"
@@ -22,252 +20,14 @@ import (
 	"testing"
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
-	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/columns/columnstest"
 	tasksrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. Negative WIP limit accepted by UpdateColumnWIPLimit
+// 1-2. (Removed — WIP limits no longer enforced)
 // ─────────────────────────────────────────────────────────────────────────────
-
-// TestSecurity_RED_UpdateColumnWIPLimit_NegativeValueAccepted demonstrates that
-// UpdateColumnWIPLimit does not validate the wipLimit argument. Storing a
-// negative value (e.g. -1) disables all WIP enforcement because MoveTask only
-// enforces the limit when WIPLimit > 0.
-//
-// Attack: call update_wip_limit(column="in_progress", wip_limit=-1) to silently
-// disable the concurrency cap and move unlimited tasks into in_progress.
-//
-// RED: app.UpdateColumnWIPLimit passes -1 to the repository without validation.
-// Fix: add "if wipLimit < 0 { return domain.ErrInvalidColumn }" before the
-// repository call in columns.go.
-func TestSecurity_RED_UpdateColumnWIPLimit_NegativeValueAccepted(t *testing.T) {
-	ctx := context.Background()
-	a, _, _, _, mockColumns, _, _ := setupTestApp()
-
-	projectID := domain.NewProjectID()
-	columnID := domain.NewColumnID()
-
-	mockColumns.FindBySlugFunc = func(_ context.Context, _ domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
-		return &domain.Column{ID: columnID, Slug: slug, Name: "In Progress", WIPLimit: 3}, nil
-	}
-
-	var storedWIPLimit int
-	mockColumns.UpdateWIPLimitFunc = func(_ context.Context, _ domain.ProjectID, _ domain.ColumnID, wip int) error {
-		storedWIPLimit = wip
-		return nil
-	}
-
-	err := a.UpdateColumnWIPLimit(ctx, projectID, domain.ColumnInProgress, -1)
-
-	// RED: no error is returned and the negative value is forwarded to the repo.
-	assert.Error(t, err,
-		"RED: UpdateColumnWIPLimit(-1) must return an error; got nil; "+
-			"fix: validate wipLimit >= 0 before updating")
-
-	if storedWIPLimit == -1 {
-		t.Error("RED: UpdateWIPLimit was called with -1, disabling all WIP enforcement")
-	}
-}
-
-// TestSecurity_GREEN_UpdateColumnWIPLimit_ZeroIsAccepted verifies that
-// wipLimit=0 (unlimited) is accepted without error.
-func TestSecurity_GREEN_UpdateColumnWIPLimit_ZeroIsAccepted(t *testing.T) {
-	ctx := context.Background()
-	a, _, _, _, mockColumns, _, _ := setupTestApp()
-
-	projectID := domain.NewProjectID()
-	columnID := domain.NewColumnID()
-
-	mockColumns.FindBySlugFunc = func(_ context.Context, _ domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
-		return &domain.Column{ID: columnID, Slug: slug, Name: "In Progress", WIPLimit: 3}, nil
-	}
-	mockColumns.UpdateWIPLimitFunc = func(_ context.Context, _ domain.ProjectID, _ domain.ColumnID, _ int) error {
-		return nil
-	}
-
-	err := a.UpdateColumnWIPLimit(ctx, projectID, domain.ColumnInProgress, 0)
-	require.NoError(t, err, "wipLimit=0 (unlimited) must be accepted")
-}
-
-// TestSecurity_GREEN_UpdateColumnWIPLimit_PositiveIsAccepted verifies that
-// a positive wipLimit is accepted without error.
-func TestSecurity_GREEN_UpdateColumnWIPLimit_PositiveIsAccepted(t *testing.T) {
-	ctx := context.Background()
-	a, _, _, _, mockColumns, _, _ := setupTestApp()
-
-	projectID := domain.NewProjectID()
-	columnID := domain.NewColumnID()
-
-	mockColumns.FindBySlugFunc = func(_ context.Context, _ domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
-		return &domain.Column{ID: columnID, Slug: slug, Name: "In Progress", WIPLimit: 3}, nil
-	}
-	mockColumns.UpdateWIPLimitFunc = func(_ context.Context, _ domain.ProjectID, _ domain.ColumnID, _ int) error {
-		return nil
-	}
-
-	err := a.UpdateColumnWIPLimit(ctx, projectID, domain.ColumnInProgress, 5)
-	require.NoError(t, err, "positive wipLimit must be accepted")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. WIP limit bypass — the task being moved is included in the count
-// ─────────────────────────────────────────────────────────────────────────────
-
-// TestSecurity_RED_WIPLimit_BypassedByMovingSameTask demonstrates that MoveTask
-// counts the task being moved when determining whether the WIP limit is reached.
-//
-// Scenario: WIP limit is 3, in_progress already has 3 tasks (A, B, C). An agent
-// calls MoveTask(taskA, in_progress). The code fetches the in_progress task list
-// (which still includes taskA) and gets count=3, then checks "3 >= 3" → returns
-// WIPLimitExceeded correctly. So far so good.
-//
-// BUT the real bypass is subtler: MoveTask first calls the WIP-check List, which
-// includes tasks from the in_progress column, and THEN calls a second List to
-// compute the target position. If both calls return 3 tasks, the task itself IS
-// already counted (because the move hasn't happened yet). This means:
-//
-// - Task being moved is IN in_progress already (same column move / re-start).
-//   The WIP limit check fires "3 >= 3" and BLOCKS the move even though the task
-//   is already there — over-restrictive, can deadlock an agent.
-// - More critically: a task moved from todo → in_progress when in_progress is at
-//   exactly WIPLimit-1 tasks succeeds correctly. But when in_progress already has
-//   exactly WIPLimit tasks (all different from the task being moved), the check
-//   should fire. This part is correct.
-//
-// The real vulnerability is: MoveTask from in_progress → in_progress (a "restart")
-// is BLOCKED by the WIP check even though no additional slot is consumed, because
-// the task is already counted in the column.
-//
-// RED: MoveTask(task already in in_progress, target=in_progress) returns
-// ErrWIPLimitExceeded even though no new slot is consumed.
-// Fix: exclude the task being moved from the WIP count (count tasks where
-// id != taskID in the WIP check).
-func TestSecurity_RED_WIPLimit_BypassedByMovingSameTask(t *testing.T) {
-	ctx := context.Background()
-	a, mockProjects, _, mockTasks, mockColumns, _, _ := setupTestApp()
-
-	projectID := domain.NewProjectID()
-	taskID := domain.NewTaskID()
-	inProgressColumnID := domain.NewColumnID()
-
-	mockProjects.FindByIDFunc = func(_ context.Context, _ domain.ProjectID) (*domain.Project, error) {
-		return &domain.Project{ID: projectID, Name: "P"}, nil
-	}
-
-	// Task is already in in_progress
-	mockTasks.FindByIDFunc = func(_ context.Context, _ domain.ProjectID, id domain.TaskID) (*domain.Task, error) {
-		return &domain.Task{
-			ID:       taskID,
-			ColumnID: inProgressColumnID,
-			Title:    "Running task",
-			Summary:  "summary",
-		}, nil
-	}
-
-	mockColumns.FindByIDFunc = func(_ context.Context, _ domain.ProjectID, id domain.ColumnID) (*domain.Column, error) {
-		if id == inProgressColumnID {
-			return &domain.Column{ID: inProgressColumnID, Slug: domain.ColumnInProgress, Name: "In Progress", WIPLimit: 1}, nil
-		}
-		return nil, nil
-	}
-
-	mockColumns.FindBySlugFunc = func(_ context.Context, _ domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
-		if slug == domain.ColumnInProgress {
-			return &domain.Column{ID: inProgressColumnID, Slug: domain.ColumnInProgress, Name: "In Progress", WIPLimit: 1}, nil
-		}
-		return nil, nil
-	}
-
-	// in_progress has exactly 1 task (the task being moved) — at WIP limit
-	mockTasks.ListFunc = func(_ context.Context, _ domain.ProjectID, f tasksrepo.TaskFilters) ([]domain.TaskWithDetails, error) {
-		return []domain.TaskWithDetails{
-			{Task: domain.Task{ID: taskID, ColumnID: inProgressColumnID}},
-		}, nil
-	}
-
-	mockTasks.HasUnresolvedDependenciesFunc = func(_ context.Context, _ domain.ProjectID, _ domain.TaskID) (bool, error) {
-		return false, nil
-	}
-
-	mockTasks.UpdateFunc = func(_ context.Context, _ domain.ProjectID, _ domain.Task) error {
-		return nil
-	}
-
-	// StartTask (which calls MoveTask to in_progress) — task is already there
-	// RED: returns ErrWIPLimitExceeded even though the task is already in in_progress
-	err := a.StartTask(ctx, projectID, taskID)
-
-	// The current behaviour fires WIPLimitExceeded because the task itself is
-	// counted in the WIP check. After the fix, the move should succeed (no new slot
-	// consumed — the task is already in the column).
-	assert.NoError(t, err,
-		"RED: StartTask on a task already in in_progress must not return WIPLimitExceeded; "+
-			"the task is already consuming the WIP slot; "+
-			"fix: exclude taskID from the WIP count in MoveTask")
-}
-
-// TestSecurity_GREEN_WIPLimitIsEnforcedWhenMovingNewTask verifies that moving a
-// new task into a full in_progress column correctly returns ErrWIPLimitExceeded.
-func TestSecurity_GREEN_WIPLimitIsEnforcedWhenMovingNewTask(t *testing.T) {
-	ctx := context.Background()
-	a, mockProjects, _, mockTasks, mockColumns, _, _ := setupTestApp()
-
-	projectID := domain.NewProjectID()
-	taskID := domain.NewTaskID()
-	todoColumnID := domain.NewColumnID()
-	inProgressColumnID := domain.NewColumnID()
-	otherTaskID := domain.NewTaskID()
-
-	mockProjects.FindByIDFunc = func(_ context.Context, _ domain.ProjectID) (*domain.Project, error) {
-		return &domain.Project{ID: projectID, Name: "P"}, nil
-	}
-
-	// Task is in todo (not yet in in_progress)
-	mockTasks.FindByIDFunc = func(_ context.Context, _ domain.ProjectID, id domain.TaskID) (*domain.Task, error) {
-		return &domain.Task{
-			ID:       taskID,
-			ColumnID: todoColumnID,
-			Title:    "New task",
-			Summary:  "summary",
-		}, nil
-	}
-
-	mockColumns.FindByIDFunc = func(_ context.Context, _ domain.ProjectID, id domain.ColumnID) (*domain.Column, error) {
-		if id == todoColumnID {
-			return &domain.Column{ID: todoColumnID, Slug: domain.ColumnTodo, Name: "Todo"}, nil
-		}
-		return nil, nil
-	}
-
-	mockColumns.FindBySlugFunc = func(_ context.Context, _ domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
-		if slug == domain.ColumnInProgress {
-			return &domain.Column{ID: inProgressColumnID, Slug: domain.ColumnInProgress, Name: "In Progress", WIPLimit: 1}, nil
-		}
-		return nil, nil
-	}
-
-	// in_progress has 1 task (a different task, not the one being moved) — at WIP limit
-	mockTasks.ListFunc = func(_ context.Context, _ domain.ProjectID, f tasksrepo.TaskFilters) ([]domain.TaskWithDetails, error) {
-		if f.ColumnSlug != nil && *f.ColumnSlug == domain.ColumnInProgress {
-			return []domain.TaskWithDetails{
-				{Task: domain.Task{ID: otherTaskID, ColumnID: inProgressColumnID}},
-			}, nil
-		}
-		return nil, nil
-	}
-
-	mockTasks.HasUnresolvedDependenciesFunc = func(_ context.Context, _ domain.ProjectID, _ domain.TaskID) (bool, error) {
-		return false, nil
-	}
-
-	err := a.StartTask(ctx, projectID, taskID)
-
-	assert.ErrorIs(t, err, domain.ErrWIPLimitExceeded,
-		"GREEN: moving a new task into a full in_progress column must return ErrWIPLimitExceeded")
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. State machine: BlockTask on an already-blocked task
@@ -722,69 +482,6 @@ func TestSecurity_GREEN_PositiveTokenValuesAccumulate(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 7. Missing column validation in UpdateColumnWIPLimit — non-in_progress column
-// ─────────────────────────────────────────────────────────────────────────────
-
-// TestSecurity_RED_UpdateColumnWIPLimit_OnDoneColumn demonstrates that
-// UpdateColumnWIPLimit accepts any ColumnSlug, including "done". Setting a WIP
-// limit on "done" has no effect (the code only enforces WIP on ColumnInProgress)
-// but it is accepted silently, suggesting the endpoint is not guarding against
-// calls that make no semantic sense and could mask mis-configured client calls.
-//
-// RED: UpdateColumnWIPLimit does not validate that columnSlug is ColumnInProgress.
-// Fix: check "if columnSlug != domain.ColumnInProgress { return domain.ErrInvalidColumn }"
-// (or explicitly enumerate valid WIP-capable columns).
-func TestSecurity_RED_UpdateColumnWIPLimit_OnDoneColumn(t *testing.T) {
-	ctx := context.Background()
-	a, _, _, _, mockColumns, _, _ := setupTestApp()
-
-	projectID := domain.NewProjectID()
-	doneColumnID := domain.NewColumnID()
-
-	mockColumns.FindBySlugFunc = func(_ context.Context, _ domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
-		return &domain.Column{ID: doneColumnID, Slug: slug, Name: "Done"}, nil
-	}
-
-	var storedWIPLimit int
-	mockColumns.UpdateWIPLimitFunc = func(_ context.Context, _ domain.ProjectID, _ domain.ColumnID, wip int) error {
-		storedWIPLimit = wip
-		return nil
-	}
-
-	err := a.UpdateColumnWIPLimit(ctx, projectID, domain.ColumnDone, 5)
-
-	// RED: No error — WIP limit is silently set on the "done" column even though
-	// it can never be enforced (MoveTask only checks WIPLimit on ColumnInProgress).
-	// This is a silent no-op that misleads the caller and wastes a write.
-	assert.Error(t, err,
-		"RED: UpdateColumnWIPLimit on 'done' column must return an error (e.g. ErrInvalidColumn); "+
-			"WIP limits only apply to in_progress; fix: restrict to ColumnInProgress only")
-
-	_ = storedWIPLimit // suppress unused warning
-}
-
-// TestSecurity_GREEN_UpdateColumnWIPLimit_InProgressIsValid verifies that
-// updating the WIP limit on the in_progress column succeeds.
-func TestSecurity_GREEN_UpdateColumnWIPLimit_InProgressIsValid(t *testing.T) {
-	ctx := context.Background()
-	a, _, _, _, mockColumns, _, _ := setupTestApp()
-
-	projectID := domain.NewProjectID()
-	columnID := domain.NewColumnID()
-
-	mockColumns.FindBySlugFunc = func(_ context.Context, _ domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
-		return &domain.Column{ID: columnID, Slug: slug, Name: "In Progress"}, nil
-	}
-
-	mockColumns.UpdateWIPLimitFunc = func(_ context.Context, _ domain.ProjectID, _ domain.ColumnID, _ int) error {
-		return nil
-	}
-
-	err := a.UpdateColumnWIPLimit(ctx, projectID, domain.ColumnInProgress, 3)
-	require.NoError(t, err, "setting WIP limit on in_progress must succeed")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // 8. Comment author-type spoofing via CreateComment
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -936,7 +633,3 @@ func TestSecurity_GREEN_CreateTask_EmptySummaryIsRejected(t *testing.T) {
 		"empty task summary must be rejected with ErrSummaryRequired")
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Compile-time assertion: columnstest.MockColumnRepository must satisfy the
-// columnstest interface (already checked by the package itself).
-var _ = (*columnstest.MockColumnRepository)(nil)

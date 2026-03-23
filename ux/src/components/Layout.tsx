@@ -1,11 +1,11 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { LayoutGrid, Users, Settings, Plus, AlertTriangle, Sun, Moon, BarChart3, BookOpen, Container, Key, LogOut, UserCircle, ChevronUp, Menu, X } from 'lucide-react';
-import { listFeaturesActiveOnly, getProject } from '../lib/api';
+import { listFeatures, getProject } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useTheme } from './ThemeContext';
 import { useAuth } from './AuthContext';
-import type { ProjectWithSummary, ProjectResponse } from '../lib/types';
+import type { FeatureWithSummaryResponse, ProjectResponse } from '../lib/types';
 
 interface LayoutProps {
   children: ReactNode;
@@ -22,7 +22,7 @@ export function Layout({ children }: LayoutProps) {
   const userMenuRef = useRef<HTMLDivElement>(null);
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [parentProject, setParentProject] = useState<ProjectResponse | null>(null);
-  const [activeFeatures, setActiveFeatures] = useState<ProjectWithSummary[]>([]);
+  const [activeFeatures, setActiveFeatures] = useState<FeatureWithSummaryResponse[]>([]);
   // Track which features had updates since the user last visited them
   const [updatedFeatures, setUpdatedFeatures] = useState<Set<string>>(new Set());
   // The parent project ID to use for fetching features
@@ -42,7 +42,7 @@ export function Layout({ children }: LayoutProps) {
       // Always fetch active features from the ROOT project
       const rootId = proj.parent_id || projectId;
       setParentId(proj.parent_id ?? null);
-      listFeaturesActiveOnly(rootId).then((f) => setActiveFeatures(f ?? [])).catch(() => setActiveFeatures([]));
+      listFeatures(rootId).then((f) => setActiveFeatures(f ?? [])).catch(() => setActiveFeatures([]));
       // Fetch parent project for breadcrumb title
       if (proj.parent_id) {
         getProject(proj.parent_id).then(setParentProject).catch(() => setParentProject(null));
@@ -98,7 +98,7 @@ export function Layout({ children }: LayoutProps) {
             });
             const rootId = parentId || projectId;
             if (rootId) {
-              listFeaturesActiveOnly(rootId).then((f) => setActiveFeatures(f ?? [])).catch(() => {});
+              listFeatures(rootId).then((f) => setActiveFeatures(f ?? [])).catch(() => {});
             }
           }
           return features;
@@ -244,9 +244,9 @@ export function Layout({ children }: LayoutProps) {
             </div>
             <div className="flex flex-col gap-0.5 px-2.5 pb-2">
               {activeFeatures.map((feat) => {
-                const isCurrentFeature = feat.id === projectId;
+                const isCurrentFeature = location.pathname.includes(`/features/${feat.id}`);
                 const hasUpdate = updatedFeatures.has(feat.id);
-                const summary = feat.task_summary ?? feat.summary;
+                const summary = feat.task_summary;
                 const inProgress = summary?.in_progress_count ?? 0;
                 const blocked = summary?.blocked_count ?? 0;
                 const total =
@@ -264,7 +264,7 @@ export function Layout({ children }: LayoutProps) {
                 return (
                   <button
                     key={feat.id}
-                    onClick={() => navigate_(`/projects/${feat.id}`)}
+                    onClick={() => navigate_(`/projects/${feat.project_id}/features/${feat.id}`)}
                     data-qa="nav-feature-btn"
                     className={`flex items-center gap-2.5 h-10 px-2.5 rounded-md w-full text-left transition-colors cursor-pointer ${
                       isCurrentFeature

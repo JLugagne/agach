@@ -13,7 +13,7 @@ interface AuthUser {
 interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (partial: Partial<AuthUser>) => void;
 }
@@ -47,8 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => authEvents.removeEventListener('unauthorized', handler);
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const data: LoginResponse = await apiLogin(email, password);
+  const login = useCallback(async (email: string, password: string, rememberMe = false) => {
+    const data: LoginResponse = await apiLogin(email, password, rememberMe);
     setToken(data.access_token);
     localStorage.setItem('agach_user', JSON.stringify(data.user));
     setUser(data.user);

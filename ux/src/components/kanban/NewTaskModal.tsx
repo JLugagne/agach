@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Plus, XCircle, Paperclip, Loader2 } from 'lucide-react';
 import { createTask, listProjectAgents } from '../../lib/api';
-import type { AgentResponse, FeatureResponse } from '../../lib/types';
+import type { AgentResponse, FeatureWithSummaryResponse } from '../../lib/types';
 import { useImageUpload } from '../../hooks/useImageUpload';
 
 interface NewTaskModalProps {
@@ -9,7 +9,7 @@ interface NewTaskModalProps {
   onClose: () => void;
   onSuccess: () => void;
   defaultRole?: string;
-  features?: FeatureResponse[];
+  features?: FeatureWithSummaryResponse[];
 }
 
 export default function NewTaskModal({ projectId, onClose, onSuccess, defaultRole, features }: NewTaskModalProps) {

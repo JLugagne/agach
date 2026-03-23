@@ -24,7 +24,6 @@ func ToPublicColumn(column domain.Column) pkgkanban.ColumnResponse {
 		Slug:      slug,
 		Name:      column.Name,
 		Position:  column.Position,
-		WIPLimit:  column.WIPLimit,
 		CreatedAt: column.CreatedAt,
 	}
 }

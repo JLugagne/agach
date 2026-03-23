@@ -120,10 +120,6 @@ var (
 		Code:    "TASK_NOT_BLOCKED",
 		Message: "task is not blocked",
 	}
-	ErrWIPLimitReached = &Error{
-		Code:    "WIP_LIMIT_REACHED",
-		Message: "WIP limit reached for column",
-	}
 	ErrInvalidColumn = &Error{
 		Code:    "INVALID_COLUMN",
 		Message: "invalid column",
@@ -243,6 +239,18 @@ var (
 		Code:    "PROJECTS_NOT_RELATED",
 		Message: "source and target projects must share the same parent (be siblings) or have a direct parent-child relationship",
 	}
+	ErrFeatureNotFound = &Error{
+		Code:    "FEATURE_NOT_FOUND",
+		Message: "feature not found",
+	}
+	ErrFeatureNameRequired = &Error{
+		Code:    "FEATURE_NAME_REQUIRED",
+		Message: "feature name is required",
+	}
+	ErrInvalidFeatureStatus = &Error{
+		Code:    "INVALID_FEATURE_STATUS",
+		Message: "invalid feature status",
+	}
 	ErrFeatureNotInProject = &Error{
 		Code:    "FEATURE_NOT_IN_PROJECT",
 		Message: "feature does not belong to this project",
@@ -276,6 +284,5 @@ var (
 
 	// Aliases for backward compatibility
 	ErrDependencyCycle  = ErrCircularDependency
-	ErrWIPLimitExceeded = ErrWIPLimitReached
 	ErrNoAvailableTasks = ErrNoTasksAvailable
 )

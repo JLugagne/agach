@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import {
   getProject,
-  listSubProjects,
+  listProjects,
   createProject,
   deleteProject,
 } from '../lib/api';
@@ -35,7 +35,7 @@ export default function SubProjectsPage() {
     try {
       const [p, subs] = await Promise.all([
         getProject(projectId),
-        listSubProjects(projectId),
+        listProjects(),
       ]);
       setProject(p);
       setSubProjects(subs ?? []);

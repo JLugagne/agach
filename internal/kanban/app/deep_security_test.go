@@ -11,8 +11,7 @@ package app_test
 //     and confirms an adjacent safe behaviour)
 //
 // Vulnerabilities covered:
-//   1. WIP limit TOCTOU race — MoveTask fetches list twice; window between check
-//      and commit allows limit to be exceeded.  (tasks.go:424-443)
+//   1. (Removed — WIP limits no longer enforced)
 //   2. Direct MoveTask to "blocked" sets IsBlocked=true with no reason required.
 //      (tasks.go:396-403)
 //   3. CompleteTask accepts tasks in any column, not just "in_progress".
@@ -24,8 +23,7 @@ package app_test
 //      leaving the task duplicated. (task_move_project.go:106-114)
 //   7. Token counter integer overflow — UpdateTask unconditionally adds
 //      tokenUsage.InputTokens with no upper-bound check.  (tasks.go:248)
-//   8. UpdateColumnWIPLimit accepts negative values, making the limit meaningless.
-//      (columns.go:12)
+//   8. (Removed — WIP limits no longer enforced)
 //   9. GetNextTask role-filter bypass — when role=="" the filter is dropped,
 //      allowing any caller to steal tasks assigned to specific roles.
 //      (tasks.go:916)
@@ -78,9 +76,8 @@ func newSecurityApp(
 	})
 }
 
-// fixedColumns returns a minimal slice of columns with an in_progress column
-// carrying the given WIP limit.
-func makeColumns(wipLimit int) map[domain.ColumnSlug]*domain.Column {
+// fixedColumns returns a minimal set of columns.
+func makeColumns() map[domain.ColumnSlug]*domain.Column {
 	return map[domain.ColumnSlug]*domain.Column{
 		domain.ColumnBacklog: {
 			ID:       domain.NewColumnID(),
@@ -99,7 +96,6 @@ func makeColumns(wipLimit int) map[domain.ColumnSlug]*domain.Column {
 			Slug:     domain.ColumnInProgress,
 			Name:     "In Progress",
 			Position: 2,
-			WIPLimit: wipLimit,
 		},
 		domain.ColumnDone: {
 			ID:       domain.NewColumnID(),
@@ -119,168 +115,6 @@ func makeColumns(wipLimit int) map[domain.ColumnSlug]*domain.Column {
 // ─────────────────────────────────────────────────────────────────────────────
 // Vuln 1 — WIP limit TOCTOU (tasks.go:424-443)
 // ─────────────────────────────────────────────────────────────────────────────
-//
-// Issue: MoveTask first calls tasks.List to count in-progress tasks for the WIP
-// check (line 425), then calls tasks.List again to compute the new position
-// (line 436).  Between those two calls the in-memory/repository state can have
-// changed.  An adversary (or concurrent goroutine) can race to fill the last
-// slot so that, at position-query time, the column is already over limit.
-//
-// More concretely: the WIP check at line 430 counts N tasks, approves the move,
-// then line 436 re-queries and may now count N+1 tasks because another concurrent
-// MoveTask slipped through.  The position therefore becomes N+1 even though the
-// limit was N.
-//
-// RED: we simulate the race by making the List mock return a different count on
-// its second invocation.  The test asserts the move is rejected.
-func TestSecurity_RED_WIPLimitTOCTOU(t *testing.T) {
-	ctx := context.Background()
-	cols := makeColumns(1) // WIP limit = 1
-
-	projectID := domain.NewProjectID()
-	taskID := domain.NewTaskID()
-
-	todoColumn := cols[domain.ColumnTodo]
-	inProgressColumn := cols[domain.ColumnInProgress]
-
-	task := &domain.Task{
-		ID:       taskID,
-		ColumnID: todoColumn.ID,
-		Title:    "race task",
-		Summary:  "summary",
-	}
-
-	listCallCount := 0
-
-	mockTasks := &taskstest.MockTaskRepository{
-		FindByIDFunc: func(_ context.Context, _ domain.ProjectID, _ domain.TaskID) (*domain.Task, error) {
-			return task, nil
-		},
-		HasUnresolvedDependenciesFunc: func(_ context.Context, _ domain.ProjectID, _ domain.TaskID) (bool, error) {
-			return false, nil
-		},
-		// First call: WIP check — returns 0 tasks (under limit).
-		// Second call: position query — returns 1 task (now at limit, someone else got in).
-		ListFunc: func(_ context.Context, _ domain.ProjectID, f tasksrepo.TaskFilters) ([]domain.TaskWithDetails, error) {
-			listCallCount++
-			if listCallCount == 1 {
-				// WIP check: column appears empty — allow move
-				return []domain.TaskWithDetails{}, nil
-			}
-			// Position query: column is now full (another task slipped in)
-			return []domain.TaskWithDetails{
-				{Task: domain.Task{ID: domain.NewTaskID(), ColumnID: inProgressColumn.ID}},
-			}, nil
-		},
-		UpdateFunc: func(_ context.Context, _ domain.ProjectID, _ domain.Task) error {
-			return nil
-		},
-	}
-
-	mockColumns := &columnstest.MockColumnRepository{
-		FindByIDFunc: func(_ context.Context, _ domain.ProjectID, id domain.ColumnID) (*domain.Column, error) {
-			for _, c := range cols {
-				if c.ID == id {
-					return c, nil
-				}
-			}
-			return nil, nil
-		},
-		FindBySlugFunc: func(_ context.Context, _ domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
-			c, ok := cols[slug]
-			if !ok {
-				return nil, nil
-			}
-			return c, nil
-		},
-	}
-
-	a := newSecurityApp(
-		&projectstest.MockProjectRepository{},
-		&agentstest.MockRoleRepository{},
-		mockTasks,
-		mockColumns,
-		&commentstest.MockCommentRepository{},
-		&dependenciestest.MockDependencyRepository{},
-	)
-
-	// RED: current code does not use a single atomic check — it allows the move
-	// even though the second List call shows the column is full.
-	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnInProgress)
-	// The correct behaviour after a fix would be to re-validate the limit using
-	// a single consistent count.  Until the fix, this assertion will fail because
-	// the code happily proceeds.
-	assert.ErrorIs(t, err, domain.ErrWIPLimitExceeded,
-		"VULNERABILITY: WIP limit check and position assignment are not atomic; "+
-			"concurrent moves can exceed the limit")
-}
-
-// GREEN: WIP limit is enforced when the column is already at capacity from the
-// very first query (no race — stable snapshot).
-func TestSecurity_GREEN_WIPLimitEnforcedStable(t *testing.T) {
-	ctx := context.Background()
-	cols := makeColumns(1)
-
-	projectID := domain.NewProjectID()
-	taskID := domain.NewTaskID()
-
-	todoColumn := cols[domain.ColumnTodo]
-	inProgressColumn := cols[domain.ColumnInProgress]
-
-	task := &domain.Task{
-		ID:       taskID,
-		ColumnID: todoColumn.ID,
-		Title:    "task",
-		Summary:  "summary",
-	}
-
-	mockTasks := &taskstest.MockTaskRepository{
-		FindByIDFunc: func(_ context.Context, _ domain.ProjectID, _ domain.TaskID) (*domain.Task, error) {
-			return task, nil
-		},
-		HasUnresolvedDependenciesFunc: func(_ context.Context, _ domain.ProjectID, _ domain.TaskID) (bool, error) {
-			return false, nil
-		},
-		ListFunc: func(_ context.Context, _ domain.ProjectID, f tasksrepo.TaskFilters) ([]domain.TaskWithDetails, error) {
-			// Column is already at WIP limit (1 task) — both calls see the same state.
-			return []domain.TaskWithDetails{
-				{Task: domain.Task{ID: domain.NewTaskID(), ColumnID: inProgressColumn.ID}},
-			}, nil
-		},
-	}
-
-	mockColumns := &columnstest.MockColumnRepository{
-		FindByIDFunc: func(_ context.Context, _ domain.ProjectID, id domain.ColumnID) (*domain.Column, error) {
-			for _, c := range cols {
-				if c.ID == id {
-					return c, nil
-				}
-			}
-			return nil, nil
-		},
-		FindBySlugFunc: func(_ context.Context, _ domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
-			c, ok := cols[slug]
-			if !ok {
-				return nil, nil
-			}
-			return c, nil
-		},
-	}
-
-	a := newSecurityApp(
-		&projectstest.MockProjectRepository{},
-		&agentstest.MockRoleRepository{},
-		mockTasks,
-		mockColumns,
-		&commentstest.MockCommentRepository{},
-		&dependenciestest.MockDependencyRepository{},
-	)
-
-	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnInProgress)
-	require.ErrorIs(t, err, domain.ErrWIPLimitExceeded)
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Vuln 2 — MoveTask to blocked without reason (tasks.go:396-403)
 // ─────────────────────────────────────────────────────────────────────────────
 //
@@ -294,7 +128,7 @@ func TestSecurity_GREEN_WIPLimitEnforcedStable(t *testing.T) {
 // RED: assert that moving directly to blocked column without a reason is rejected.
 func TestSecurity_RED_MoveToBlockedColumnWithoutReason(t *testing.T) {
 	ctx := context.Background()
-	cols := makeColumns(3)
+	cols := makeColumns()
 
 	projectID := domain.NewProjectID()
 	taskID := domain.NewTaskID()
@@ -367,7 +201,7 @@ func TestSecurity_RED_MoveToBlockedColumnWithoutReason(t *testing.T) {
 // GREEN: using the dedicated BlockTask path correctly requires a reason.
 func TestSecurity_GREEN_BlockTaskRequiresReason(t *testing.T) {
 	ctx := context.Background()
-	cols := makeColumns(3)
+	cols := makeColumns()
 
 	projectID := domain.NewProjectID()
 	taskID := domain.NewTaskID()
@@ -442,7 +276,7 @@ func TestSecurity_GREEN_BlockTaskRequiresReason(t *testing.T) {
 // RED: complete a task that is in "todo" — the code should reject this.
 func TestSecurity_RED_CompleteTaskFromTodo(t *testing.T) {
 	ctx := context.Background()
-	cols := makeColumns(3)
+	cols := makeColumns()
 
 	projectID := domain.NewProjectID()
 	taskID := domain.NewTaskID()
@@ -502,7 +336,7 @@ func TestSecurity_RED_CompleteTaskFromTodo(t *testing.T) {
 // GREEN: completing a task that is properly in_progress succeeds.
 func TestSecurity_GREEN_CompleteTaskFromInProgress(t *testing.T) {
 	ctx := context.Background()
-	cols := makeColumns(3)
+	cols := makeColumns()
 
 	projectID := domain.NewProjectID()
 	taskID := domain.NewTaskID()
@@ -567,7 +401,7 @@ func TestSecurity_GREEN_CompleteTaskFromInProgress(t *testing.T) {
 // RED: assert that BlockTask rejects an empty blocked reason.
 func TestSecurity_RED_BlockTaskEmptyReason(t *testing.T) {
 	ctx := context.Background()
-	cols := makeColumns(3)
+	cols := makeColumns()
 
 	projectID := domain.NewProjectID()
 	taskID := domain.NewTaskID()
@@ -628,7 +462,7 @@ func TestSecurity_RED_BlockTaskEmptyReason(t *testing.T) {
 // GREEN: blocking with a sufficient reason is accepted.
 func TestSecurity_GREEN_BlockTaskWithSufficientReason(t *testing.T) {
 	ctx := context.Background()
-	cols := makeColumns(3)
+	cols := makeColumns()
 
 	projectID := domain.NewProjectID()
 	taskID := domain.NewTaskID()
@@ -694,7 +528,7 @@ func TestSecurity_GREEN_BlockTaskWithSufficientReason(t *testing.T) {
 // RED: assert that RequestWontDo rejects an empty reason.
 func TestSecurity_RED_RequestWontDoEmptyReason(t *testing.T) {
 	ctx := context.Background()
-	cols := makeColumns(3)
+	cols := makeColumns()
 
 	projectID := domain.NewProjectID()
 	taskID := domain.NewTaskID()
@@ -755,7 +589,7 @@ func TestSecurity_RED_RequestWontDoEmptyReason(t *testing.T) {
 // GREEN: providing a sufficient reason is accepted.
 func TestSecurity_GREEN_RequestWontDoWithSufficientReason(t *testing.T) {
 	ctx := context.Background()
-	cols := makeColumns(3)
+	cols := makeColumns()
 
 	projectID := domain.NewProjectID()
 	taskID := domain.NewTaskID()
@@ -826,7 +660,7 @@ func TestSecurity_GREEN_RequestWontDoWithSufficientReason(t *testing.T) {
 // back (i.e., the task is NOT left in the target project).
 func TestSecurity_RED_MoveTaskToProjectNonAtomic(t *testing.T) {
 	ctx := context.Background()
-	cols := makeColumns(3)
+	cols := makeColumns()
 
 	sourceProjectID := domain.NewProjectID()
 	targetProjectID := domain.NewProjectID()
@@ -922,7 +756,7 @@ func TestSecurity_RED_MoveTaskToProjectNonAtomic(t *testing.T) {
 // GREEN: when both create and delete succeed, the move completes cleanly.
 func TestSecurity_GREEN_MoveTaskToProjectSucceedsAtomically(t *testing.T) {
 	ctx := context.Background()
-	cols := makeColumns(3)
+	cols := makeColumns()
 
 	sourceProjectID := domain.NewProjectID()
 	targetProjectID := domain.NewProjectID()
@@ -1113,109 +947,6 @@ func TestSecurity_GREEN_TokenCounterNormalAccumulation(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Vuln 8 — UpdateColumnWIPLimit accepts negative values (columns.go:12)
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// Issue: UpdateColumnWIPLimit does not validate that wipLimit >= 0.  A negative
-// WIP limit (e.g. -1) makes the comparison `len(inProgressTasks) >= -1` always
-// false, effectively disabling the WIP limit for that column.  An adversary
-// can call this with -1 to bypass WIP enforcement for all subsequent moves.
-//
-// RED: assert that a negative WIP limit is rejected.
-func TestSecurity_RED_NegativeWIPLimitBypass(t *testing.T) {
-	ctx := context.Background()
-
-	projectID := domain.NewProjectID()
-	columnID := domain.NewColumnID()
-	inProgressSlug := domain.ColumnInProgress
-
-	project := &domain.Project{ID: projectID, Name: "Project"}
-
-	column := &domain.Column{
-		ID:       columnID,
-		Slug:     inProgressSlug,
-		WIPLimit: 3,
-	}
-
-	mockProjects := &projectstest.MockProjectRepository{}
-
-	mockColumns := &columnstest.MockColumnRepository{
-		FindBySlugFunc: func(_ context.Context, _ domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
-			if slug == inProgressSlug {
-				return column, nil
-			}
-			return nil, nil
-		},
-		UpdateWIPLimitFunc: func(_ context.Context, _ domain.ProjectID, _ domain.ColumnID, wipLimit int) error {
-			// Accept any value — simulates storage layer
-			column.WIPLimit = wipLimit
-			return nil
-		},
-	}
-
-	_ = project
-
-	a := newSecurityApp(
-		mockProjects,
-		&agentstest.MockRoleRepository{},
-		&taskstest.MockTaskRepository{},
-		mockColumns,
-		&commentstest.MockCommentRepository{},
-		&dependenciestest.MockDependencyRepository{},
-	)
-
-	// RED: a negative WIP limit should be rejected.
-	err := a.UpdateColumnWIPLimit(ctx, projectID, inProgressSlug, -1)
-	assert.Error(t, err,
-		"VULNERABILITY: UpdateColumnWIPLimit accepts negative values; "+
-			"setting -1 disables all WIP enforcement")
-	// Confirm the current broken behaviour: no error is returned.
-	if err == nil {
-		assert.Equal(t, -1, column.WIPLimit,
-			"confirms the bug: WIP limit is now -1, WIP checks will always pass")
-	}
-}
-
-// GREEN: a zero WIP limit (disable enforcement) is valid; positive is valid.
-func TestSecurity_GREEN_ValidWIPLimits(t *testing.T) {
-	ctx := context.Background()
-
-	for _, limit := range []int{0, 1, 5, 10} {
-		projectID := domain.NewProjectID()
-		columnID := domain.NewColumnID()
-		inProgressSlug := domain.ColumnInProgress
-
-		column := &domain.Column{
-			ID:       columnID,
-			Slug:     inProgressSlug,
-			WIPLimit: 3,
-		}
-
-		mockColumns := &columnstest.MockColumnRepository{
-			FindBySlugFunc: func(_ context.Context, _ domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error) {
-				return column, nil
-			},
-			UpdateWIPLimitFunc: func(_ context.Context, _ domain.ProjectID, _ domain.ColumnID, wl int) error {
-				column.WIPLimit = wl
-				return nil
-			},
-		}
-
-		a := newSecurityApp(
-			&projectstest.MockProjectRepository{},
-			&agentstest.MockRoleRepository{},
-			&taskstest.MockTaskRepository{},
-			mockColumns,
-			&commentstest.MockCommentRepository{},
-			&dependenciestest.MockDependencyRepository{},
-		)
-
-		err := a.UpdateColumnWIPLimit(ctx, projectID, inProgressSlug, limit)
-		require.NoError(t, err, "WIP limit %d should be accepted", limit)
-	}
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Vuln 9 — GetNextTask role-filter bypass (tasks.go:916)
 // ─────────────────────────────────────────────────────────────────────────────
 //
@@ -1368,7 +1099,7 @@ func TestSecurity_GREEN_GetNextTaskRoleFilterEnforced(t *testing.T) {
 // in the blocked column; assert the call is rejected.
 func TestSecurity_RED_RejectWontDoOutsideBlockedColumn(t *testing.T) {
 	ctx := context.Background()
-	cols := makeColumns(3)
+	cols := makeColumns()
 
 	projectID := domain.NewProjectID()
 	taskID := domain.NewTaskID()
@@ -1438,7 +1169,7 @@ func TestSecurity_RED_RejectWontDoOutsideBlockedColumn(t *testing.T) {
 // GREEN: rejecting a won't-do on a properly blocked task works correctly.
 func TestSecurity_GREEN_RejectWontDoFromBlockedColumn(t *testing.T) {
 	ctx := context.Background()
-	cols := makeColumns(3)
+	cols := makeColumns()
 
 	projectID := domain.NewProjectID()
 	taskID := domain.NewTaskID()

@@ -197,16 +197,16 @@ func (m *MockTaskRepository) GetModelTokenStats(ctx context.Context, projectID d
 //   - todoColumnID: the ID of the "todo" column
 //   - inProgressColumnID: the ID of the "in_progress" column
 //   - doneColumnID: the ID of the "done" column
-//   - featureProjectID: a valid project ID (child of projectID) to use as feature_id in tests
+//   - featureID: a valid feature ID to use as feature_id in tests
 //
 // Example usage in implementation tests:
 //
 //	func TestSQLiteTaskRepository(t *testing.T) {
-//		repo, projectID, columnIDs, featureProjectID := setupTestRepo(t)
+//		repo, projectID, columnIDs, featureID := setupTestRepo(t)
 //		defer cleanupTestRepo(t, repo)
-//		taskstest.TasksContractTesting(t, repo, projectID, columnIDs.Todo, columnIDs.InProgress, columnIDs.Done, featureProjectID)
+//		taskstest.TasksContractTesting(t, repo, projectID, columnIDs.Todo, columnIDs.InProgress, columnIDs.Done, featureID)
 //	}
-func TasksContractTesting(t *testing.T, repo tasksrepo.TaskRepository, projectID domain.ProjectID, todoColumnID, inProgressColumnID, doneColumnID domain.ColumnID, featureProjectID domain.ProjectID) {
+func TasksContractTesting(t *testing.T, repo tasksrepo.TaskRepository, projectID domain.ProjectID, todoColumnID, inProgressColumnID, doneColumnID domain.ColumnID, featureProjectID domain.FeatureID) {
 	ctx := context.Background()
 
 	t.Run("Contract: Create stores task and FindByID retrieves it", func(t *testing.T) {

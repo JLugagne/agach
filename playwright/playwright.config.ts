@@ -13,7 +13,7 @@ export default defineConfig({
     baseURL: process.env.BASE_URL ?? 'http://localhost:8322',
     storageState: '/tmp/auth-state.json',
     actionTimeout: 5000,
-    navigationTimeout: 1000,
+    navigationTimeout: 5000,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'on-first-retry',

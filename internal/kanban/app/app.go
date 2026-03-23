@@ -10,6 +10,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/comments"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dependencies"
 	dockerfilesrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dockerfiles"
+	featuresrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/features"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects"
 	agentsrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/agents"
 	skillsrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/skills"
@@ -23,6 +24,7 @@ import (
 type App struct {
 	projects     projects.ProjectRepository
 	agents       agentsrepo.AgentRepository
+	features     featuresrepo.FeatureRepository
 	tasks        tasks.TaskRepository
 	columns      columns.ColumnRepository
 	comments     comments.CommentRepository
@@ -37,6 +39,7 @@ type App struct {
 type Config struct {
 	Projects     projects.ProjectRepository
 	Agents       agentsrepo.AgentRepository
+	Features     featuresrepo.FeatureRepository
 	Tasks        tasks.TaskRepository
 	Columns      columns.ColumnRepository
 	Comments     comments.CommentRepository
@@ -56,6 +59,7 @@ func NewApp(cfg Config) *App {
 	return &App{
 		projects:     cfg.Projects,
 		agents:       cfg.Agents,
+		features:     cfg.Features,
 		tasks:        cfg.Tasks,
 		columns:      cfg.Columns,
 		comments:     cfg.Comments,
@@ -262,8 +266,96 @@ func (a *App) ListProjectsWithSummary(ctx context.Context) ([]domain.ProjectWith
 	return result, nil
 }
 
-func (a *App) ListFeaturesActiveOnly(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error) {
-	return a.projects.ListFeaturesActiveOnly(ctx, parentID)
+// Feature Commands
+
+func (a *App) CreateFeature(ctx context.Context, projectID domain.ProjectID, name, description, createdByRole, createdByAgent string) (domain.Feature, error) {
+	if name == "" {
+		return domain.Feature{}, domain.ErrFeatureNameRequired
+	}
+
+	// Verify project exists
+	if _, err := a.projects.FindByID(ctx, projectID); err != nil {
+		return domain.Feature{}, errors.Join(domain.ErrProjectNotFound, err)
+	}
+
+	feature := domain.Feature{
+		ID:             domain.NewFeatureID(),
+		ProjectID:      projectID,
+		Name:           name,
+		Description:    description,
+		Status:         domain.FeatureStatusDraft,
+		CreatedByRole:  createdByRole,
+		CreatedByAgent: createdByAgent,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}
+
+	if err := a.features.Create(ctx, feature); err != nil {
+		return domain.Feature{}, err
+	}
+
+	return feature, nil
+}
+
+func (a *App) UpdateFeature(ctx context.Context, featureID domain.FeatureID, name, description string) error {
+	feature, err := a.features.FindByID(ctx, featureID)
+	if err != nil {
+		return errors.Join(domain.ErrFeatureNotFound, err)
+	}
+	if feature == nil {
+		return domain.ErrFeatureNotFound
+	}
+
+	feature.Name = name
+	feature.Description = description
+	feature.UpdatedAt = time.Now()
+
+	return a.features.Update(ctx, *feature)
+}
+
+func (a *App) UpdateFeatureStatus(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus) error {
+	if !domain.ValidFeatureStatuses[status] {
+		return domain.ErrInvalidFeatureStatus
+	}
+
+	feature, err := a.features.FindByID(ctx, featureID)
+	if err != nil {
+		return errors.Join(domain.ErrFeatureNotFound, err)
+	}
+	if feature == nil {
+		return domain.ErrFeatureNotFound
+	}
+
+	return a.features.UpdateStatus(ctx, featureID, status)
+}
+
+func (a *App) DeleteFeature(ctx context.Context, featureID domain.FeatureID) error {
+	feature, err := a.features.FindByID(ctx, featureID)
+	if err != nil {
+		return errors.Join(domain.ErrFeatureNotFound, err)
+	}
+	if feature == nil {
+		return domain.ErrFeatureNotFound
+	}
+
+	return a.features.Delete(ctx, featureID)
+}
+
+// Feature Queries
+
+func (a *App) GetFeature(ctx context.Context, featureID domain.FeatureID) (*domain.Feature, error) {
+	feature, err := a.features.FindByID(ctx, featureID)
+	if err != nil {
+		return nil, errors.Join(domain.ErrFeatureNotFound, err)
+	}
+	if feature == nil {
+		return nil, domain.ErrFeatureNotFound
+	}
+	return feature, nil
+}
+
+func (a *App) ListFeatures(ctx context.Context, projectID domain.ProjectID, statusFilter []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error) {
+	return a.features.List(ctx, projectID, statusFilter)
 }
 
 func (a *App) ListSubProjectsWithSummary(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error) {

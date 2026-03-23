@@ -2,16 +2,18 @@ package middleware_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	identitydomain "github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/pkg/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var errUnauthorized = errors.New("authentication required")
 
 // okHandler is a simple next handler that always responds 200.
 var okHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -19,41 +21,37 @@ var okHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("ok"))
 })
 
-// mockAuthQueries is a test double for AuthQueries that validates tokens by a
-// simple lookup map. Any token not in the map returns ErrUnauthorized.
+// mockAuthQueries is a test double for AuthValidator that validates tokens by a
+// simple lookup map. Any token not in the map returns errUnauthorized.
 type mockAuthQueries struct {
-	validJWTs   map[string]identitydomain.Actor
-	validAPIKeys map[string]identitydomain.Actor
+	validJWTs    map[string]any
+	validAPIKeys map[string]any
 }
 
-func (m *mockAuthQueries) ValidateJWT(_ context.Context, token string) (identitydomain.Actor, error) {
+func (m *mockAuthQueries) ValidateJWT(_ context.Context, token string) (any, error) {
 	if a, ok := m.validJWTs[token]; ok {
 		return a, nil
 	}
-	return identitydomain.Actor{}, identitydomain.ErrUnauthorized
+	return nil, errUnauthorized
 }
 
-func (m *mockAuthQueries) ValidateAPIKey(_ context.Context, key string) (identitydomain.Actor, error) {
+func (m *mockAuthQueries) ValidateAPIKey(_ context.Context, key string) (any, error) {
 	if a, ok := m.validAPIKeys[key]; ok {
 		return a, nil
 	}
-	return identitydomain.Actor{}, identitydomain.ErrUnauthorized
+	return nil, errUnauthorized
 }
 
-func (m *mockAuthQueries) ListAPIKeys(_ context.Context, _ identitydomain.Actor) ([]identitydomain.APIKey, error) {
-	return nil, nil
+type testActor struct {
+	Email string
 }
 
-func (m *mockAuthQueries) GetCurrentUser(_ context.Context, actor identitydomain.Actor) (identitydomain.User, error) {
-	return identitydomain.User{ID: actor.UserID, Email: actor.Email}, nil
-}
-
-var validActor = identitydomain.Actor{Email: "test@example.com", Role: identitydomain.RoleMember}
+var validActor = testActor{Email: "test@example.com"}
 
 func newTestAuthMiddleware() http.Handler {
 	mock := &mockAuthQueries{
-		validJWTs:    map[string]identitydomain.Actor{"valid-jwt": validActor},
-		validAPIKeys: map[string]identitydomain.Actor{"agach_validkey": validActor},
+		validJWTs:    map[string]any{"valid-jwt": validActor},
+		validAPIKeys: map[string]any{"agach_validkey": validActor},
 	}
 	return middleware.NewRequireAuth(mock)(okHandler)
 }

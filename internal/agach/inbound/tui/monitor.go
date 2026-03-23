@@ -32,13 +32,6 @@ type columnCountsMsg struct {
 // refreshColumnCountsMsg triggers a column count refresh
 type refreshColumnCountsMsg struct{}
 
-// wipSlotsMsg delivers refreshed WIP slot info
-type wipSlotsMsg struct {
-	slots *client.WIPSlotsResult
-}
-
-// refreshWIPSlotsMsg triggers a WIP slots refresh
-type refreshWIPSlotsMsg struct{}
 
 // terminalResultMsg carries the result of opening a terminal
 type terminalResultMsg struct {
@@ -65,7 +58,6 @@ type MonitorModel struct {
 
 	paused       bool
 	columnCounts client.ColumnCounts
-	wipSlots     *client.WIPSlotsResult
 	stopped      bool
 
 	// terminal dimensions
@@ -131,14 +123,11 @@ func (m *MonitorModel) Init() tcellapp.Cmd {
 				}
 			}
 		}
-		columns, columnsErr := m.app.kanban.GetColumns(m.project.ID)
 		return configLoadedMsg{configInitDoneMsg{
-			roles:      roles,
-			rolesErr:   rolesErr,
-			subs:       subs,
-			subsErr:    subsErr,
-			columns:    columns,
-			columnsErr: columnsErr,
+			roles:    roles,
+			rolesErr: rolesErr,
+			subs:     subs,
+			subsErr:  subsErr,
 		}}
 	}
 }
@@ -178,15 +167,13 @@ func (m *MonitorModel) startRun() tcellapp.Cmd {
 
 		go func() {
 			m.app.tcellApp.Dispatch(refreshColumnCountsMsg{})
-			m.app.tcellApp.Dispatch(refreshWIPSlotsMsg{})
 			for {
 				select {
 				case <-m.app.runCtx.Done():
 					return
 				case <-time.After(15 * time.Second):
 					m.app.tcellApp.Dispatch(refreshColumnCountsMsg{})
-					m.app.tcellApp.Dispatch(refreshWIPSlotsMsg{})
-				}
+						}
 			}
 		}()
 
@@ -229,15 +216,6 @@ func (m *MonitorModel) refreshColumnCounts() tcellapp.Cmd {
 	}
 }
 
-func (m *MonitorModel) refreshWIPSlots() tcellapp.Cmd {
-	return func() tcellapp.Msg {
-		slots, err := m.app.kanban.GetWIPSlots(m.config.ProjectID)
-		if err != nil {
-			return nil
-		}
-		return wipSlotsMsg{slots: slots}
-	}
-}
 
 func (m *MonitorModel) HandleMsg(msg tcellapp.Msg) (tcellapp.Screen, tcellapp.Cmd) {
 	// Sync sub-screen (from settings)
@@ -263,9 +241,6 @@ func (m *MonitorModel) HandleMsg(msg tcellapp.Msg) (tcellapp.Screen, tcellapp.Cm
 		if msg.subsErr == nil {
 			m.subProjects = msg.subs
 		}
-		if msg.columnsErr == nil {
-			m.maxWorkers = inProgressWIPLimit(msg.columns)
-		}
 		cmd := m.startRun()
 		m.app.agach.Pause()
 		m.paused = true
@@ -277,9 +252,6 @@ func (m *MonitorModel) HandleMsg(msg tcellapp.Msg) (tcellapp.Screen, tcellapp.Cm
 		}
 		if msg.subsErr == nil {
 			m.subProjects = msg.subs
-		}
-		if msg.columnsErr == nil {
-			m.maxWorkers = inProgressWIPLimit(msg.columns)
 		}
 		return m, nil
 
@@ -316,13 +288,6 @@ func (m *MonitorModel) HandleMsg(msg tcellapp.Msg) (tcellapp.Screen, tcellapp.Cm
 
 	case refreshColumnCountsMsg:
 		return m, m.refreshColumnCounts()
-
-	case wipSlotsMsg:
-		m.wipSlots = msg.slots
-		return m, nil
-
-	case refreshWIPSlotsMsg:
-		return m, m.refreshWIPSlots()
 
 	case terminalResultMsg:
 		m.doneErr = msg.err
@@ -1012,16 +977,6 @@ func (m *MonitorModel) drawStatsBar(s tcell.Screen, w int) {
 	x = drawBoardStat(s, x, y, barBg, "todo", c.Todo, tcellapp.ColorNormal)
 	x += 2
 	x = drawBoardStat(s, x, y, barBg, "in_progress", c.InProgress, tcellapp.ColorRunning)
-	if m.wipSlots != nil {
-		x += 1
-		if m.wipSlots.FreeSlots == -1 {
-			x = tcellapp.DrawText(s, x, y, barBg.Foreground(tcellapp.ColorDimmer), "(unlimited)")
-		} else if m.wipSlots.FreeSlots > 0 {
-			x = tcellapp.DrawText(s, x, y, barBg.Foreground(tcellapp.ColorSuccess), fmt.Sprintf("(%d free)", m.wipSlots.FreeSlots))
-		} else {
-			x = tcellapp.DrawText(s, x, y, barBg.Foreground(tcellapp.ColorError), "(0 free)")
-		}
-	}
 	x += 2
 	x = drawBoardStat(s, x, y, barBg, "done", c.Done, tcellapp.ColorSuccess)
 	x += 2
@@ -1105,8 +1060,6 @@ func (m *MonitorModel) drawWorkersCompact(s tcell.Screen, ox, oy, w, h int) {
 			tcellapp.DrawText(s, x+1, row, rowBg.Foreground(tcellapp.ColorNormal), title)
 		} else if wk.Status == domain.WorkerIdle {
 			tcellapp.DrawText(s, x+1, row, rowBg.Foreground(tcellapp.ColorMuted), "waiting for task...")
-		} else if wk.Status == domain.WorkerWaitingWIP {
-			tcellapp.DrawText(s, x+1, row, rowBg.Foreground(tcellapp.ColorWarning), "waiting for WIP slot")
 		}
 
 		row++
@@ -1192,8 +1145,6 @@ func (m *MonitorModel) drawWorkerCard(s tcell.Screen, wk domain.WorkerState, foc
 		}
 	} else if wk.Status == domain.WorkerIdle {
 		tcellapp.DrawText(s, x+1, contentRow, cardBg.Foreground(tcellapp.ColorMuted), "waiting for task...")
-	} else if wk.Status == domain.WorkerWaitingWIP {
-		tcellapp.DrawText(s, x+1, contentRow, cardBg.Foreground(tcellapp.ColorWarning), "waiting for WIP slot")
 	}
 
 	return row + cardH
@@ -1780,8 +1731,6 @@ func workerIcon(status domain.WorkerStatus) (string, tcell.Style) {
 		return "+", tcellapp.StyleWorkerDone()
 	case domain.WorkerError:
 		return "x", tcellapp.StyleWorkerError()
-	case domain.WorkerWaitingWIP:
-		return "⏳", tcellapp.StyleWarning()
 	default:
 		return "o", tcellapp.StyleWorkerIdle()
 	}

@@ -458,43 +458,11 @@ func (a *App) MoveTask(ctx context.Context, projectID domain.ProjectID, taskID d
 		}
 	}
 
-	// Check WIP limit for in_progress column
-	if targetColumnSlug == domain.ColumnInProgress && targetColumn.WIPLimit > 0 {
-		inProgressTasks, err := a.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &targetColumnSlug})
-		if err != nil {
-			logger.WithError(err).Error("failed to count in-progress tasks")
-			return err
-		}
-		// Exclude the task being moved from the count — it already occupies a slot
-		count := 0
-		for _, t := range inProgressTasks {
-			if t.Task.ID != taskID {
-				count++
-			}
-		}
-		if count >= targetColumn.WIPLimit {
-			return domain.ErrWIPLimitExceeded
-		}
-	}
-
 	// Get next position in target column
 	targetTasks, err := a.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &targetColumnSlug})
 	if err != nil {
 		logger.WithError(err).Error("failed to list target column tasks")
 		return err
-	}
-
-	// Re-verify WIP limit after the second List call to close the TOCTOU window
-	if targetColumnSlug == domain.ColumnInProgress && targetColumn.WIPLimit > 0 {
-		count := 0
-		for _, t := range targetTasks {
-			if t.Task.ID != taskID {
-				count++
-			}
-		}
-		if count >= targetColumn.WIPLimit {
-			return domain.ErrWIPLimitExceeded
-		}
 	}
 
 	task.ColumnID = targetColumn.ID
@@ -1188,44 +1156,7 @@ func (a *App) ListModelPricing(ctx context.Context) ([]domain.ModelPricing, erro
 
 // GetFeatureStats returns aggregated feature statistics for a project.
 func (a *App) GetFeatureStats(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error) {
-	logger := a.logger.WithContext(ctx).WithField("projectID", projectID)
-
-	rootID, err := a.resolveRootProjectID(ctx, projectID)
-	if err != nil {
-		logger.WithError(err).Error("failed to resolve root project ID")
-		return nil, err
-	}
-
-	features, err := a.ListSubProjectsWithSummary(ctx, rootID)
-	if err != nil {
-		logger.WithError(err).Error("failed to list features")
-		return nil, err
-	}
-
-	stats := &domain.FeatureStats{
-		TotalCount: len(features),
-	}
-
-	for _, f := range features {
-		s := f.TaskSummary
-		total := s.TodoCount + s.InProgressCount + s.DoneCount + s.BlockedCount
-		active := s.TodoCount + s.InProgressCount + s.BlockedCount
-
-		switch {
-		case s.BlockedCount > 0:
-			stats.BlockedCount++
-		case total > 0 && active == 0:
-			stats.DoneCount++
-		case s.InProgressCount > 0:
-			stats.InProgressCount++
-		case s.TodoCount > 0:
-			stats.ReadyCount++
-		default:
-			stats.NotReadyCount++
-		}
-	}
-
-	return stats, nil
+	return a.features.GetStats(ctx, projectID)
 }
 
 // UpdateTaskSessionID saves the Claude Code session ID on a task for later resumption.

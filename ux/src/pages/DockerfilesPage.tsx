@@ -82,7 +82,7 @@ export default function DockerfilesPage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-5xl mx-auto px-8 py-12">
+      <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-12">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-[28px] font-semibold text-[var(--text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
             Dockerfiles

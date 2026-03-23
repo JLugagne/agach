@@ -312,7 +312,6 @@ type ColumnResponse struct {
 	Slug      string    `json:"slug"`
 	Name      string    `json:"name"`
 	Position  int       `json:"position"`
-	WIPLimit  int       `json:"wip_limit"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -443,6 +442,41 @@ type SetProjectDockerfileRequest struct {
 	DockerfileID string `json:"dockerfile_id" validate:"required,min=1,max=50"`
 }
 
+// Features
+
+type CreateFeatureRequest struct {
+	Name           string `json:"name" validate:"required,min=1,max=200"`
+	Description    string `json:"description" validate:"max=5000"`
+	CreatedByRole  string `json:"created_by_role" validate:"max=100"`
+	CreatedByAgent string `json:"created_by_agent" validate:"max=100"`
+}
+
+type UpdateFeatureRequest struct {
+	Name        *string `json:"name" validate:"omitempty,min=1,max=200"`
+	Description *string `json:"description" validate:"omitempty,max=5000"`
+}
+
+type UpdateFeatureStatusRequest struct {
+	Status string `json:"status" validate:"required,oneof=draft ready in_progress done blocked"`
+}
+
+type FeatureResponse struct {
+	ID             string `json:"id"`
+	ProjectID      string `json:"project_id"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	Status         string `json:"status"`
+	CreatedByRole  string `json:"created_by_role"`
+	CreatedByAgent string `json:"created_by_agent"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedAt      string `json:"updated_at"`
+}
+
+type FeatureWithSummaryResponse struct {
+	FeatureResponse
+	TaskSummary ProjectSummaryResponse `json:"task_summary"`
+}
+
 // Validation errors
 var (
 	ErrInvalidProjectRequest = &apierror.Error{
@@ -482,5 +516,9 @@ var (
 	ErrInvalidDockerfileRequest = &apierror.Error{
 		Code:    "INVALID_DOCKERFILE_REQUEST",
 		Message: "invalid dockerfile request",
+	}
+	ErrInvalidFeatureRequest = &apierror.Error{
+		Code:    "INVALID_FEATURE_REQUEST",
+		Message: "invalid feature request data",
 	}
 )

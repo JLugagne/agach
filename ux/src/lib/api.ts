@@ -11,6 +11,7 @@ import type {
   BulkReassignTasksRequest, BulkReassignTasksResponse, TasksByAgentResponse,
   DockerfileResponse, CreateDockerfileRequest, UpdateDockerfileRequest, SetProjectDockerfileRequest,
   ModelTokenStatResponse, ModelPricingResponse, FeatureStatsResponse,
+  FeatureResponse, FeatureWithSummaryResponse, CreateFeatureRequest, UpdateFeatureRequest, UpdateFeatureStatusRequest,
 } from './types';
 
 export const authEvents = new EventTarget();
@@ -40,16 +41,20 @@ export const listProjects = () => request<ProjectWithSummary[]>('GET', '/api/pro
 export const getProject = (id: string) => request<ProjectResponse>('GET', `/api/projects/${id}`);
 export const getProjectInfo = (id: string) => request<ProjectResponse>('GET', `/api/projects/${id}/info`);
 export const getProjectSummary = (id: string) => request<ProjectSummaryResponse>('GET', `/api/projects/${id}/summary`);
-/**
- * @deprecated Use listFeatures() instead. This calls /children which returns all
- * children regardless of active status.
- */
-export const listSubProjects = (id: string) => request<ProjectWithSummary[]>('GET', `/api/projects/${id}/children`);
-export const listFeatures = (projectId: string) => request<ProjectWithSummary[]>('GET', `/api/projects/${projectId}/features`);
-export const listFeaturesActiveOnly = (projectId: string) => request<ProjectWithSummary[]>('GET', `/api/projects/${projectId}/features?active_only=true`);
-export const createFeature = (parentProjectId: string, data: CreateProjectRequest) => request<ProjectResponse>('POST', '/api/projects', { ...data, parent_id: parentProjectId });
-export const deleteFeature = (featureId: string) => request<void>('DELETE', `/api/projects/${featureId}`);
-export const updateFeature = (featureId: string, data: UpdateProjectRequest) => request<ProjectResponse>('PATCH', `/api/projects/${featureId}`, data);
+export const listFeatures = (projectId: string, status?: string) => {
+  const params = status ? `?status=${status}` : '';
+  return request<FeatureWithSummaryResponse[]>('GET', `/api/projects/${projectId}/features${params}`);
+};
+export const getFeature = (projectId: string, featureId: string) =>
+  request<FeatureResponse>('GET', `/api/projects/${projectId}/features/${featureId}`);
+export const createFeature = (projectId: string, data: CreateFeatureRequest) =>
+  request<FeatureResponse>('POST', `/api/projects/${projectId}/features`, data);
+export const updateFeature = (projectId: string, featureId: string, data: UpdateFeatureRequest) =>
+  request<FeatureResponse>('PATCH', `/api/projects/${projectId}/features/${featureId}`, data);
+export const updateFeatureStatus = (projectId: string, featureId: string, data: UpdateFeatureStatusRequest) =>
+  request<FeatureResponse>('PATCH', `/api/projects/${projectId}/features/${featureId}/status`, data);
+export const deleteFeature = (projectId: string, featureId: string) =>
+  request<void>('DELETE', `/api/projects/${projectId}/features/${featureId}`);
 export const createProject = (data: CreateProjectRequest) => request<ProjectResponse>('POST', '/api/projects', data);
 export const updateProject = (id: string, data: UpdateProjectRequest) => request<ProjectResponse>('PATCH', `/api/projects/${id}`, data);
 export const deleteProject = (id: string) => request<void>('DELETE', `/api/projects/${id}`);
@@ -64,7 +69,6 @@ export const getBoard = (projectId: string, doneSince?: string, includeChildren?
   return request<BoardResponse>('GET', `/api/projects/${projectId}/board${qs}`);
 };
 export const listColumns = (projectId: string) => request<ColumnResponse[]>('GET', `/api/projects/${projectId}/columns`);
-export const updateColumnWIPLimit = (projectId: string, slug: string, wipLimit: number) => request<void>('PATCH', `/api/projects/${projectId}/columns/${slug}/wip-limit`, { wip_limit: wipLimit });
 
 // Tasks
 export const listTasks = (projectId: string, params?: Record<string, string>) => {

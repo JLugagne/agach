@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 import { X, FileCode2, Tag, ArrowRight, ArrowLeft, Pencil, Check, XCircle, Paperclip, Loader2, Plus } from 'lucide-react';
-import type { TaskWithDetailsResponse, TaskResponse, ColumnWithTasksResponse, AgentResponse, FeatureResponse } from '../../lib/types';
+import type { TaskWithDetailsResponse, TaskResponse, ColumnWithTasksResponse, AgentResponse, FeatureWithSummaryResponse } from '../../lib/types';
 import { getTask, listDependencies, listDependents, updateTask, addDependency, removeDependency, listTasks, listProjectAgents } from '../../lib/api';
 import BlockedBanner from './BlockedBanner';
 import CommentSection from './CommentSection';
@@ -29,7 +29,7 @@ interface TaskDrawerProps {
   projectId: string;
   taskId: string;
   columns: ColumnWithTasksResponse[];
-  features?: FeatureResponse[];
+  features?: FeatureWithSummaryResponse[];
   onClose: () => void;
   onAction: (action: string) => void;
   onTaskNavigate?: (taskId: string) => void;

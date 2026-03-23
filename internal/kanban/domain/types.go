@@ -93,6 +93,22 @@ func (id CommentID) String() string {
 	return string(id)
 }
 
+// FeatureID is an alias for ProjectID since features are sub-projects
+type FeatureID = ProjectID
+
+// NewFeatureID generates a new feature ID
+func NewFeatureID() FeatureID {
+	return FeatureID(newID())
+}
+
+// ParseFeatureID validates and returns a FeatureID.
+func ParseFeatureID(s string) (FeatureID, error) {
+	if _, err := uuid.Parse(s); err != nil {
+		return "", fmt.Errorf("invalid feature ID %q: must be a valid UUID", s)
+	}
+	return FeatureID(s), nil
+}
+
 // DependencyID represents a unique dependency identifier
 type DependencyID string
 
@@ -169,6 +185,26 @@ const (
 	ColumnBlocked    ColumnSlug = "blocked"
 )
 
+// FeatureStatus represents the status of a feature
+type FeatureStatus string
+
+const (
+	FeatureStatusDraft      FeatureStatus = "draft"
+	FeatureStatusReady      FeatureStatus = "ready"
+	FeatureStatusInProgress FeatureStatus = "in_progress"
+	FeatureStatusDone       FeatureStatus = "done"
+	FeatureStatusBlocked    FeatureStatus = "blocked"
+)
+
+// ValidFeatureStatuses is the set of all valid feature statuses.
+var ValidFeatureStatuses = map[FeatureStatus]bool{
+	FeatureStatusDraft:      true,
+	FeatureStatusReady:      true,
+	FeatureStatusInProgress: true,
+	FeatureStatusDone:       true,
+	FeatureStatusBlocked:    true,
+}
+
 // AuthorType represents the type of comment author
 type AuthorType string
 
@@ -192,8 +228,17 @@ type Project struct {
 	UpdatedAt      time.Time    `json:"updated_at"`
 }
 
-func (p Project) IsFeature() bool {
-	return p.ParentID != nil
+// Feature represents a feature (story/epic) within a project
+type Feature struct {
+	ID             FeatureID     `json:"id"`
+	ProjectID      ProjectID     `json:"project_id"`
+	Name           string        `json:"name"`
+	Description    string        `json:"description"`
+	Status         FeatureStatus `json:"status"`
+	CreatedByRole  string        `json:"created_by_role"`
+	CreatedByAgent string        `json:"created_by_agent"`
+	CreatedAt      time.Time     `json:"created_at"`
+	UpdatedAt      time.Time     `json:"updated_at"`
 }
 
 // Agent represents an agent in the system
@@ -249,7 +294,6 @@ type Column struct {
 	Slug      ColumnSlug `json:"slug"`
 	Name      string     `json:"name"`
 	Position  int        `json:"position"`
-	WIPLimit  int        `json:"wip_limit"`
 	CreatedAt time.Time  `json:"created_at"`
 }
 
@@ -272,7 +316,7 @@ type TokenUsage struct {
 type Task struct {
 	ID        TaskID     `json:"id"`
 	ColumnID  ColumnID   `json:"column_id"`
-	FeatureID *ProjectID `json:"feature_id"`
+	FeatureID *FeatureID `json:"feature_id"`
 	Title     string     `json:"title"`
 	Summary           string     `json:"summary"` // Brief description (required at creation)
 	Description       string     `json:"description"`
@@ -352,6 +396,12 @@ type ProjectWithSummary struct {
 	TaskSummary   ProjectSummary `json:"task_summary"`
 }
 
+// FeatureWithTaskSummary contains a feature with its task counts
+type FeatureWithTaskSummary struct {
+	Feature
+	TaskSummary ProjectSummary `json:"task_summary"`
+}
+
 // ProjectInfo contains complete project information for agents
 type ProjectInfo struct {
 	Project     Project              `json:"project"`      // Full project metadata
@@ -406,13 +456,6 @@ type TimelineEntry struct {
 	Date           string `json:"date"`            // "2026-03-17"
 	TasksCreated   int    `json:"tasks_created"`
 	TasksCompleted int    `json:"tasks_completed"`
-}
-
-// WIPSlotsInfo holds free WIP slot information for the in_progress column.
-type WIPSlotsInfo struct {
-	WIPLimit   int `json:"wip_limit"`   // 0 = unlimited
-	InProgress int `json:"in_progress"` // current in_progress task count
-	FreeSlots  int `json:"free_slots"`  // -1 = unlimited; >=0 = available slots
 }
 
 // ModelTokenStat holds aggregated token usage for a single model
