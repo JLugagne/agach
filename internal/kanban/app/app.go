@@ -10,6 +10,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/comments"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dependencies"
 	dockerfilesrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dockerfiles"
+	notificationsrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/notifications"
 	featuresrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/features"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects"
 	agentsrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/agents"
@@ -31,8 +32,9 @@ type App struct {
 	dependencies dependencies.DependencyRepository
 	toolUsage    toolusage.ToolUsageRepository
 	skills       skillsrepo.SkillRepository
-	dockerfiles  dockerfilesrepo.DockerfileRepository
-	logger       *logrus.Logger
+	dockerfiles    dockerfilesrepo.DockerfileRepository
+	notifications  notificationsrepo.NotificationRepository
+	logger         *logrus.Logger
 }
 
 // Config holds the dependencies for the App
@@ -46,8 +48,9 @@ type Config struct {
 	Dependencies dependencies.DependencyRepository
 	ToolUsage    toolusage.ToolUsageRepository
 	Skills       skillsrepo.SkillRepository
-	Dockerfiles  dockerfilesrepo.DockerfileRepository
-	Logger       *logrus.Logger
+	Dockerfiles    dockerfilesrepo.DockerfileRepository
+	Notifications  notificationsrepo.NotificationRepository
+	Logger         *logrus.Logger
 }
 
 // NewApp creates a new App instance
@@ -66,8 +69,9 @@ func NewApp(cfg Config) *App {
 		dependencies: cfg.Dependencies,
 		toolUsage:    cfg.ToolUsage,
 		skills:       cfg.Skills,
-		dockerfiles:  cfg.Dockerfiles,
-		logger:       cfg.Logger,
+		dockerfiles:    cfg.Dockerfiles,
+		notifications:  cfg.Notifications,
+		logger:         cfg.Logger,
 	}
 }
 

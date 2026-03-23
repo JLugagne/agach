@@ -488,3 +488,48 @@ type FeatureStats struct {
 	DoneCount       int `json:"done_count"`
 	BlockedCount    int `json:"blocked_count"`
 }
+
+// NotificationID represents a unique notification identifier
+type NotificationID string
+
+// NewNotificationID generates a new notification ID
+func NewNotificationID() NotificationID {
+	return NotificationID(newID())
+}
+
+// String returns the string representation of a NotificationID
+func (id NotificationID) String() string {
+	return string(id)
+}
+
+// NotificationSeverity represents notification severity levels
+type NotificationSeverity string
+
+const (
+	SeverityInfo    NotificationSeverity = "info"
+	SeveritySuccess NotificationSeverity = "success"
+	SeverityWarning NotificationSeverity = "warning"
+	SeverityError   NotificationSeverity = "error"
+)
+
+// ValidNotificationSeverities is the set of all valid notification severities.
+var ValidNotificationSeverities = map[NotificationSeverity]bool{
+	SeverityInfo:    true,
+	SeveritySuccess: true,
+	SeverityWarning: true,
+	SeverityError:   true,
+}
+
+// Notification represents a user-facing notification
+type Notification struct {
+	ID        NotificationID       `json:"id"`
+	ProjectID ProjectID            `json:"project_id"`
+	Severity  NotificationSeverity `json:"severity"`
+	Title     string               `json:"title"`
+	Text      string               `json:"text"`
+	LinkURL   string               `json:"link_url,omitempty"`
+	LinkText  string               `json:"link_text,omitempty"`
+	LinkStyle string               `json:"link_style,omitempty"`
+	ReadAt    *time.Time           `json:"read_at"`
+	CreatedAt time.Time            `json:"created_at"`
+}

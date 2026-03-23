@@ -442,6 +442,30 @@ type SetProjectDockerfileRequest struct {
 	DockerfileID string `json:"dockerfile_id" validate:"required,min=1,max=50"`
 }
 
+// Notifications
+
+type CreateNotificationRequest struct {
+	Severity  string `json:"severity" validate:"required,oneof=info success warning error"`
+	Title     string `json:"title" validate:"required,min=1,max=200"`
+	Text      string `json:"text" validate:"required,max=5000"`
+	LinkURL   string `json:"link_url" validate:"max=500"`
+	LinkText  string `json:"link_text" validate:"max=100"`
+	LinkStyle string `json:"link_style" validate:"omitempty,oneof=primary secondary danger warning"`
+}
+
+type NotificationResponse struct {
+	ID        string  `json:"id"`
+	ProjectID string  `json:"project_id"`
+	Severity  string  `json:"severity"`
+	Title     string  `json:"title"`
+	Text      string  `json:"text"`
+	LinkURL   string  `json:"link_url,omitempty"`
+	LinkText  string  `json:"link_text,omitempty"`
+	LinkStyle string  `json:"link_style,omitempty"`
+	ReadAt    *string `json:"read_at"`
+	CreatedAt string  `json:"created_at"`
+}
+
 // Features
 
 type CreateFeatureRequest struct {
@@ -520,5 +544,9 @@ var (
 	ErrInvalidFeatureRequest = &apierror.Error{
 		Code:    "INVALID_FEATURE_REQUEST",
 		Message: "invalid feature request data",
+	}
+	ErrInvalidNotificationRequest = &apierror.Error{
+		Code:    "INVALID_NOTIFICATION_REQUEST",
+		Message: "invalid notification request data",
 	}
 )

@@ -1,53 +1,65 @@
 ---
 name: doc-business-rules
-description: "Agach business rules: blocking workflow, won't-do workflow, GetNextTask logic, resolution auto-append, priority system, comment system"
+description: "Agach business rules: blocking workflow, won't-do workflow, GetNextTask logic, resolution auto-append, priority system, comment system, features"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 # Agach Business Rules
 
-## Column Structure (4 Fixed Columns)
+## Column Structure (5 Columns)
 ```
-1. todo          (position 0) - Tasks to be done
-2. in_progress   (position 1) - Tasks being worked on
-3. done          (position 2) - Completed tasks
-4. blocked       (position 3) - Tasks requiring human intervention
+1. backlog       (position -1) - Backlog, created on-demand via EnsureBacklog
+2. todo          (position 0)  - Tasks to be done
+3. in_progress   (position 1)  - Tasks being worked on
+4. done          (position 2)  - Completed tasks
+5. blocked       (position 3)  - Tasks requiring human intervention
 ```
 
-Changed from PROJECT.md: `wont_do` column replaced with `blocked` column.
+Default columns (todo, in_progress, done, blocked) are created automatically when a project is created.
+Backlog column is created on-demand via `EnsureBacklog()`.
 
 ## Task Fields
 
-**Required Fields:**
-- `Summary` (string) - Brief description, required at creation
-- `Resolution` (string) - Filled when agent stops work or human moves task back to todo
+**Required at creation**: `Title` and `Summary`
+**Resolution**: Filled when agent stops work or human moves task back to todo
 
 **Key State Flags:**
-- `IsBlocked` = 1 when task is IN the "blocked" column (not just flagged)
-- `WontDoRequested` = 1 when task is IN "blocked" column awaiting human decision
-- `WontDoConfirmed` removed (tasks are deleted instead of confirmed)
+- `IsBlocked` = true when task is IN the "blocked" column
+- `WontDoRequested` = true when task is IN "blocked" column awaiting human decision
+
+**Token Tracking**: `InputTokens`, `OutputTokens`, `CacheReadTokens`, `CacheWriteTokens`, `Model`
+**Cold Start Tracking**: `ColdStartInputTokens`, `ColdStartOutputTokens`, etc. (SET semantics, not accumulated)
+**Duration Tracking**: `StartedAt`, `DurationSeconds`, `HumanEstimateSeconds`
+**Session**: `SessionID` for Claude Code session resuming
+
+## Features
+- Features are project-scoped groupings of tasks
+- Status: draft → ready → in_progress → done → blocked
+- Tasks have optional `FeatureID` linking them to a feature
+- Sub-projects were migrated to features (002_features.sql)
 
 ## Blocking Workflow
-- Agent calls `block_task` → task **moves to "blocked" column**, sets `is_blocked=1`
+- Agent calls `block_task` → task **moves to "blocked" column**, sets `is_blocked=true`
 - Task is visible in Blocked column (not flagged in Todo)
-- Only humans can unblock via web UI → moves back to "todo", sets `is_blocked=0`
+- Only humans can unblock via web UI → moves back to "todo", sets `is_blocked=false`
 - Blocked tasks invisible to `get_next_task`
 
 ## Won't-Do Workflow
-- Agent calls `request_wont_do` → task **moves to "blocked" column** with `wont_do_requested=1`
+- Agent calls `request_wont_do` → task **moves to "blocked" column** with `wont_do_requested=true`
 - Human sees task in Blocked column with "Won't Do Requested" badge
-- Human approves → **task moved to "done" column** with `wont_do_requested=1` kept as state marker (displays as "won't do")
+- Human approves → **task moved to "done" column** with `wont_do_requested=true` kept (displays as "won't do")
 - Human rejects → adds comment, moves back to "todo", clears `wont_do_requested`
 - Won't-do-requested tasks in "blocked" column invisible to `get_next_task`
 - Won't-do tasks in "done" column count as resolved dependencies
 
 ## GetNextTask Rules
-- Returns highest-priority task in "todo" column with all dependencies resolved
-- A dependency is "resolved" if its task is in the "done" column (including won't-do approved tasks)
-- Filters: `is_blocked=0`, `wont_do_requested=0`, `assigned_role` matches or empty
+- Returns highest-priority task in "todo" column (not backlog) with all dependencies resolved
+- A dependency is "resolved" if its task is in the "done" column (including won't-do approved)
+- Filters: `is_blocked=false`, `wont_do_requested=false`
+- Role filtering: empty role → unassigned tasks only; specified role → matching or unassigned
 - Sorts by `priority_score DESC`, `created_at ASC`
-- Optional `sub_project_id` parameter scopes search to that sub-project and all its descendants
+- Optional `featureID` parameter to scope search to a specific feature
 
 ## Resolution Auto-Append
 When human moves task from "in_progress" to "todo":

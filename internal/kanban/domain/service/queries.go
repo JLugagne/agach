@@ -80,4 +80,8 @@ type Queries interface {
 	GetDockerfileBySlugAndVersion(ctx context.Context, slug, version string) (*domain.Dockerfile, error)
 	ListDockerfiles(ctx context.Context) ([]domain.Dockerfile, error)
 	GetProjectDockerfile(ctx context.Context, projectID domain.ProjectID) (*domain.Dockerfile, error)
+
+	// Notification queries
+	ListNotifications(ctx context.Context, projectID domain.ProjectID, unreadOnly bool, limit, offset int) ([]domain.Notification, error)
+	GetNotificationUnreadCount(ctx context.Context, projectID domain.ProjectID) (int, error)
 }

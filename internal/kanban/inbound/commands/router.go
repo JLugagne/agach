@@ -27,4 +27,5 @@ func NewRouter(router *mux.Router, app App, ctrl *controller.Controller, hub *we
 	NewSkillCommandsHandler(app, app, ctrl, hub).RegisterRoutes(router)
 	NewDockerfileCommandsHandler(app, ctrl).RegisterRoutes(router)
 	NewFeatureCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
+	NewNotificationCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
 }

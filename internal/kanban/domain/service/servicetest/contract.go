@@ -69,6 +69,10 @@ type MockCommands struct {
 	UpdateFeatureFunc               func(ctx context.Context, featureID domain.FeatureID, name, description string) error
 	UpdateFeatureStatusFunc         func(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus) error
 	DeleteFeatureFunc               func(ctx context.Context, featureID domain.FeatureID) error
+	CreateNotificationFunc       func(ctx context.Context, projectID domain.ProjectID, severity domain.NotificationSeverity, title, text, linkURL, linkText, linkStyle string) (domain.Notification, error)
+	MarkNotificationReadFunc     func(ctx context.Context, notificationID domain.NotificationID) error
+	MarkAllNotificationsReadFunc func(ctx context.Context, projectID domain.ProjectID) error
+	DeleteNotificationFunc       func(ctx context.Context, notificationID domain.NotificationID) error
 }
 
 func (m *MockCommands) CreateProject(ctx context.Context, name, description, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
@@ -421,6 +425,34 @@ func (m *MockCommands) DeleteFeature(ctx context.Context, featureID domain.Featu
 	return m.DeleteFeatureFunc(ctx, featureID)
 }
 
+func (m *MockCommands) CreateNotification(ctx context.Context, projectID domain.ProjectID, severity domain.NotificationSeverity, title, text, linkURL, linkText, linkStyle string) (domain.Notification, error) {
+	if m.CreateNotificationFunc == nil {
+		panic("called not defined CreateNotificationFunc")
+	}
+	return m.CreateNotificationFunc(ctx, projectID, severity, title, text, linkURL, linkText, linkStyle)
+}
+
+func (m *MockCommands) MarkNotificationRead(ctx context.Context, notificationID domain.NotificationID) error {
+	if m.MarkNotificationReadFunc == nil {
+		panic("called not defined MarkNotificationReadFunc")
+	}
+	return m.MarkNotificationReadFunc(ctx, notificationID)
+}
+
+func (m *MockCommands) MarkAllNotificationsRead(ctx context.Context, projectID domain.ProjectID) error {
+	if m.MarkAllNotificationsReadFunc == nil {
+		panic("called not defined MarkAllNotificationsReadFunc")
+	}
+	return m.MarkAllNotificationsReadFunc(ctx, projectID)
+}
+
+func (m *MockCommands) DeleteNotification(ctx context.Context, notificationID domain.NotificationID) error {
+	if m.DeleteNotificationFunc == nil {
+		panic("called not defined DeleteNotificationFunc")
+	}
+	return m.DeleteNotificationFunc(ctx, notificationID)
+}
+
 // MockQueries is a function-based mock implementation of the service.Queries interface.
 type MockQueries struct {
 	GetProjectFunc                  func(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error)
@@ -466,6 +498,8 @@ type MockQueries struct {
 	GetFeatureFunc                  func(ctx context.Context, featureID domain.FeatureID) (*domain.Feature, error)
 	ListFeaturesFunc                func(ctx context.Context, projectID domain.ProjectID, statusFilter []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error)
 	GetFeatureStatsFunc             func(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error)
+	ListNotificationsFunc          func(ctx context.Context, projectID domain.ProjectID, unreadOnly bool, limit, offset int) ([]domain.Notification, error)
+	GetNotificationUnreadCountFunc func(ctx context.Context, projectID domain.ProjectID) (int, error)
 }
 
 func (m *MockQueries) GetProject(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error) {
@@ -767,4 +801,18 @@ func (m *MockQueries) GetFeatureStats(ctx context.Context, projectID domain.Proj
 		return &domain.FeatureStats{}, nil
 	}
 	return m.GetFeatureStatsFunc(ctx, projectID)
+}
+
+func (m *MockQueries) ListNotifications(ctx context.Context, projectID domain.ProjectID, unreadOnly bool, limit, offset int) ([]domain.Notification, error) {
+	if m.ListNotificationsFunc == nil {
+		panic("called not defined ListNotificationsFunc")
+	}
+	return m.ListNotificationsFunc(ctx, projectID, unreadOnly, limit, offset)
+}
+
+func (m *MockQueries) GetNotificationUnreadCount(ctx context.Context, projectID domain.ProjectID) (int, error) {
+	if m.GetNotificationUnreadCountFunc == nil {
+		panic("called not defined GetNotificationUnreadCountFunc")
+	}
+	return m.GetNotificationUnreadCountFunc(ctx, projectID)
 }

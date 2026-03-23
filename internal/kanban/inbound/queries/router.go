@@ -22,5 +22,6 @@ func NewRouter(router *mux.Router, app service.Queries, ctrl *controller.Control
 	NewSkillQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewDockerfileQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewFeatureQueriesHandler(app, ctrl).RegisterRoutes(router)
+	NewNotificationQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewSSEHandler(sseHub).RegisterRoutes(router)
 }

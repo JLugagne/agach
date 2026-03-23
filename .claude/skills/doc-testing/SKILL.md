@@ -1,6 +1,6 @@
 ---
 name: doc-testing
-description: "Agach testing strategy: test contract pattern, mock structure, contract test structure, bug fix testing guidelines"
+description: "Agach testing strategy: test contract pattern, mock structure, contract tests, testcontainers with postgres:17, bug fix guidelines"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -41,6 +41,11 @@ func <Name>ContractTesting(t *testing.T, repo <Name>) {
     })
 }
 ```
+
+## Integration Tests
+- Use `testcontainers-go` with `postgres:17` for all PostgreSQL tests
+- One shared container per test package — start in `TestMain`, never per test function
+- Pattern: `newTestPool()` → `setupRepos()` → contract testing
 
 ## Bug Fix Guidelines
 - Add unit tests covering the fixed scenario to prevent regressions

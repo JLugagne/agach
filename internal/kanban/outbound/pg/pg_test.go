@@ -12,6 +12,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects/projectstest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/agents/agentstest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks/taskstest"
+	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/notifications/notificationstest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/toolusage/toolusagetest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/outbound/pg"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -156,6 +157,11 @@ func TestDependencyRepository_Contract(t *testing.T) {
 func TestToolUsageRepository_Contract(t *testing.T) {
 	r := setupRepos(t)
 	toolusagetest.ToolUsageContractTesting(t, r.ToolUsage, r.projectID)
+}
+
+func TestNotificationRepository_Contract(t *testing.T) {
+	r := setupRepos(t)
+	notificationstest.NotificationsContractTesting(t, r.Notifications, r.projectID)
 }
 
 func TestProjectFeaturesRepository(t *testing.T) {

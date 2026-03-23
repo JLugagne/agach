@@ -59,8 +59,9 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 		Dependencies: repos.Dependencies,
 		ToolUsage:    repos.ToolUsage,
 		Skills:       repos.Skills,
-		Dockerfiles:  repos.Dockerfiles,
-		Logger:       logger,
+		Dockerfiles:    repos.Dockerfiles,
+		Notifications: repos.Notifications,
+		Logger:         logger,
 	})
 
 	logger.Info("App layer initialized successfully")

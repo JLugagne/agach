@@ -1,6 +1,6 @@
 ---
 name: doc-frontend
-description: "Agach frontend: React/TypeScript pages, components, kanban UI, API client, WebSocket, Playwright tests, data-qa conventions"
+description: "Agach frontend: React/TypeScript pages, components, kanban UI, auth context, API client, WebSocket, Playwright tests, data-qa conventions"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -13,7 +13,7 @@ ux/src/
   App.tsx                   - Root app with routing
   lib/
     api.ts                  - HTTP client for all backend endpoints
-    auth.ts                 - Auth helpers
+    auth.ts                 - Auth helpers (JWT tokens)
     types.ts                - TypeScript types mirroring pkg/kanban/types.go
     ws.ts                   - WebSocket client
     utils.ts                - Utility functions
@@ -28,7 +28,7 @@ ux/src/
     ProjectSettingsPage.tsx  - Project settings
     SubProjectsPage.tsx      - Sub-project management
     DockerfilesPage.tsx      - Dockerfile management
-    LoginPage.tsx            - Login page
+    LoginPage.tsx            - Login page (authentication required)
     AccountPage.tsx          - Account settings
     ApiKeysPage.tsx          - API key management
     HomePage.tsx             - Home/project selection
@@ -38,7 +38,7 @@ ux/src/
     kanban/                  - Kanban-specific components
       Column.tsx             - Board column
       TaskCard.tsx           - Task card
-      TaskDrawer.tsx         - Task detail drawer (62KB, main interaction point)
+      TaskDrawer.tsx         - Task detail drawer (main interaction point)
       NewTaskModal.tsx       - Task creation modal
       CommentSection.tsx     - Comment display/input
       FeatureCard.tsx        - Feature card
@@ -48,7 +48,7 @@ ux/src/
       BulkActionsBar.tsx     - Bulk selection actions
       BlockedBanner.tsx      - Blocked task banner
     Layout.tsx               - App shell layout with sidebar
-    AuthContext.tsx           - Auth context provider
+    AuthContext.tsx           - Auth context provider (JWT storage)
     ThemeContext.tsx          - Theme context provider
     modals/                  - Shared modal components
     settings/                - Settings layout components

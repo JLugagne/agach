@@ -16,6 +16,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dependencies"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dockerfiles"
 	featuresrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/features"
+	notificationsrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/notifications"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/skills"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
@@ -39,7 +40,8 @@ type Repositories struct {
 	ToolUsage    toolusage.ToolUsageRepository
 	Skills       skills.SkillRepository
 	Dockerfiles  dockerfiles.DockerfileRepository
-	Features     featuresrepo.FeatureRepository
+	Features      featuresrepo.FeatureRepository
+	Notifications notificationsrepo.NotificationRepository
 }
 
 // NewRepositories creates all repository implementations backed by a pgxpool.Pool and runs migrations.
@@ -72,7 +74,8 @@ func NewRepositories(pool *pgxpool.Pool) (*Repositories, error) {
 		ToolUsage:    &toolUsageRepository{base},
 		Skills:       &skillRepository{base},
 		Dockerfiles:  &dockerfileRepository{base},
-		Features:     &featureRepository{base},
+		Features:      &featureRepository{base},
+		Notifications: &notificationRepository{base},
 	}, nil
 }
 

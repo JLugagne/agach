@@ -282,6 +282,20 @@ var (
 		Message: "dockerfile is still assigned to one or more projects",
 	}
 
+	// Notification errors
+	ErrNotificationNotFound = &Error{
+		Code:    "NOTIFICATION_NOT_FOUND",
+		Message: "notification not found",
+	}
+	ErrInvalidNotificationData = &Error{
+		Code:    "INVALID_NOTIFICATION_DATA",
+		Message: "invalid notification data",
+	}
+	ErrNotificationTitleRequired = &Error{
+		Code:    "NOTIFICATION_TITLE_REQUIRED",
+		Message: "notification title is required",
+	}
+
 	// Aliases for backward compatibility
 	ErrDependencyCycle  = ErrCircularDependency
 	ErrNoAvailableTasks = ErrNoTasksAvailable
