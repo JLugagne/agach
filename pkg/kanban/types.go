@@ -451,11 +451,15 @@ type CreateNotificationRequest struct {
 	LinkURL   string `json:"link_url" validate:"max=500"`
 	LinkText  string `json:"link_text" validate:"max=100"`
 	LinkStyle string `json:"link_style" validate:"omitempty,oneof=primary secondary danger warning"`
+	Scope     string `json:"scope" validate:"omitempty,oneof=project agent global"`
+	AgentSlug string `json:"agent_slug" validate:"max=100"`
 }
 
 type NotificationResponse struct {
 	ID        string  `json:"id"`
-	ProjectID string  `json:"project_id"`
+	ProjectID *string `json:"project_id,omitempty"`
+	Scope     string  `json:"scope"`
+	AgentSlug string  `json:"agent_slug,omitempty"`
 	Severity  string  `json:"severity"`
 	Title     string  `json:"title"`
 	Text      string  `json:"text"`

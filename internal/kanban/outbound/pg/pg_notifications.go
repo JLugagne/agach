@@ -4,18 +4,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
+	notifications "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/notifications"
 	"github.com/jackc/pgx/v5"
 )
 
 type notificationRepository struct{ *baseRepository }
 
+// projectIDOrNil returns a string representation of a ProjectID pointer, or nil if the pointer is nil.
+func projectIDOrNil(id *domain.ProjectID) interface{} {
+	if id == nil {
+		return nil
+	}
+	return string(*id)
+}
+
 func (r *notificationRepository) Create(ctx context.Context, notification domain.Notification) error {
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO notifications (id, project_id, severity, title, text, link_url, link_text, link_style, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		string(notification.ID), string(notification.ProjectID), string(notification.Severity),
+		INSERT INTO notifications (id, project_id, scope, agent_slug, severity, title, text, link_url, link_text, link_style, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		string(notification.ID), projectIDOrNil(notification.ProjectID), string(notification.Scope),
+		notification.AgentSlug, string(notification.Severity),
 		notification.Title, notification.Text,
 		notification.LinkURL, notification.LinkText, notification.LinkStyle,
 		notification.CreatedAt,
@@ -28,11 +39,13 @@ func (r *notificationRepository) Create(ctx context.Context, notification domain
 
 func (r *notificationRepository) FindByID(ctx context.Context, id domain.NotificationID) (*domain.Notification, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT id, project_id, severity, title, text, link_url, link_text, link_style, read_at, created_at
+		SELECT id, project_id, scope, agent_slug, severity, title, text, link_url, link_text, link_style, read_at, created_at
 		FROM notifications WHERE id = $1`, string(id))
 	var n domain.Notification
+	var projectIDStr *string
 	err := row.Scan(
-		(*string)(&n.ID), (*string)(&n.ProjectID), (*string)(&n.Severity),
+		(*string)(&n.ID), &projectIDStr, (*string)(&n.Scope),
+		&n.AgentSlug, (*string)(&n.Severity),
 		&n.Title, &n.Text, &n.LinkURL, &n.LinkText, &n.LinkStyle,
 		&n.ReadAt, &n.CreatedAt,
 	)
@@ -42,19 +55,45 @@ func (r *notificationRepository) FindByID(ctx context.Context, id domain.Notific
 		}
 		return nil, fmt.Errorf("find notification by id: %w", err)
 	}
+	if projectIDStr != nil {
+		pid := domain.ProjectID(*projectIDStr)
+		n.ProjectID = &pid
+	}
 	return &n, nil
 }
 
-func (r *notificationRepository) List(ctx context.Context, projectID domain.ProjectID, unreadOnly bool, limit, offset int) ([]domain.Notification, error) {
-	query := `SELECT id, project_id, severity, title, text, link_url, link_text, link_style, read_at, created_at
-		FROM notifications WHERE project_id = $1`
-	args := []any{string(projectID)}
+func (r *notificationRepository) buildFilters(filters notifications.NotificationFilters) (string, []any) {
+	var conditions []string
+	var args []any
 
-	if unreadOnly {
-		query += ` AND read_at IS NULL`
+	if filters.ProjectID != nil {
+		args = append(args, string(*filters.ProjectID))
+		conditions = append(conditions, fmt.Sprintf("project_id = $%d", len(args)))
+	}
+	if filters.Scope != nil {
+		args = append(args, string(*filters.Scope))
+		conditions = append(conditions, fmt.Sprintf("scope = $%d", len(args)))
+	}
+	if filters.AgentSlug != "" {
+		args = append(args, filters.AgentSlug)
+		conditions = append(conditions, fmt.Sprintf("agent_slug = $%d", len(args)))
+	}
+	if filters.UnreadOnly {
+		conditions = append(conditions, "read_at IS NULL")
 	}
 
-	query += ` ORDER BY created_at DESC`
+	where := ""
+	if len(conditions) > 0 {
+		where = " WHERE " + strings.Join(conditions, " AND ")
+	}
+	return where, args
+}
+
+func (r *notificationRepository) List(ctx context.Context, filters notifications.NotificationFilters, limit, offset int) ([]domain.Notification, error) {
+	where, args := r.buildFilters(filters)
+
+	query := `SELECT id, project_id, scope, agent_slug, severity, title, text, link_url, link_text, link_style, read_at, created_at
+		FROM notifications` + where + ` ORDER BY created_at DESC`
 
 	if limit > 0 {
 		args = append(args, limit)
@@ -74,13 +113,19 @@ func (r *notificationRepository) List(ctx context.Context, projectID domain.Proj
 	var result []domain.Notification
 	for rows.Next() {
 		var n domain.Notification
+		var projectIDStr *string
 		err := rows.Scan(
-			(*string)(&n.ID), (*string)(&n.ProjectID), (*string)(&n.Severity),
+			(*string)(&n.ID), &projectIDStr, (*string)(&n.Scope),
+			&n.AgentSlug, (*string)(&n.Severity),
 			&n.Title, &n.Text, &n.LinkURL, &n.LinkText, &n.LinkStyle,
 			&n.ReadAt, &n.CreatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan notification row: %w", err)
+		}
+		if projectIDStr != nil {
+			pid := domain.ProjectID(*projectIDStr)
+			n.ProjectID = &pid
 		}
 		result = append(result, n)
 	}
@@ -90,11 +135,15 @@ func (r *notificationRepository) List(ctx context.Context, projectID domain.Proj
 	return result, nil
 }
 
-func (r *notificationRepository) UnreadCount(ctx context.Context, projectID domain.ProjectID) (int, error) {
+func (r *notificationRepository) UnreadCount(ctx context.Context, filters notifications.NotificationFilters) (int, error) {
+	// Force unread filter
+	filters.UnreadOnly = true
+	where, args := r.buildFilters(filters)
+
 	var count int
 	err := r.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM notifications WHERE project_id = $1 AND read_at IS NULL`,
-		string(projectID),
+		`SELECT COUNT(*) FROM notifications`+where,
+		args...,
 	).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("unread count: %w", err)
@@ -126,10 +175,21 @@ func (r *notificationRepository) MarkRead(ctx context.Context, id domain.Notific
 	return nil
 }
 
-func (r *notificationRepository) MarkAllRead(ctx context.Context, projectID domain.ProjectID) error {
+func (r *notificationRepository) MarkAllRead(ctx context.Context, filters notifications.NotificationFilters) error {
+	where, args := r.buildFilters(filters)
+
+	// Add read_at IS NULL condition if not already present from UnreadOnly
+	if !filters.UnreadOnly {
+		if where == "" {
+			where = " WHERE read_at IS NULL"
+		} else {
+			where += " AND read_at IS NULL"
+		}
+	}
+
 	_, err := r.pool.Exec(ctx,
-		`UPDATE notifications SET read_at = NOW() WHERE project_id = $1 AND read_at IS NULL`,
-		string(projectID),
+		`UPDATE notifications SET read_at = NOW()`+where,
+		args...,
 	)
 	if err != nil {
 		return fmt.Errorf("mark all notifications read: %w", err)

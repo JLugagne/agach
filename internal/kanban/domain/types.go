@@ -520,10 +520,28 @@ var ValidNotificationSeverities = map[NotificationSeverity]bool{
 	SeverityError:   true,
 }
 
+// NotificationScope represents the scope of a notification
+type NotificationScope string
+
+const (
+	NotificationScopeProject NotificationScope = "project"
+	NotificationScopeAgent   NotificationScope = "agent"
+	NotificationScopeGlobal  NotificationScope = "global"
+)
+
+// ValidNotificationScopes is the set of all valid notification scopes.
+var ValidNotificationScopes = map[NotificationScope]bool{
+	NotificationScopeProject: true,
+	NotificationScopeAgent:   true,
+	NotificationScopeGlobal:  true,
+}
+
 // Notification represents a user-facing notification
 type Notification struct {
 	ID        NotificationID       `json:"id"`
-	ProjectID ProjectID            `json:"project_id"`
+	ProjectID *ProjectID           `json:"project_id,omitempty"`
+	Scope     NotificationScope    `json:"scope"`
+	AgentSlug string               `json:"agent_slug,omitempty"`
 	Severity  NotificationSeverity `json:"severity"`
 	Title     string               `json:"title"`
 	Text      string               `json:"text"`

@@ -69,9 +69,9 @@ type MockCommands struct {
 	UpdateFeatureFunc               func(ctx context.Context, featureID domain.FeatureID, name, description string) error
 	UpdateFeatureStatusFunc         func(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus) error
 	DeleteFeatureFunc               func(ctx context.Context, featureID domain.FeatureID) error
-	CreateNotificationFunc       func(ctx context.Context, projectID domain.ProjectID, severity domain.NotificationSeverity, title, text, linkURL, linkText, linkStyle string) (domain.Notification, error)
+	CreateNotificationFunc       func(ctx context.Context, projectID *domain.ProjectID, scope domain.NotificationScope, agentSlug string, severity domain.NotificationSeverity, title, text, linkURL, linkText, linkStyle string) (domain.Notification, error)
 	MarkNotificationReadFunc     func(ctx context.Context, notificationID domain.NotificationID) error
-	MarkAllNotificationsReadFunc func(ctx context.Context, projectID domain.ProjectID) error
+	MarkAllNotificationsReadFunc func(ctx context.Context, projectID *domain.ProjectID) error
 	DeleteNotificationFunc       func(ctx context.Context, notificationID domain.NotificationID) error
 }
 
@@ -425,11 +425,11 @@ func (m *MockCommands) DeleteFeature(ctx context.Context, featureID domain.Featu
 	return m.DeleteFeatureFunc(ctx, featureID)
 }
 
-func (m *MockCommands) CreateNotification(ctx context.Context, projectID domain.ProjectID, severity domain.NotificationSeverity, title, text, linkURL, linkText, linkStyle string) (domain.Notification, error) {
+func (m *MockCommands) CreateNotification(ctx context.Context, projectID *domain.ProjectID, scope domain.NotificationScope, agentSlug string, severity domain.NotificationSeverity, title, text, linkURL, linkText, linkStyle string) (domain.Notification, error) {
 	if m.CreateNotificationFunc == nil {
 		panic("called not defined CreateNotificationFunc")
 	}
-	return m.CreateNotificationFunc(ctx, projectID, severity, title, text, linkURL, linkText, linkStyle)
+	return m.CreateNotificationFunc(ctx, projectID, scope, agentSlug, severity, title, text, linkURL, linkText, linkStyle)
 }
 
 func (m *MockCommands) MarkNotificationRead(ctx context.Context, notificationID domain.NotificationID) error {
@@ -439,7 +439,7 @@ func (m *MockCommands) MarkNotificationRead(ctx context.Context, notificationID 
 	return m.MarkNotificationReadFunc(ctx, notificationID)
 }
 
-func (m *MockCommands) MarkAllNotificationsRead(ctx context.Context, projectID domain.ProjectID) error {
+func (m *MockCommands) MarkAllNotificationsRead(ctx context.Context, projectID *domain.ProjectID) error {
 	if m.MarkAllNotificationsReadFunc == nil {
 		panic("called not defined MarkAllNotificationsReadFunc")
 	}
@@ -498,8 +498,8 @@ type MockQueries struct {
 	GetFeatureFunc                  func(ctx context.Context, featureID domain.FeatureID) (*domain.Feature, error)
 	ListFeaturesFunc                func(ctx context.Context, projectID domain.ProjectID, statusFilter []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error)
 	GetFeatureStatsFunc             func(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error)
-	ListNotificationsFunc          func(ctx context.Context, projectID domain.ProjectID, unreadOnly bool, limit, offset int) ([]domain.Notification, error)
-	GetNotificationUnreadCountFunc func(ctx context.Context, projectID domain.ProjectID) (int, error)
+	ListNotificationsFunc          func(ctx context.Context, projectID *domain.ProjectID, scope *domain.NotificationScope, agentSlug string, unreadOnly bool, limit, offset int) ([]domain.Notification, error)
+	GetNotificationUnreadCountFunc func(ctx context.Context, projectID *domain.ProjectID, scope *domain.NotificationScope, agentSlug string) (int, error)
 }
 
 func (m *MockQueries) GetProject(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error) {
@@ -803,16 +803,16 @@ func (m *MockQueries) GetFeatureStats(ctx context.Context, projectID domain.Proj
 	return m.GetFeatureStatsFunc(ctx, projectID)
 }
 
-func (m *MockQueries) ListNotifications(ctx context.Context, projectID domain.ProjectID, unreadOnly bool, limit, offset int) ([]domain.Notification, error) {
+func (m *MockQueries) ListNotifications(ctx context.Context, projectID *domain.ProjectID, scope *domain.NotificationScope, agentSlug string, unreadOnly bool, limit, offset int) ([]domain.Notification, error) {
 	if m.ListNotificationsFunc == nil {
 		panic("called not defined ListNotificationsFunc")
 	}
-	return m.ListNotificationsFunc(ctx, projectID, unreadOnly, limit, offset)
+	return m.ListNotificationsFunc(ctx, projectID, scope, agentSlug, unreadOnly, limit, offset)
 }
 
-func (m *MockQueries) GetNotificationUnreadCount(ctx context.Context, projectID domain.ProjectID) (int, error) {
+func (m *MockQueries) GetNotificationUnreadCount(ctx context.Context, projectID *domain.ProjectID, scope *domain.NotificationScope, agentSlug string) (int, error) {
 	if m.GetNotificationUnreadCountFunc == nil {
 		panic("called not defined GetNotificationUnreadCountFunc")
 	}
-	return m.GetNotificationUnreadCountFunc(ctx, projectID)
+	return m.GetNotificationUnreadCountFunc(ctx, projectID, scope, agentSlug)
 }

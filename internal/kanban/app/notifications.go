@@ -5,11 +5,10 @@ import (
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
+	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/notifications"
 )
 
-// Notification Commands
-
-func (a *App) CreateNotification(ctx context.Context, projectID domain.ProjectID, severity domain.NotificationSeverity, title, text, linkURL, linkText, linkStyle string) (domain.Notification, error) {
+func (a *App) CreateNotification(ctx context.Context, projectID *domain.ProjectID, scope domain.NotificationScope, agentSlug string, severity domain.NotificationSeverity, title, text, linkURL, linkText, linkStyle string) (domain.Notification, error) {
 	if title == "" {
 		return domain.Notification{}, domain.ErrNotificationTitleRequired
 	}
@@ -18,9 +17,15 @@ func (a *App) CreateNotification(ctx context.Context, projectID domain.ProjectID
 		return domain.Notification{}, domain.ErrInvalidNotificationData
 	}
 
+	if !domain.ValidNotificationScopes[scope] {
+		return domain.Notification{}, domain.ErrInvalidNotificationData
+	}
+
 	notification := domain.Notification{
 		ID:        domain.NewNotificationID(),
 		ProjectID: projectID,
+		Scope:     scope,
+		AgentSlug: agentSlug,
 		Severity:  severity,
 		Title:     title,
 		Text:      text,
@@ -42,20 +47,29 @@ func (a *App) MarkNotificationRead(ctx context.Context, notificationID domain.No
 	return a.notifications.MarkRead(ctx, notificationID)
 }
 
-func (a *App) MarkAllNotificationsRead(ctx context.Context, projectID domain.ProjectID) error {
-	return a.notifications.MarkAllRead(ctx, projectID)
+func (a *App) MarkAllNotificationsRead(ctx context.Context, projectID *domain.ProjectID) error {
+	return a.notifications.MarkAllRead(ctx, notifications.NotificationFilters{
+		ProjectID: projectID,
+	})
 }
 
 func (a *App) DeleteNotification(ctx context.Context, notificationID domain.NotificationID) error {
 	return a.notifications.Delete(ctx, notificationID)
 }
 
-// Notification Queries
-
-func (a *App) ListNotifications(ctx context.Context, projectID domain.ProjectID, unreadOnly bool, limit, offset int) ([]domain.Notification, error) {
-	return a.notifications.List(ctx, projectID, unreadOnly, limit, offset)
+func (a *App) ListNotifications(ctx context.Context, projectID *domain.ProjectID, scope *domain.NotificationScope, agentSlug string, unreadOnly bool, limit, offset int) ([]domain.Notification, error) {
+	return a.notifications.List(ctx, notifications.NotificationFilters{
+		ProjectID:  projectID,
+		Scope:      scope,
+		AgentSlug:  agentSlug,
+		UnreadOnly: unreadOnly,
+	}, limit, offset)
 }
 
-func (a *App) GetNotificationUnreadCount(ctx context.Context, projectID domain.ProjectID) (int, error) {
-	return a.notifications.UnreadCount(ctx, projectID)
+func (a *App) GetNotificationUnreadCount(ctx context.Context, projectID *domain.ProjectID, scope *domain.NotificationScope, agentSlug string) (int, error) {
+	return a.notifications.UnreadCount(ctx, notifications.NotificationFilters{
+		ProjectID: projectID,
+		Scope:     scope,
+		AgentSlug: agentSlug,
+	})
 }

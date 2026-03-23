@@ -6,6 +6,7 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/kanban/app"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
+	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/notifications"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/notifications/notificationstest"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -37,11 +38,12 @@ func TestApp_CreateNotification_Success(t *testing.T) {
 
 	projectID := domain.NewProjectID()
 
-	notification, err := a.CreateNotification(ctx, projectID, domain.SeverityInfo, "Build complete", "All tests passed", "/builds/123", "View Build", "primary")
+	notification, err := a.CreateNotification(ctx, &projectID, domain.NotificationScopeProject, "", domain.SeverityInfo, "Build complete", "All tests passed", "/builds/123", "View Build", "primary")
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, notification.ID)
-	assert.Equal(t, projectID, notification.ProjectID)
+	assert.Equal(t, &projectID, notification.ProjectID)
+	assert.Equal(t, domain.NotificationScopeProject, notification.Scope)
 	assert.Equal(t, domain.SeverityInfo, notification.Severity)
 	assert.Equal(t, "Build complete", notification.Title)
 	assert.Equal(t, "All tests passed", notification.Text)
@@ -57,7 +59,7 @@ func TestApp_CreateNotification_EmptyTitle_ReturnsError(t *testing.T) {
 
 	projectID := domain.NewProjectID()
 
-	_, err := a.CreateNotification(ctx, projectID, domain.SeverityInfo, "", "Some text", "", "", "")
+	_, err := a.CreateNotification(ctx, &projectID, domain.NotificationScopeProject, "", domain.SeverityInfo, "", "Some text", "", "", "")
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -70,7 +72,7 @@ func TestApp_CreateNotification_InvalidSeverity_ReturnsError(t *testing.T) {
 
 	projectID := domain.NewProjectID()
 
-	_, err := a.CreateNotification(ctx, projectID, domain.NotificationSeverity("invalid"), "Title", "Some text", "", "", "")
+	_, err := a.CreateNotification(ctx, &projectID, domain.NotificationScopeProject, "", domain.NotificationSeverity("invalid"), "Title", "Some text", "", "", "")
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -105,18 +107,18 @@ func TestApp_MarkAllNotificationsRead_DelegatesToRepository(t *testing.T) {
 	mockNotifications := &notificationstest.MockNotificationRepository{}
 	projectID := domain.NewProjectID()
 
-	var calledWithProjectID domain.ProjectID
-	mockNotifications.MarkAllReadFunc = func(ctx context.Context, pid domain.ProjectID) error {
-		calledWithProjectID = pid
+	var calledWithFilters notifications.NotificationFilters
+	mockNotifications.MarkAllReadFunc = func(ctx context.Context, filters notifications.NotificationFilters) error {
+		calledWithFilters = filters
 		return nil
 	}
 
 	a := setupTestAppWithNotifications(mockNotifications)
 
-	err := a.MarkAllNotificationsRead(ctx, projectID)
+	err := a.MarkAllNotificationsRead(ctx, &projectID)
 
 	require.NoError(t, err)
-	assert.Equal(t, projectID, calledWithProjectID)
+	assert.Equal(t, &projectID, calledWithFilters.ProjectID)
 }
 
 func TestApp_DeleteNotification_DelegatesToRepository(t *testing.T) {
@@ -148,12 +150,12 @@ func TestApp_ListNotifications_DelegatesToRepository(t *testing.T) {
 	projectID := domain.NewProjectID()
 
 	expectedNotifications := []domain.Notification{
-		{ID: domain.NewNotificationID(), ProjectID: projectID, Severity: domain.SeverityInfo, Title: "First"},
-		{ID: domain.NewNotificationID(), ProjectID: projectID, Severity: domain.SeverityWarning, Title: "Second"},
+		{ID: domain.NewNotificationID(), ProjectID: &projectID, Severity: domain.SeverityInfo, Title: "First"},
+		{ID: domain.NewNotificationID(), ProjectID: &projectID, Severity: domain.SeverityWarning, Title: "Second"},
 	}
 
-	mockNotifications.ListFunc = func(ctx context.Context, pid domain.ProjectID, unreadOnly bool, limit, offset int) ([]domain.Notification, error) {
-		if pid == projectID && unreadOnly && limit == 10 && offset == 5 {
+	mockNotifications.ListFunc = func(ctx context.Context, filters notifications.NotificationFilters, limit, offset int) ([]domain.Notification, error) {
+		if filters.ProjectID != nil && *filters.ProjectID == projectID && filters.UnreadOnly && limit == 10 && offset == 5 {
 			return expectedNotifications, nil
 		}
 		return nil, nil
@@ -161,10 +163,10 @@ func TestApp_ListNotifications_DelegatesToRepository(t *testing.T) {
 
 	a := setupTestAppWithNotifications(mockNotifications)
 
-	notifications, err := a.ListNotifications(ctx, projectID, true, 10, 5)
+	notifs, err := a.ListNotifications(ctx, &projectID, nil, "", true, 10, 5)
 
 	require.NoError(t, err)
-	assert.Equal(t, expectedNotifications, notifications)
+	assert.Equal(t, expectedNotifications, notifs)
 }
 
 func TestApp_GetNotificationUnreadCount_DelegatesToRepository(t *testing.T) {
@@ -173,8 +175,8 @@ func TestApp_GetNotificationUnreadCount_DelegatesToRepository(t *testing.T) {
 	mockNotifications := &notificationstest.MockNotificationRepository{}
 	projectID := domain.NewProjectID()
 
-	mockNotifications.UnreadCountFunc = func(ctx context.Context, pid domain.ProjectID) (int, error) {
-		if pid == projectID {
+	mockNotifications.UnreadCountFunc = func(ctx context.Context, filters notifications.NotificationFilters) (int, error) {
+		if filters.ProjectID != nil && *filters.ProjectID == projectID {
 			return 7, nil
 		}
 		return 0, nil
@@ -182,7 +184,7 @@ func TestApp_GetNotificationUnreadCount_DelegatesToRepository(t *testing.T) {
 
 	a := setupTestAppWithNotifications(mockNotifications)
 
-	count, err := a.GetNotificationUnreadCount(ctx, projectID)
+	count, err := a.GetNotificationUnreadCount(ctx, &projectID, nil, "")
 
 	require.NoError(t, err)
 	assert.Equal(t, 7, count)

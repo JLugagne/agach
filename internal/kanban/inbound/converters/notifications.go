@@ -14,9 +14,16 @@ func ToPublicNotification(n domain.Notification) pkgkanban.NotificationResponse 
 		s := n.ReadAt.Format(time.RFC3339)
 		readAt = &s
 	}
+	var projectID *string
+	if n.ProjectID != nil {
+		s := n.ProjectID.String()
+		projectID = &s
+	}
 	return pkgkanban.NotificationResponse{
 		ID:        n.ID.String(),
-		ProjectID: n.ProjectID.String(),
+		ProjectID: projectID,
+		Scope:     string(n.Scope),
+		AgentSlug: n.AgentSlug,
 		Severity:  string(n.Severity),
 		Title:     n.Title,
 		Text:      n.Text,

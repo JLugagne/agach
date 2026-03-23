@@ -6,7 +6,15 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
 )
 
-// NotificationRepository defines operations for managing notifications within a project
+// NotificationFilters defines filtering criteria for listing notifications.
+type NotificationFilters struct {
+	ProjectID  *domain.ProjectID         // filter by project (nil = no project filter)
+	Scope      *domain.NotificationScope // filter by scope (nil = all scopes)
+	AgentSlug  string                    // filter by agent slug (empty = no agent filter)
+	UnreadOnly bool                      // only unread notifications
+}
+
+// NotificationRepository defines operations for managing notifications
 type NotificationRepository interface {
 	// Create creates a new notification
 	Create(ctx context.Context, notification domain.Notification) error
@@ -14,18 +22,17 @@ type NotificationRepository interface {
 	// FindByID retrieves a notification by ID
 	FindByID(ctx context.Context, id domain.NotificationID) (*domain.Notification, error)
 
-	// List retrieves notifications for a project, ordered by created_at DESC.
-	// If unreadOnly is true, only unread notifications are returned.
-	List(ctx context.Context, projectID domain.ProjectID, unreadOnly bool, limit, offset int) ([]domain.Notification, error)
+	// List retrieves notifications matching filters, ordered by created_at DESC.
+	List(ctx context.Context, filters NotificationFilters, limit, offset int) ([]domain.Notification, error)
 
-	// UnreadCount returns the number of unread notifications for a project
-	UnreadCount(ctx context.Context, projectID domain.ProjectID) (int, error)
+	// UnreadCount returns the number of unread notifications matching filters.
+	UnreadCount(ctx context.Context, filters NotificationFilters) (int, error)
 
 	// MarkRead marks a notification as read
 	MarkRead(ctx context.Context, id domain.NotificationID) error
 
-	// MarkAllRead marks all notifications as read for a project
-	MarkAllRead(ctx context.Context, projectID domain.ProjectID) error
+	// MarkAllRead marks all notifications matching filters as read
+	MarkAllRead(ctx context.Context, filters NotificationFilters) error
 
 	// Delete deletes a notification
 	Delete(ctx context.Context, id domain.NotificationID) error

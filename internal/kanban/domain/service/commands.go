@@ -114,8 +114,8 @@ type Commands interface {
 	ClearProjectDockerfile(ctx context.Context, projectID domain.ProjectID) error
 
 	// Notification commands
-	CreateNotification(ctx context.Context, projectID domain.ProjectID, severity domain.NotificationSeverity, title, text, linkURL, linkText, linkStyle string) (domain.Notification, error)
+	CreateNotification(ctx context.Context, projectID *domain.ProjectID, scope domain.NotificationScope, agentSlug string, severity domain.NotificationSeverity, title, text, linkURL, linkText, linkStyle string) (domain.Notification, error)
 	MarkNotificationRead(ctx context.Context, notificationID domain.NotificationID) error
-	MarkAllNotificationsRead(ctx context.Context, projectID domain.ProjectID) error
+	MarkAllNotificationsRead(ctx context.Context, projectID *domain.ProjectID) error
 	DeleteNotification(ctx context.Context, notificationID domain.NotificationID) error
 }
