@@ -10,7 +10,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/comments/commentstest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dependencies/dependenciestest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects/projectstest"
-	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/roles/rolestest"
+	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/agents/agentstest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks/taskstest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/toolusage/toolusagetest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/outbound/pg"
@@ -129,7 +129,7 @@ func TestRoleRepository_Contract(t *testing.T) {
 	pool := newTestPool(t)
 	repos, err := pg.NewRepositories(pool)
 	require.NoError(t, err)
-	rolestest.RolesContractTesting(t, repos.Roles)
+	agentstest.RolesContractTesting(t, repos.Agents)
 }
 
 func TestTaskRepository_Contract(t *testing.T) {

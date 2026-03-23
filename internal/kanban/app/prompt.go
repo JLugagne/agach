@@ -41,9 +41,9 @@ func (a *App) RenderPrompt(ctx context.Context, projectID domain.ProjectID, task
 	// Load role template — try project-scoped first, fall back to global
 	var role *domain.Role
 	if task.AssignedRole != "" {
-		role, _ = a.roles.FindBySlugInProject(ctx, projectID, task.AssignedRole)
+		role, _ = a.agents.FindBySlugInProject(ctx, projectID, task.AssignedRole)
 		if role == nil {
-			role, _ = a.roles.FindBySlug(ctx, task.AssignedRole)
+			role, _ = a.agents.FindBySlug(ctx, task.AssignedRole)
 		}
 	}
 
@@ -91,7 +91,7 @@ func (a *App) RenderPrompt(ctx context.Context, projectID domain.ProjectID, task
 	contextFilesSignatures := extractSignatures(task.ContextFiles)
 
 	// Infer test command from role tech stack
-	testCommand := inferTestCommand("", role)
+	testCommand := inferTestCommand(role)
 
 	// Extract test info from red dependency (assumes red agent wrote failure_output in completion_summary)
 	testFile, testName, failureOutput := extractTestInfo(depByRole)
@@ -277,8 +277,8 @@ func extractSignatures(paths []string) string {
 	return strings.Join(sigs, "\n\n")
 }
 
-// inferTestCommand tries to determine the test command from the project work_dir and role tech stack.
-func inferTestCommand(workDir string, role *domain.Role) string {
+// inferTestCommand tries to determine the test command from the role tech stack.
+func inferTestCommand(role *domain.Role) string {
 	if role != nil {
 		for _, tech := range role.TechStack {
 			switch strings.ToLower(tech) {
@@ -291,17 +291,6 @@ func inferTestCommand(workDir string, role *domain.Role) string {
 			case "rust":
 				return "cargo test"
 			}
-		}
-	}
-	if workDir != "" {
-		if _, err := os.Stat(filepath.Join(workDir, "go.mod")); err == nil {
-			return "go test ./..."
-		}
-		if _, err := os.Stat(filepath.Join(workDir, "package.json")); err == nil {
-			return "npm test"
-		}
-		if _, err := os.Stat(filepath.Join(workDir, "Cargo.toml")); err == nil {
-			return "cargo test"
 		}
 	}
 	return "go test ./..."

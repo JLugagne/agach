@@ -33,11 +33,11 @@ type ProjectRepository interface {
 	// CountChildren returns the number of direct children
 	CountChildren(ctx context.Context, id domain.ProjectID) (int, error)
 
-	// ListByWorkDir retrieves all projects (root and sub-projects) matching the given work_dir
-	ListByWorkDir(ctx context.Context, workDir string) ([]domain.Project, error)
-
 	// ListFeaturesActiveOnly retrieves direct children of parentID that have at least
 	// one task in the todo, in_progress, or blocked column.
 	// Returns ProjectWithSummary so callers can display task counts without extra queries.
 	ListFeaturesActiveOnly(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error)
+
+	// ListModelPricing returns all model pricing records.
+	ListModelPricing(ctx context.Context) ([]domain.ModelPricing, error)
 }

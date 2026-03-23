@@ -1,5 +1,5 @@
 import { Link, useParams, useLocation } from 'react-router-dom';
-import { FileText, FolderTree, ChevronLeft } from 'lucide-react';
+import { FileText, Users, ChevronLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface SettingsLayoutProps {
@@ -9,7 +9,8 @@ interface SettingsLayoutProps {
 }
 
 const tabs = [
-  { label: 'Project Definition', path: '', icon: FileText },
+  { label: 'Project Settings', path: '', icon: FileText },
+  { label: 'Agents', path: '/agents', icon: Users },
 ];
 
 export default function SettingsLayout({ projectName, children, rightDrawer }: SettingsLayoutProps) {
@@ -17,10 +18,10 @@ export default function SettingsLayout({ projectName, children, rightDrawer }: S
   const location = useLocation();
 
   return (
-    <div className="min-h-screen bg-[#0F0F0F] flex">
+    <div className="min-h-screen bg-[var(--bg-secondary)] flex">
       {/* Left sidebar */}
       <aside className="w-56 bg-[#0D0D0D] border-r border-[#2A2A2A] flex flex-col shrink-0">
-        <div className="p-4 border-b border-[#1E1E1E]">
+        <div className="p-4 border-b border-[var(--border-primary)]">
           <Link
             to={`/`}
             className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[#E0E0E0] text-sm transition-colors"
@@ -31,7 +32,7 @@ export default function SettingsLayout({ projectName, children, rightDrawer }: S
         </div>
 
         <div className="p-4">
-          <p className="font-heading text-sm text-[#F0F0F0] truncate mb-1">{projectName}</p>
+          <p className="font-heading text-sm text-[var(--text-primary)] truncate mb-1">{projectName}</p>
           <p className="text-xs text-[var(--text-dim)]">Settings</p>
         </div>
 
@@ -46,8 +47,8 @@ export default function SettingsLayout({ projectName, children, rightDrawer }: S
                 to={fullPath}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm mb-0.5 transition-colors ${
                   isActive
-                    ? 'bg-[#1A1A1A] text-[#F0F0F0]'
-                    : 'text-[var(--text-muted)] hover:text-[#E0E0E0] hover:bg-[#1A1A1A]/50'
+                    ? 'bg-[var(--bg-secondary)] text-[var(--text-primary)]'
+                    : 'text-[var(--text-muted)] hover:text-[#E0E0E0] hover:bg-[var(--bg-secondary)]/50'
                 }`}
               >
                 <Icon size={15} />
@@ -55,17 +56,6 @@ export default function SettingsLayout({ projectName, children, rightDrawer }: S
               </Link>
             );
           })}
-          <Link
-            to={`/projects/${projectId}/features`}
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm mb-0.5 transition-colors ${
-              location.pathname === `/projects/${projectId}/features`
-                ? 'bg-[#1A1A1A] text-[#F0F0F0]'
-                : 'text-[var(--text-muted)] hover:text-[#E0E0E0] hover:bg-[#1A1A1A]/50'
-            }`}
-          >
-            <FolderTree size={15} />
-            Features
-          </Link>
         </nav>
       </aside>
 
@@ -75,7 +65,7 @@ export default function SettingsLayout({ projectName, children, rightDrawer }: S
 
         {/* Optional right drawer */}
         {rightDrawer && (
-          <aside className="w-[680px] bg-[#111111] border-l border-[#1E1E1E] shrink-0 overflow-y-auto">
+          <aside className="w-[680px] bg-[var(--bg-primary)] border-l border-[var(--border-primary)] shrink-0 overflow-y-auto">
             {rightDrawer}
           </aside>
         )}

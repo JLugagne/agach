@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { Plus, ChevronRight, FolderTree, X, Search } from 'lucide-react';
-import { getBoard, getProject, getTask, createTask, listProjectRoles, listSubProjects, listFeaturesActiveOnly, moveTask as apiMoveTask, markTaskSeen, updateTask } from '../lib/api';
+import { Plus, FolderTree, X, Search } from 'lucide-react';
+import { getBoard, getProject, getTask, createTask, listProjectAgents, listSubProjects, listFeaturesActiveOnly, moveTask as apiMoveTask, markTaskSeen, updateTask } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type {
   BoardResponse,
   ColumnWithTasksResponse,
   ProjectResponse,
   ProjectWithSummary,
-  RoleResponse,
+  AgentResponse,
   TaskWithDetailsResponse,
 } from '../lib/types';
 import Column from '../components/kanban/Column';
@@ -68,7 +68,7 @@ export default function KanbanPage() {
 
   // Filter state
   const [includeChildren, setIncludeChildren] = useState(true);
-  const [roles, setRoles] = useState<RoleResponse[]>([]);
+  const [roles, setRoles] = useState<AgentResponse[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
 
   // Role color lookup map
@@ -274,14 +274,14 @@ export default function KanbanPage() {
   // Fetch roles and child project IDs
   useEffect(() => {
     if (!projectId) return;
-    listProjectRoles(projectId).then(setRoles).catch(() => {});
+    listProjectAgents(projectId).then((r) => setRoles(r ?? [])).catch(() => {});
   }, [projectId]);
 
   const fetchFeatures = useCallback(async () => {
     if (!projectId) return;
     try {
       const data = await listFeaturesActiveOnly(projectId);
-      setFeatures(data);
+      setFeatures(data ?? []);
     } catch {
       setFeatures([]);
     }
@@ -290,7 +290,7 @@ export default function KanbanPage() {
   useEffect(() => {
     if (!projectId) return;
     listSubProjects(projectId).then((children) => {
-      setChildProjectIds(new Set(children.map((c) => c.id)));
+      setChildProjectIds(new Set((children ?? []).map((c) => c.id)));
     }).catch(() => setChildProjectIds(new Set()));
     fetchFeatures();
   }, [projectId, fetchFeatures]);
@@ -575,32 +575,41 @@ export default function KanbanPage() {
   return (
     <div className="flex flex-col h-full bg-[var(--bg-primary)]">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-6 h-[60px] bg-[var(--bg-secondary)] border-b border-[var(--border-primary)] flex-shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-8 py-5 flex-shrink-0">
+        <div>
           {parentProject ? (
             <>
-              <Link
-                to={`/projects/${parentProject.id}`}
-                data-qa="kanban-parent-project-link"
-                className="text-[var(--text-secondary)] text-lg font-['Newsreader'] hover:text-[var(--text-primary)] transition-colors"
-              >
-                {parentProject.name}
-              </Link>
-              <ChevronRight size={16} className="text-[var(--text-muted)]" />
-              <span className="text-[var(--primary)] text-base font-['Newsreader']">
-                {project?.name || 'Loading...'}
-              </span>
+              <h1 className="text-[28px] font-semibold text-[var(--text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+                Project Board
+              </h1>
+              <p className="text-sm text-[var(--text-muted)] mt-0.5" style={{ fontFamily: 'Inter, sans-serif' }}>
+                <Link
+                  to={`/projects/${parentProject.id}`}
+                  data-qa="kanban-parent-project-link"
+                  className="hover:text-[var(--text-secondary)] transition-colors"
+                >
+                  {parentProject.name}
+                </Link>
+                {' \u00B7 '}
+                <span className="text-[var(--text-secondary)]">{project?.name}</span>
+              </p>
             </>
           ) : (
-            <span className="text-[var(--text-primary)] text-lg font-['Newsreader']">
-              {project?.name || 'Loading...'}
-            </span>
+            <>
+              <h1 className="text-[28px] font-semibold text-[var(--text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+                Project Board
+              </h1>
+              <p className="text-sm text-[var(--text-muted)] mt-0.5" style={{ fontFamily: 'Inter, sans-serif' }}>
+                {project?.name || 'Loading...'}
+                {project?.description ? ` \u00B7 ${project.description.slice(0, 60)}${project.description.length > 60 ? '...' : ''}` : ''}
+              </p>
+            </>
           )}
         </div>
         <div className="flex items-center gap-3">
           {/* Search */}
           <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <input
               ref={searchInputRef}
               type="text"
@@ -608,38 +617,40 @@ export default function KanbanPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search tasks..."
               data-qa="search-input"
-              className="w-48 pl-8 pr-8 py-1.5 bg-[var(--bg-elevated)] border border-[var(--border-secondary)] text-[var(--text-primary)] text-xs font-['Inter'] rounded-md focus:outline-none focus:border-[var(--primary)] placeholder:text-[var(--text-muted)] transition-colors"
+              className="w-52 pl-9 pr-8 py-2.5 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] text-[var(--text-primary)] text-[13px] rounded-lg focus:outline-none focus:border-[var(--primary)] placeholder:text-[var(--text-muted)] transition-colors"
+              style={{ fontFamily: 'Inter, sans-serif' }}
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
                 data-qa="search-clear-btn"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
               >
-                <X size={12} />
+                <X size={14} />
               </button>
             )}
           </div>
 
-          {/* Sub-projects toggle */}
-          {hasChildren && (
-            <button
-              onClick={() => setIncludeChildren((v) => !v)}
-              data-qa="kanban-toggle-subprojects-btn"
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-['JetBrains_Mono'] uppercase tracking-wider transition-colors ${
-                includeChildren
-                  ? 'bg-[#8B5CF615] text-[#8B5CF6] border border-[#8B5CF630]'
-                  : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-secondary)]'
-              }`}
-              title={includeChildren ? 'Showing sub-project tasks' : 'Sub-project tasks hidden'}
-            >
-              <FolderTree size={12} />
-              Subs
-            </button>
-          )}
+          {/* Filter button group */}
+          <div className="flex items-center gap-1.5">
+            {/* Sub-projects toggle */}
+            {hasChildren && (
+              <button
+                onClick={() => setIncludeChildren((v) => !v)}
+                data-qa="kanban-toggle-subprojects-btn"
+                className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-[13px] transition-colors cursor-pointer border ${
+                  includeChildren
+                    ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/30'
+                    : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] border-[var(--border-primary)]'
+                }`}
+                style={{ fontFamily: 'Inter, sans-serif' }}
+                title={includeChildren ? 'Showing sub-project tasks' : 'Sub-project tasks hidden'}
+              >
+                <FolderTree size={14} />
+              </button>
+            )}
 
-          {/* Role filters */}
-          <div className="flex items-center gap-1">
+            {/* Role filters */}
             {roles.map((role) => {
               const isActive = selectedRoles.has(role.slug);
               return (
@@ -647,12 +658,15 @@ export default function KanbanPage() {
                   key={role.slug}
                   onClick={() => toggleRole(role.slug)}
                   data-qa="kanban-role-filter-btn"
-                  className={`flex items-center gap-1 px-2 py-1.5 rounded-md text-[10px] font-['JetBrains_Mono'] font-bold uppercase tracking-wider transition-colors border ${
+                  className={`flex items-center gap-1 px-2.5 py-2.5 rounded-lg text-[11px] font-medium uppercase tracking-wider transition-colors cursor-pointer border ${
                     isActive
-                      ? 'border-current bg-[var(--bg-elevated)]'
+                      ? 'border-current bg-[var(--bg-tertiary)]'
                       : 'border-transparent hover:bg-[var(--bg-tertiary)]'
                   }`}
-                  style={{ color: isActive ? role.color : 'var(--text-secondary)' }}
+                  style={{
+                    color: isActive ? role.color : 'var(--text-muted)',
+                    fontFamily: 'JetBrains Mono, monospace',
+                  }}
                   title={role.name}
                 >
                   {role.icon && <span>{role.icon}</span>}
@@ -668,7 +682,7 @@ export default function KanbanPage() {
                   setSearchQuery('');
                 }}
                 data-qa="kanban-clear-filters-btn"
-                className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors ml-1"
+                className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors ml-0.5 p-1"
                 title="Clear all filters"
               >
                 <X size={14} />
@@ -677,25 +691,25 @@ export default function KanbanPage() {
           </div>
 
           {/* Done filter */}
-          <div className="flex items-center gap-2">
-            <span className="text-[var(--text-muted)] text-xs font-['JetBrains_Mono'] uppercase tracking-wider">Done</span>
-            <select
-              value={doneSince}
-              onChange={(e) => setDoneSince(e.target.value)}
-              data-qa="done-filter-select"
-              className="bg-[var(--bg-elevated)] border border-[var(--border-secondary)] text-[var(--text-secondary)] text-xs font-['JetBrains_Mono'] rounded px-2 py-1.5 focus:outline-none focus:border-[var(--primary)] cursor-pointer"
-            >
-              {DONE_FILTER_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={doneSince}
+            onChange={(e) => setDoneSince(e.target.value)}
+            data-qa="done-filter-select"
+            className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] text-[var(--text-secondary)] text-[13px] rounded-lg px-3 py-2.5 focus:outline-none focus:border-[var(--primary)] cursor-pointer"
+            style={{ fontFamily: 'Inter, sans-serif' }}
+          >
+            {DONE_FILTER_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+
           <button
             onClick={() => setShowNewTask(true)}
             data-qa="new-task-btn"
-            className="flex items-center gap-1.5 px-4 py-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--primary-text)] text-sm font-['Inter'] font-medium rounded-md transition-colors"
+            className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-[13px] font-medium bg-[var(--primary)] text-[var(--primary-text)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
+            style={{ fontFamily: 'Inter, sans-serif' }}
           >
-            <Plus size={16} />
+            <Plus size={14} />
             New Task
           </button>
         </div>
@@ -711,7 +725,7 @@ export default function KanbanPage() {
           <p className="text-[var(--text-dim)] text-sm font-['Inter']">No board data available.</p>
         </div>
       ) : (
-        <div className="flex gap-4 p-[20px_24px] flex-1 overflow-x-auto overflow-y-hidden min-h-0">
+        <div className="flex gap-5 px-8 pb-6 flex-1 overflow-x-auto overflow-y-hidden min-h-0">
           {filteredBoard.columns.map((col) => {
             const displayCol =
               col.slug === 'done' && col.tasks && col.tasks.length > 0
@@ -743,6 +757,7 @@ export default function KanbanPage() {
                 isTaskSelected={(taskId) => selectedTaskIds.has(taskId)}
                 onTaskSelect={handleTaskSelect}
                 onRefresh={fetchBoard}
+                onAddTask={col.slug === 'todo' ? () => setShowNewTask(true) : undefined}
                 {...(features.length > 0 ? {
                   features: features.filter(f => featureColumnMap.get(f.id) === col.slug),
                   onFeatureClick: (feature) => setSelectedFeature(feature),

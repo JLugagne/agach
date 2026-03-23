@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	bcryptCost        = 14
+	bcryptCost        = 12
 	minPasswordLen    = 8
 	minSecretLen      = 32
 	apiKeyPrefix      = "agach_"

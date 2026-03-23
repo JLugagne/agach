@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"os"
 	"sort"
 
 	"github.com/gdamore/tcell/v2"
@@ -33,9 +32,7 @@ const (
 
 // projectItem is a flat list entry for navigation
 type projectItem struct {
-	project  pkgkanban.ProjectResponse
-	isHeader bool   // true = group header (not selectable)
-	dirLabel string // display label for group header
+	project pkgkanban.ProjectResponse
 }
 
 // WelcomeModel is the welcome screen showing the project list
@@ -47,11 +44,10 @@ type WelcomeModel struct {
 	err     string
 	state   welcomeState
 
-	// create form step 1: name, workdir, desc
-	newProjectName    string
-	newProjectWorkDir string
-	newProjectDesc    string
-	formField         int // 0=name, 1=folder, 2=desc
+	// create form step 1: name, desc
+	newProjectName string
+	newProjectDesc string
+	formField      int // 0=name, 1=desc
 
 	// setup step 2: checkboxes
 	setupCopyAgents bool
@@ -68,12 +64,11 @@ type WelcomeModel struct {
 
 func newWelcomeModel(app *tuiApp) *WelcomeModel {
 	return &WelcomeModel{
-		app:               app,
-		loading:           true,
-		newProjectWorkDir: app.workDir,
-		setupCopyAgents:   true,
-		setupCopySkills:   true,
-		setupSyncRoles:    true,
+		app:             app,
+		loading:         true,
+		setupCopyAgents: true,
+		setupCopySkills: true,
+		setupSyncRoles:  true,
 	}
 }
 
@@ -88,45 +83,17 @@ func (m *WelcomeModel) loadProjects() tcellapp.Cmd {
 	}
 }
 
-func buildItems(projects []pkgkanban.ProjectResponse, currentWorkDir string) []projectItem {
-	var current []pkgkanban.ProjectResponse
-	otherDirs := map[string][]pkgkanban.ProjectResponse{}
-	var otherDirOrder []string
-	seen := map[string]bool{}
+func buildItems(projects []pkgkanban.ProjectResponse) []projectItem {
+	// Sort projects by name
+	sorted := make([]pkgkanban.ProjectResponse, len(projects))
+	copy(sorted, projects)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Name < sorted[j].Name
+	})
 
-	for _, p := range projects {
-		if p.WorkDir == currentWorkDir {
-			current = append(current, p)
-		} else {
-			dir := p.WorkDir
-			if dir == "" {
-				dir = "(no workdir)"
-			}
-			if !seen[dir] {
-				seen[dir] = true
-				otherDirOrder = append(otherDirOrder, dir)
-			}
-			otherDirs[dir] = append(otherDirs[dir], p)
-		}
-	}
-	sort.Strings(otherDirOrder)
-
-	var items []projectItem
-
-	// Current workdir group
-	if len(current) > 0 {
-		items = append(items, projectItem{isHeader: true, dirLabel: currentWorkDir})
-		for _, p := range current {
-			items = append(items, projectItem{project: p})
-		}
-	}
-
-	// Other groups
-	for _, dir := range otherDirOrder {
-		items = append(items, projectItem{isHeader: true, dirLabel: dir})
-		for _, p := range otherDirs[dir] {
-			items = append(items, projectItem{project: p})
-		}
+	items := make([]projectItem, len(sorted))
+	for i, p := range sorted {
+		items[i] = projectItem{project: p}
 	}
 	return items
 }
@@ -138,15 +105,8 @@ func (m *WelcomeModel) HandleMsg(msg tcellapp.Msg) (tcellapp.Screen, tcellapp.Cm
 		if msg.err != nil {
 			m.err = msg.err.Error()
 		} else {
-			m.items = buildItems(msg.projects, m.app.workDir)
-			// Position cursor on first non-header item
+			m.items = buildItems(msg.projects)
 			m.cursor = 0
-			for i, item := range m.items {
-				if !item.isHeader {
-					m.cursor = i
-					break
-				}
-			}
 		}
 		return m, nil
 
@@ -165,7 +125,6 @@ func (m *WelcomeModel) HandleMsg(msg tcellapp.Msg) (tcellapp.Screen, tcellapp.Cm
 		m.pendingProject = nil
 		m.state = welcomeStateList
 		m.newProjectName = ""
-		m.newProjectWorkDir = m.app.workDir
 		m.newProjectDesc = ""
 		m.formField = 0
 		return m, m.loadProjects()
@@ -192,14 +151,13 @@ func (m *WelcomeModel) updateList(msg tcellapp.KeyMsg) (tcellapp.Screen, tcellap
 	case "n":
 		m.state = welcomeStateCreate
 		m.formField = 0
-		m.newProjectWorkDir = m.app.workDir
 	case "t":
 		return m, func() tcellapp.Msg { return launchDiagnosticMsg{} }
 	case "r":
 		m.loading = true
 		return m, m.loadProjects()
 	case "enter":
-		if len(m.items) > 0 && m.cursor < len(m.items) && !m.items[m.cursor].isHeader {
+		if len(m.items) > 0 && m.cursor < len(m.items) {
 			selected := m.items[m.cursor].project
 			return m, func() tcellapp.Msg {
 				return projectSelectedMsg{project: selected}
@@ -211,22 +169,17 @@ func (m *WelcomeModel) updateList(msg tcellapp.KeyMsg) (tcellapp.Screen, tcellap
 
 func (m *WelcomeModel) moveCursor(dir int) {
 	next := m.cursor + dir
-	for next >= 0 && next < len(m.items) {
-		if !m.items[next].isHeader {
-			m.cursor = next
-			return
-		}
-		next += dir
+	if next >= 0 && next < len(m.items) {
+		m.cursor = next
 	}
 }
 
 func (m *WelcomeModel) updateCreateForm(msg tcellapp.KeyMsg) (tcellapp.Screen, tcellapp.Cmd) {
-	const numFields = 3
+	const numFields = 2
 	switch tcellapp.KeyString(msg) {
 	case "esc":
 		m.state = welcomeStateList
 		m.newProjectName = ""
-		m.newProjectWorkDir = m.app.workDir
 		m.newProjectDesc = ""
 		m.formField = 0
 	case "tab", "down":
@@ -242,13 +195,11 @@ func (m *WelcomeModel) updateCreateForm(msg tcellapp.KeyMsg) (tcellapp.Screen, t
 			return m, nil
 		}
 		name := m.newProjectName
-		workDir := m.newProjectWorkDir
 		desc := m.newProjectDesc
 		return m, func() tcellapp.Msg {
 			project, err := m.app.kanban.CreateProject(pkgkanban.CreateProjectRequest{
 				Name:        name,
 				Description: desc,
-				WorkDir:     workDir,
 			})
 			return projectCreatedMsg{project: project, err: err}
 		}
@@ -259,10 +210,6 @@ func (m *WelcomeModel) updateCreateForm(msg tcellapp.KeyMsg) (tcellapp.Screen, t
 				m.newProjectName = m.newProjectName[:len(m.newProjectName)-1]
 			}
 		case 1:
-			if len(m.newProjectWorkDir) > 0 {
-				m.newProjectWorkDir = m.newProjectWorkDir[:len(m.newProjectWorkDir)-1]
-			}
-		case 2:
 			if len(m.newProjectDesc) > 0 {
 				m.newProjectDesc = m.newProjectDesc[:len(m.newProjectDesc)-1]
 			}
@@ -273,8 +220,6 @@ func (m *WelcomeModel) updateCreateForm(msg tcellapp.KeyMsg) (tcellapp.Screen, t
 			case 0:
 				m.newProjectName += ch
 			case 1:
-				m.newProjectWorkDir += ch
-			case 2:
 				m.newProjectDesc += ch
 			}
 		}
@@ -317,7 +262,7 @@ func (m *WelcomeModel) updateSetup(msg tcellapp.KeyMsg) (tcellapp.Screen, tcella
 		copyAgents := m.setupCopyAgents
 		copySkills := m.setupCopySkills
 		syncRoles := m.setupSyncRoles
-		workDir := m.newProjectWorkDir
+		workDir := m.app.workDir
 		agachApp := m.app.agach
 		return m, func() tcellapp.Msg {
 			agachApp.SetupProject(project.ID, workDir, appSetupOptions(copyAgents, copySkills, syncRoles))
@@ -325,14 +270,6 @@ func (m *WelcomeModel) updateSetup(msg tcellapp.KeyMsg) (tcellapp.Screen, tcella
 		}
 	}
 	return m, nil
-}
-
-// shortenHome replaces home directory prefix with ~
-func shortenHome(path string) string {
-	if home, err := os.UserHomeDir(); err == nil && len(path) >= len(home) && path[:len(home)] == home {
-		return "~" + path[len(home):]
-	}
-	return path
 }
 
 func (m *WelcomeModel) Draw(s tcell.Screen, w, h int) {
@@ -359,16 +296,7 @@ func (m *WelcomeModel) Draw(s tcell.Screen, w, h int) {
 
 	surfBg := tcell.StyleDefault.Background(tcellapp.ColorSurface)
 
-	// Count selectable items and group headers
-	projectCount := 0
-	headerCount := 0
-	for _, item := range m.items {
-		if item.isHeader {
-			headerCount++
-		} else {
-			projectCount++
-		}
-	}
+	projectCount := len(m.items)
 
 	// Layout constants — use a wider panel
 	panelW := min(80, w-4)
@@ -378,10 +306,10 @@ func (m *WelcomeModel) Draw(s tcell.Screen, w, h int) {
 	}
 
 	maxVisible := 10
-	displayItems := min(len(m.items), maxVisible+headerCount)
+	displayItems := min(projectCount, maxVisible)
 
 	// Calculate block height:
-	// title(1) + subtitle(1) + blank(2) + shortcuts(4) + blank(1) + separator(1) + blank(1) + projects
+	// title(1) + subtitle(1) + blank(2) + shortcuts(5) + blank(1) + separator(1) + blank(1) + projects
 	shortcutLines := 5
 	projectLines := displayItems
 	if projectCount == 0 {
@@ -444,21 +372,8 @@ func (m *WelcomeModel) Draw(s tcell.Screen, w, h int) {
 		if cy >= h-2 {
 			break
 		}
-		if shown >= maxVisible+headerCount {
+		if shown >= maxVisible {
 			break
-		}
-
-		if item.isHeader {
-			// Group header
-			cy++ // blank line before header
-			dirLabel := shortenHome(item.dirLabel)
-			headerStyle := surfBg.Foreground(tcellapp.ColorMuted)
-			tcellapp.DrawText(s, panelX+1, cy, headerStyle, "  ")
-			x := tcellapp.DrawText(s, panelX+3, cy, surfBg.Foreground(tcellapp.ColorAccent), dirLabel)
-			tcellapp.DrawText(s, x+1, cy, headerStyle, "")
-			cy++
-			shown++
-			continue
 		}
 
 		isFocused := i == m.cursor
@@ -500,7 +415,7 @@ func (m *WelcomeModel) Draw(s tcell.Screen, w, h int) {
 
 func (m *WelcomeModel) drawCreateForm(s tcell.Screen, _, w, h int) {
 	boxW := min(60, w-4)
-	boxH := 11
+	boxH := 9
 	boxX := max(1, (w-boxW)/2)
 	boxY := max(2, (h-boxH)/2)
 
@@ -515,7 +430,6 @@ func (m *WelcomeModel) drawCreateForm(s tcell.Screen, _, w, h int) {
 
 	fields := []struct{ label, value string }{
 		{"Name", m.newProjectName},
-		{"Folder", m.newProjectWorkDir},
 		{"Description", m.newProjectDesc},
 	}
 	for i, f := range fields {

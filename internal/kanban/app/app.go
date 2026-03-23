@@ -11,7 +11,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dependencies"
 	dockerfilesrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dockerfiles"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects"
-	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/roles"
+	agentsrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/agents"
 	skillsrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/skills"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/toolusage"
@@ -22,7 +22,7 @@ import (
 // App implements both Commands and Queries service interfaces
 type App struct {
 	projects     projects.ProjectRepository
-	roles        roles.RoleRepository
+	agents       agentsrepo.AgentRepository
 	tasks        tasks.TaskRepository
 	columns      columns.ColumnRepository
 	comments     comments.CommentRepository
@@ -36,7 +36,7 @@ type App struct {
 // Config holds the dependencies for the App
 type Config struct {
 	Projects     projects.ProjectRepository
-	Roles        roles.RoleRepository
+	Agents       agentsrepo.AgentRepository
 	Tasks        tasks.TaskRepository
 	Columns      columns.ColumnRepository
 	Comments     comments.CommentRepository
@@ -55,7 +55,7 @@ func NewApp(cfg Config) *App {
 
 	return &App{
 		projects:     cfg.Projects,
-		roles:        cfg.Roles,
+		agents:       cfg.Agents,
 		tasks:        cfg.Tasks,
 		columns:      cfg.Columns,
 		comments:     cfg.Comments,
@@ -75,7 +75,7 @@ var (
 
 // Project Commands
 
-func (a *App) CreateProject(ctx context.Context, name, description, workDir, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
+func (a *App) CreateProject(ctx context.Context, name, description, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
 	logger := a.logger.WithContext(ctx)
 
 	if name == "" {
@@ -99,7 +99,6 @@ func (a *App) CreateProject(ctx context.Context, name, description, workDir, git
 		ParentID:       parentID,
 		Name:           name,
 		Description:    description,
-		WorkDir:        workDir,
 		GitURL:         gitURL,
 		CreatedByRole:  createdByRole,
 		CreatedByAgent: createdByAgent,
@@ -112,7 +111,7 @@ func (a *App) CreateProject(ctx context.Context, name, description, workDir, git
 		return domain.Project{}, err
 	}
 
-	if err := a.roles.CopyGlobalRolesToProject(ctx, project.ID); err != nil {
+	if err := a.agents.CopyGlobalRolesToProject(ctx, project.ID); err != nil {
 		logger.WithError(err).Warn("failed to copy global roles to project")
 	}
 
@@ -120,7 +119,7 @@ func (a *App) CreateProject(ctx context.Context, name, description, workDir, git
 	return project, nil
 }
 
-func (a *App) UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string, defaultRole *string) error {
+func (a *App) UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string, gitURL, defaultRole *string) error {
 	logger := a.logger.WithContext(ctx).WithField("projectID", projectID)
 
 	project, err := a.projects.FindByID(ctx, projectID)
@@ -137,6 +136,9 @@ func (a *App) UpdateProject(ctx context.Context, projectID domain.ProjectID, nam
 	}
 	if description != "" {
 		project.Description = description
+	}
+	if gitURL != nil {
+		project.GitURL = *gitURL
 	}
 	if defaultRole != nil {
 		project.DefaultRole = *defaultRole
@@ -236,28 +238,6 @@ func (a *App) GetProjectSummary(ctx context.Context, projectID domain.ProjectID)
 	}
 
 	return summary, nil
-}
-
-func (a *App) ListProjectsByWorkDir(ctx context.Context, workDir string) ([]domain.ProjectWithSummary, error) {
-	logger := a.logger.WithContext(ctx).WithField("workDir", workDir)
-
-	projectList, err := a.projects.ListByWorkDir(ctx, workDir)
-	if err != nil {
-		logger.WithError(err).Error("failed to list projects by work_dir")
-		return nil, err
-	}
-
-	result := make([]domain.ProjectWithSummary, 0, len(projectList))
-	for _, project := range projectList {
-		pws, err := a.buildProjectWithSummary(ctx, project)
-		if err != nil {
-			logger.WithError(err).WithField("projectID", project.ID).Warn("failed to build project summary")
-			continue
-		}
-		result = append(result, pws)
-	}
-
-	return result, nil
 }
 
 func (a *App) ListProjectsWithSummary(ctx context.Context) ([]domain.ProjectWithSummary, error) {

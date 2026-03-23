@@ -132,7 +132,7 @@ test.describe('4. Task Management', () => {
     await page.locator('[data-qa="block-reason-input"]').fill('Blocked for test');
     await page.locator('[data-qa="block-task-submit-btn"]').click();
 
-    const todoColumn = page.locator('[data-qa="column"]').filter({ hasText: 'Todo' });
+    const todoColumn = page.locator('[data-qa="column"]').filter({ hasText: 'To Do' });
     await expect(todoColumn.locator('[data-qa="task-card"]').filter({ hasText: 'Task To Block' })).not.toBeVisible();
   });
 
@@ -169,7 +169,7 @@ test.describe('4. Task Management', () => {
     await createTask(request, projectId, 'Task To Move', 'Summary for move test');
     await page.reload();
 
-    const todoColumn = page.locator('[data-qa="column"]').filter({ hasText: 'Todo' });
+    const todoColumn = page.locator('[data-qa="column"]').filter({ hasText: 'To Do' });
     const taskCard = todoColumn.locator('[data-qa="task-card"]').first();
     await taskCard.click({ button: 'right' });
 

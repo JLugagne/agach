@@ -28,7 +28,7 @@ func NewSkillQueriesHandler(queries service.Queries, ctrl *controller.Controller
 func (h *SkillQueriesHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/skills", h.ListSkills).Methods("GET")
 	router.HandleFunc("/api/skills/{slug}", h.GetSkill).Methods("GET")
-	router.HandleFunc("/api/roles/{slug}/skills", h.ListAgentSkills).Methods("GET")
+	router.HandleFunc("/api/agents/{slug}/skills", h.ListAgentSkills).Methods("GET")
 }
 
 // ListSkills returns all global skills

@@ -148,14 +148,13 @@ test.describe('10. Statistics', () => {
     await expect(btn14d).toBeVisible();
     await expect(btn30d).toBeVisible();
 
-    // Click the 14d button and verify it becomes active
+    // Click the 14d button and verify it becomes active (uses inline background-color style)
     await btn14d.click();
 
-    // Check active state via aria-pressed, class, or text content
+    // The active button gets backgroundColor: var(--primary), inactive gets var(--bg-tertiary)
+    const style = await btn14d.getAttribute('style');
     const isActive =
-      (await btn14d.getAttribute('aria-pressed')) === 'true' ||
-      (await btn14d.getAttribute('class'))?.includes('active') ||
-      (await btn14d.getAttribute('class'))?.includes('selected') ||
+      style?.includes('--primary') ||
       (await btn14d.textContent())?.includes('14');
 
     expect(isActive).toBeTruthy();

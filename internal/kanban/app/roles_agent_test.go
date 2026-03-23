@@ -8,17 +8,17 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/app"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects/projectstest"
-	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/roles/rolestest"
+	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/agents/agentstest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/skills/skillstest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks/taskstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newAgentMgmtApp(mockProjects *projectstest.MockProjectRepository, mockRoles *rolestest.MockRoleRepository, mockTasks *taskstest.MockTaskRepository, mockSkills *skillstest.MockSkill) *app.App {
+func newAgentMgmtApp(mockProjects *projectstest.MockProjectRepository, mockRoles *agentstest.MockRoleRepository, mockTasks *taskstest.MockTaskRepository, mockSkills *skillstest.MockSkill) *app.App {
 	return app.NewApp(app.Config{
 		Projects: mockProjects,
-		Roles:    mockRoles,
+		Agents:    mockRoles,
 		Tasks:    mockTasks,
 		Skills:   mockSkills,
 	})
@@ -32,7 +32,7 @@ func TestCloneRole_Success(t *testing.T) {
 	source := &domain.Role{ID: sourceID, Slug: "base", Name: "Base Role"}
 	cloned := domain.Role{ID: domain.NewRoleID(), Slug: "copy", Name: "Copy Name"}
 
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, slug string) (*domain.Role, error) {
 			if slug == "base" {
 				return source, nil
@@ -57,7 +57,7 @@ func TestCloneRole_DefaultName(t *testing.T) {
 	source := &domain.Role{ID: domain.NewRoleID(), Slug: "base", Name: "Base Role"}
 
 	var capturedName string
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, slug string) (*domain.Role, error) {
 			if slug == "base" {
 				return source, nil
@@ -78,7 +78,7 @@ func TestCloneRole_DefaultName(t *testing.T) {
 
 func TestCloneRole_SourceNotFound(t *testing.T) {
 	ctx := context.Background()
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return nil, errors.New("not found")
 		},
@@ -94,7 +94,7 @@ func TestCloneRole_NewSlugTaken(t *testing.T) {
 	source := &domain.Role{ID: domain.NewRoleID(), Slug: "base", Name: "Base"}
 	existing := &domain.Role{ID: domain.NewRoleID(), Slug: "taken", Name: "Taken"}
 
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, slug string) (*domain.Role, error) {
 			if slug == "base" {
 				return source, nil
@@ -113,7 +113,7 @@ func TestCloneRole_NewSlugTaken(t *testing.T) {
 
 func TestCloneRole_EmptyNewSlug(t *testing.T) {
 	ctx := context.Background()
-	a := newAgentMgmtApp(nil, &rolestest.MockRoleRepository{}, nil, nil)
+	a := newAgentMgmtApp(nil, &agentstest.MockRoleRepository{}, nil, nil)
 
 	_, err := a.CloneRole(ctx, "base", "", "")
 	assert.ErrorIs(t, err, domain.ErrRoleSlugRequired)
@@ -131,7 +131,7 @@ func TestAssignAgentToProject_Success(t *testing.T) {
 			return &domain.Project{ID: id}, nil
 		},
 	}
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return &domain.Role{ID: roleID, Slug: "dev"}, nil
 		},
@@ -147,7 +147,7 @@ func TestAssignAgentToProject_Success(t *testing.T) {
 
 func TestAssignAgentToProject_EmptySlug(t *testing.T) {
 	ctx := context.Background()
-	a := newAgentMgmtApp(nil, &rolestest.MockRoleRepository{}, nil, nil)
+	a := newAgentMgmtApp(nil, &agentstest.MockRoleRepository{}, nil, nil)
 
 	err := a.AssignAgentToProject(ctx, domain.NewProjectID(), "")
 	assert.ErrorIs(t, err, domain.ErrRoleSlugRequired)
@@ -160,7 +160,7 @@ func TestAssignAgentToProject_ProjectNotFound(t *testing.T) {
 			return nil, errors.New("not found")
 		},
 	}
-	a := newAgentMgmtApp(mockProjects, &rolestest.MockRoleRepository{}, nil, nil)
+	a := newAgentMgmtApp(mockProjects, &agentstest.MockRoleRepository{}, nil, nil)
 
 	err := a.AssignAgentToProject(ctx, domain.NewProjectID(), "dev")
 	assert.ErrorIs(t, err, domain.ErrProjectNotFound)
@@ -173,7 +173,7 @@ func TestAssignAgentToProject_RoleNotFound(t *testing.T) {
 			return &domain.Project{ID: id}, nil
 		},
 	}
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return nil, errors.New("not found")
 		},
@@ -194,7 +194,7 @@ func TestAssignAgentToProject_AlreadyAssigned(t *testing.T) {
 			return &domain.Project{ID: id}, nil
 		},
 	}
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return &domain.Role{ID: roleID, Slug: "dev"}, nil
 		},
@@ -220,7 +220,7 @@ func TestRemoveAgentFromProject_SuccessNoTasks(t *testing.T) {
 			return &domain.Project{ID: id}, nil
 		},
 	}
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return &domain.Role{ID: roleID, Slug: "dev"}, nil
 		},
@@ -253,7 +253,7 @@ func TestRemoveAgentFromProject_SuccessWithReassignTo(t *testing.T) {
 			return &domain.Project{ID: id}, nil
 		},
 	}
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, slug string) (*domain.Role, error) {
 			if slug == "dev" {
 				return &domain.Role{ID: roleID, Slug: "dev"}, nil
@@ -299,7 +299,7 @@ func TestRemoveAgentFromProject_SuccessWithClearAssignment(t *testing.T) {
 			return &domain.Project{ID: id}, nil
 		},
 	}
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return &domain.Role{ID: roleID, Slug: "dev"}, nil
 		},
@@ -338,7 +338,7 @@ func TestRemoveAgentFromProject_ErrAgentHasTasks(t *testing.T) {
 			return &domain.Project{ID: id}, nil
 		},
 	}
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return &domain.Role{ID: roleID, Slug: "dev"}, nil
 		},
@@ -367,7 +367,7 @@ func TestRemoveAgentFromProject_AgentNotInProject(t *testing.T) {
 			return &domain.Project{ID: id}, nil
 		},
 	}
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return &domain.Role{ID: roleID, Slug: "dev"}, nil
 		},
@@ -392,7 +392,7 @@ func TestBulkReassignTasks_Success(t *testing.T) {
 			return &domain.Project{ID: id}, nil
 		},
 	}
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return &domain.Role{ID: domain.NewRoleID(), Slug: "backend"}, nil
 		},
@@ -426,7 +426,7 @@ func TestBulkReassignTasks_NewSlugNotFound(t *testing.T) {
 			return &domain.Project{ID: id}, nil
 		},
 	}
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return nil, errors.New("not found")
 		},
@@ -444,7 +444,7 @@ func TestAddSkillToAgent_Success(t *testing.T) {
 	agentID := domain.NewRoleID()
 	skillID := domain.NewSkillID()
 
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return &domain.Role{ID: agentID, Slug: "dev"}, nil
 		},
@@ -465,7 +465,7 @@ func TestAddSkillToAgent_Success(t *testing.T) {
 
 func TestAddSkillToAgent_AgentNotFound(t *testing.T) {
 	ctx := context.Background()
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return nil, errors.New("not found")
 		},
@@ -478,7 +478,7 @@ func TestAddSkillToAgent_AgentNotFound(t *testing.T) {
 
 func TestAddSkillToAgent_SkillNotFound(t *testing.T) {
 	ctx := context.Background()
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return &domain.Role{ID: domain.NewRoleID(), Slug: "dev"}, nil
 		},
@@ -501,7 +501,7 @@ func TestRemoveSkillFromAgent_Success(t *testing.T) {
 	agentID := domain.NewRoleID()
 	skillID := domain.NewSkillID()
 
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return &domain.Role{ID: agentID, Slug: "dev"}, nil
 		},
@@ -522,7 +522,7 @@ func TestRemoveSkillFromAgent_Success(t *testing.T) {
 
 func TestRemoveSkillFromAgent_AgentNotFound(t *testing.T) {
 	ctx := context.Background()
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return nil, errors.New("not found")
 		},
@@ -535,7 +535,7 @@ func TestRemoveSkillFromAgent_AgentNotFound(t *testing.T) {
 
 func TestRemoveSkillFromAgent_SkillNotFound(t *testing.T) {
 	ctx := context.Background()
-	mockRoles := &rolestest.MockRoleRepository{
+	mockRoles := &agentstest.MockRoleRepository{
 		FindBySlugFunc: func(_ context.Context, _ string) (*domain.Role, error) {
 			return &domain.Role{ID: domain.NewRoleID(), Slug: "dev"}, nil
 		},

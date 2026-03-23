@@ -1,22 +1,16 @@
 package domain
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-// shortID generates an 8-character random hex string (4 bytes of entropy).
-// Sufficient for a single-instance system; SQLite PRIMARY KEY catches any collision.
-func shortID() string {
-	b := make([]byte, 4)
-	if _, err := rand.Read(b); err != nil {
-		panic("failed to generate random ID: " + err.Error())
-	}
-	return hex.EncodeToString(b)
+// newID generates a UUIDv7 string.
+func newID() string {
+	id, _ := uuid.NewV7()
+	return id.String()
 }
 
 // ProjectID represents a unique project identifier
@@ -24,7 +18,7 @@ type ProjectID string
 
 // NewProjectID generates a new project ID
 func NewProjectID() ProjectID {
-	return ProjectID(shortID())
+	return ProjectID(newID())
 }
 
 // String returns the string representation of a ProjectID
@@ -33,36 +27,39 @@ func (id ProjectID) String() string {
 }
 
 // ParseProjectID validates and returns a ProjectID.
-// A valid ID is an 8-character lowercase hex string.
+// A valid ID is a standard UUID string.
 func ParseProjectID(s string) (ProjectID, error) {
-	if len(s) != 8 {
-		return "", fmt.Errorf("invalid project ID %q: must be 8 hex characters", s)
-	}
-	if _, err := hex.DecodeString(s); err != nil {
-		return "", fmt.Errorf("invalid project ID %q: must be hex characters", s)
+	if _, err := uuid.Parse(s); err != nil {
+		return "", fmt.Errorf("invalid project ID %q: must be a valid UUID", s)
 	}
 	return ProjectID(s), nil
 }
 
-// RoleID represents a unique role identifier
-type RoleID string
+// AgentID represents a unique agent identifier
+type AgentID string
 
-// NewRoleID generates a new role ID
-func NewRoleID() RoleID {
-	return RoleID(shortID())
+// NewAgentID generates a new agent ID
+func NewAgentID() AgentID {
+	return AgentID(newID())
 }
 
-// String returns the string representation of a RoleID
-func (id RoleID) String() string {
+// String returns the string representation of an AgentID
+func (id AgentID) String() string {
 	return string(id)
 }
+
+// RoleID is an alias for AgentID for backward compatibility
+type RoleID = AgentID
+
+// NewRoleID is an alias for NewAgentID for backward compatibility
+var NewRoleID = NewAgentID
 
 // TaskID represents a unique task identifier
 type TaskID string
 
 // NewTaskID generates a new task ID as a UUID string.
 func NewTaskID() TaskID {
-	return TaskID(uuid.New().String())
+	return TaskID(newID())
 }
 
 // String returns the string representation of a TaskID
@@ -75,7 +72,7 @@ type ColumnID string
 
 // NewColumnID generates a new column ID
 func NewColumnID() ColumnID {
-	return ColumnID(shortID())
+	return ColumnID(newID())
 }
 
 // String returns the string representation of a ColumnID
@@ -88,7 +85,7 @@ type CommentID string
 
 // NewCommentID generates a new comment ID
 func NewCommentID() CommentID {
-	return CommentID(shortID())
+	return CommentID(newID())
 }
 
 // String returns the string representation of a CommentID
@@ -101,7 +98,7 @@ type DependencyID string
 
 // NewDependencyID generates a new dependency ID
 func NewDependencyID() DependencyID {
-	return DependencyID(shortID())
+	return DependencyID(newID())
 }
 
 // String returns the string representation of a DependencyID
@@ -114,7 +111,7 @@ type SkillID string
 
 // NewSkillID generates a new skill ID
 func NewSkillID() SkillID {
-	return SkillID(shortID())
+	return SkillID(newID())
 }
 
 // String returns the string representation of a SkillID
@@ -127,7 +124,7 @@ type DockerfileID string
 
 // NewDockerfileID generates a new dockerfile ID
 func NewDockerfileID() DockerfileID {
-	return DockerfileID(shortID())
+	return DockerfileID(newID())
 }
 
 // String returns the string representation of a DockerfileID
@@ -186,7 +183,6 @@ type Project struct {
 	ParentID       *ProjectID   `json:"parent_id"`
 	Name           string       `json:"name"`
 	Description    string       `json:"description"`
-	WorkDir        string       `json:"work_dir"`
 	GitURL         string       `json:"git_url"`
 	DefaultRole    string       `json:"default_role"`
 	CreatedByRole  string       `json:"created_by_role"`
@@ -200,9 +196,9 @@ func (p Project) IsFeature() bool {
 	return p.ParentID != nil
 }
 
-// Role represents an agent role in the system
-type Role struct {
-	ID             RoleID    `json:"id"`
+// Agent represents an agent in the system
+type Agent struct {
+	ID             AgentID   `json:"id"`
 	Slug           string    `json:"slug"`
 	Name           string    `json:"name"`
 	Icon           string    `json:"icon"`
@@ -215,6 +211,9 @@ type Role struct {
 	SortOrder      int       `json:"sort_order"`
 	CreatedAt      time.Time `json:"created_at"`
 }
+
+// Role is an alias for Agent for backward compatibility
+type Role = Agent
 
 // Skill represents a reusable capability that can be assigned to an agent
 type Skill struct {
@@ -383,8 +382,12 @@ type DependencyContext struct {
 	FilesModified     []string `json:"files_modified"`
 }
 
-// RoleColdStartStat holds aggregated cold-start token stats per role
-type RoleColdStartStat struct {
+// AgentColdStartStat holds aggregated cold-start token stats per agent
+//
+// Deprecated: Use AgentColdStartStat. RoleColdStartStat is kept for backward compatibility.
+type RoleColdStartStat = AgentColdStartStat
+
+type AgentColdStartStat struct {
 	AssignedRole       string  `json:"assigned_role"`
 	Count              int     `json:"count"`
 	MinInputTokens     int     `json:"min_input_tokens"`
@@ -410,4 +413,35 @@ type WIPSlotsInfo struct {
 	WIPLimit   int `json:"wip_limit"`   // 0 = unlimited
 	InProgress int `json:"in_progress"` // current in_progress task count
 	FreeSlots  int `json:"free_slots"`  // -1 = unlimited; >=0 = available slots
+}
+
+// ModelTokenStat holds aggregated token usage for a single model
+type ModelTokenStat struct {
+	Model           string `json:"model"`
+	TaskCount       int    `json:"task_count"`
+	InputTokens     int    `json:"input_tokens"`
+	OutputTokens    int    `json:"output_tokens"`
+	CacheReadTokens int    `json:"cache_read_tokens"`
+	CacheWriteTokens int   `json:"cache_write_tokens"`
+}
+
+// ModelPricing holds per-model pricing rates (per million tokens)
+type ModelPricing struct {
+	ID               string    `json:"id"`
+	ModelID          string    `json:"model_id"`
+	InputPricePer1M  float64   `json:"input_price_per_1m"`
+	OutputPricePer1M float64   `json:"output_price_per_1m"`
+	CacheReadPricePer1M  float64 `json:"cache_read_price_per_1m"`
+	CacheWritePricePer1M float64 `json:"cache_write_price_per_1m"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+// FeatureStats holds summary stats about features in a project
+type FeatureStats struct {
+	TotalCount      int `json:"total_count"`
+	NotReadyCount   int `json:"not_ready_count"`
+	ReadyCount      int `json:"ready_count"`
+	InProgressCount int `json:"in_progress_count"`
+	DoneCount       int `json:"done_count"`
+	BlockedCount    int `json:"blocked_count"`
 }

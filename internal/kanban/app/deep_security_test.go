@@ -45,7 +45,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/comments/commentstest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dependencies/dependenciestest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects/projectstest"
-	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/roles/rolestest"
+	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/agents/agentstest"
 	tasksrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks/taskstest"
 	"github.com/sirupsen/logrus"
@@ -59,7 +59,7 @@ import (
 
 func newSecurityApp(
 	projects *projectstest.MockProjectRepository,
-	roles *rolestest.MockRoleRepository,
+	roles *agentstest.MockRoleRepository,
 	tasks *taskstest.MockTaskRepository,
 	columns *columnstest.MockColumnRepository,
 	comments *commentstest.MockCommentRepository,
@@ -69,7 +69,7 @@ func newSecurityApp(
 	logger.SetLevel(logrus.PanicLevel)
 	return app.NewApp(app.Config{
 		Projects:     projects,
-		Roles:        roles,
+		Agents:        roles,
 		Tasks:        tasks,
 		Columns:      columns,
 		Comments:     comments,
@@ -197,7 +197,7 @@ func TestSecurity_RED_WIPLimitTOCTOU(t *testing.T) {
 
 	a := newSecurityApp(
 		&projectstest.MockProjectRepository{},
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		mockColumns,
 		&commentstest.MockCommentRepository{},
@@ -269,7 +269,7 @@ func TestSecurity_GREEN_WIPLimitEnforcedStable(t *testing.T) {
 
 	a := newSecurityApp(
 		&projectstest.MockProjectRepository{},
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		mockColumns,
 		&commentstest.MockCommentRepository{},
@@ -342,7 +342,7 @@ func TestSecurity_RED_MoveToBlockedColumnWithoutReason(t *testing.T) {
 
 	a := newSecurityApp(
 		&projectstest.MockProjectRepository{},
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		mockColumns,
 		&commentstest.MockCommentRepository{},
@@ -417,7 +417,7 @@ func TestSecurity_GREEN_BlockTaskRequiresReason(t *testing.T) {
 
 	a := newSecurityApp(
 		&projectstest.MockProjectRepository{},
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		mockColumns,
 		mockComments,
@@ -484,7 +484,7 @@ func TestSecurity_RED_CompleteTaskFromTodo(t *testing.T) {
 
 	a := newSecurityApp(
 		&projectstest.MockProjectRepository{},
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		mockColumns,
 		&commentstest.MockCommentRepository{},
@@ -544,7 +544,7 @@ func TestSecurity_GREEN_CompleteTaskFromInProgress(t *testing.T) {
 
 	a := newSecurityApp(
 		&projectstest.MockProjectRepository{},
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		mockColumns,
 		&commentstest.MockCommentRepository{},
@@ -611,7 +611,7 @@ func TestSecurity_RED_BlockTaskEmptyReason(t *testing.T) {
 
 	a := newSecurityApp(
 		&projectstest.MockProjectRepository{},
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		mockColumns,
 		mockComments,
@@ -672,7 +672,7 @@ func TestSecurity_GREEN_BlockTaskWithSufficientReason(t *testing.T) {
 
 	a := newSecurityApp(
 		&projectstest.MockProjectRepository{},
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		mockColumns,
 		mockComments,
@@ -738,7 +738,7 @@ func TestSecurity_RED_RequestWontDoEmptyReason(t *testing.T) {
 
 	a := newSecurityApp(
 		&projectstest.MockProjectRepository{},
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		mockColumns,
 		mockComments,
@@ -799,7 +799,7 @@ func TestSecurity_GREEN_RequestWontDoWithSufficientReason(t *testing.T) {
 
 	a := newSecurityApp(
 		&projectstest.MockProjectRepository{},
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		mockColumns,
 		mockComments,
@@ -899,7 +899,7 @@ func TestSecurity_RED_MoveTaskToProjectNonAtomic(t *testing.T) {
 
 	a := newSecurityApp(
 		mockProjects,
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		mockColumns,
 		&commentstest.MockCommentRepository{},
@@ -986,7 +986,7 @@ func TestSecurity_GREEN_MoveTaskToProjectSucceedsAtomically(t *testing.T) {
 
 	a := newSecurityApp(
 		mockProjects,
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		mockColumns,
 		&commentstest.MockCommentRepository{},
@@ -1039,7 +1039,7 @@ func TestSecurity_RED_TokenCounterOverflow(t *testing.T) {
 
 	a := newSecurityApp(
 		&projectstest.MockProjectRepository{},
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		&columnstest.MockColumnRepository{},
 		&commentstest.MockCommentRepository{},
@@ -1099,7 +1099,7 @@ func TestSecurity_GREEN_TokenCounterNormalAccumulation(t *testing.T) {
 
 	a := newSecurityApp(
 		&projectstest.MockProjectRepository{},
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		&columnstest.MockColumnRepository{},
 		&commentstest.MockCommentRepository{},
@@ -1157,7 +1157,7 @@ func TestSecurity_RED_NegativeWIPLimitBypass(t *testing.T) {
 
 	a := newSecurityApp(
 		mockProjects,
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		&taskstest.MockTaskRepository{},
 		mockColumns,
 		&commentstest.MockCommentRepository{},
@@ -1203,7 +1203,7 @@ func TestSecurity_GREEN_ValidWIPLimits(t *testing.T) {
 
 		a := newSecurityApp(
 			&projectstest.MockProjectRepository{},
-			&rolestest.MockRoleRepository{},
+			&agentstest.MockRoleRepository{},
 			&taskstest.MockTaskRepository{},
 			mockColumns,
 			&commentstest.MockCommentRepository{},
@@ -1266,7 +1266,7 @@ func TestSecurity_RED_GetNextTaskRoleBypass(t *testing.T) {
 
 	a := newSecurityApp(
 		mockProjects,
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		&columnstest.MockColumnRepository{},
 		&commentstest.MockCommentRepository{},
@@ -1325,7 +1325,7 @@ func TestSecurity_GREEN_GetNextTaskRoleFilterEnforced(t *testing.T) {
 
 	a := newSecurityApp(
 		mockProjects,
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		&columnstest.MockColumnRepository{},
 		&commentstest.MockCommentRepository{},
@@ -1421,7 +1421,7 @@ func TestSecurity_RED_RejectWontDoOutsideBlockedColumn(t *testing.T) {
 
 	a := newSecurityApp(
 		&projectstest.MockProjectRepository{},
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		mockColumns,
 		mockComments,
@@ -1495,7 +1495,7 @@ func TestSecurity_GREEN_RejectWontDoFromBlockedColumn(t *testing.T) {
 
 	a := newSecurityApp(
 		&projectstest.MockProjectRepository{},
-		&rolestest.MockRoleRepository{},
+		&agentstest.MockRoleRepository{},
 		mockTasks,
 		mockColumns,
 		mockComments,

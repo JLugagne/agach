@@ -12,7 +12,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/comments/commentstest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dependencies/dependenciestest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects/projectstest"
-	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/roles/rolestest"
+	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/agents/agentstest"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks/taskstest"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -20,12 +20,12 @@ import (
 )
 
 // setupTestApp creates a test app with all mocked repositories
-func setupTestApp() (*app.App, *projectstest.MockProjectRepository, *rolestest.MockRoleRepository, *taskstest.MockTaskRepository, *columnstest.MockColumnRepository, *commentstest.MockCommentRepository, *dependenciestest.MockDependencyRepository) {
+func setupTestApp() (*app.App, *projectstest.MockProjectRepository, *agentstest.MockRoleRepository, *taskstest.MockTaskRepository, *columnstest.MockColumnRepository, *commentstest.MockCommentRepository, *dependenciestest.MockDependencyRepository) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.ErrorLevel) // Reduce noise in tests
 
 	mockProjects := &projectstest.MockProjectRepository{}
-	mockRoles := &rolestest.MockRoleRepository{}
+	mockRoles := &agentstest.MockRoleRepository{}
 	mockTasks := &taskstest.MockTaskRepository{}
 	mockColumns := &columnstest.MockColumnRepository{}
 	mockComments := &commentstest.MockCommentRepository{}
@@ -33,7 +33,7 @@ func setupTestApp() (*app.App, *projectstest.MockProjectRepository, *rolestest.M
 
 	a := app.NewApp(app.Config{
 		Projects:     mockProjects,
-		Roles:        mockRoles,
+		Agents:        mockRoles,
 		Tasks:        mockTasks,
 		Columns:      mockColumns,
 		Comments:     mockComments,
@@ -54,7 +54,7 @@ func TestApp_CreateProject_Success(t *testing.T) {
 		return nil
 	}
 
-	project, err := a.CreateProject(ctx, "Test Project", "Description", "/tmp/test", "", "architect", "agent1", nil)
+	project, err := a.CreateProject(ctx, "Test Project", "Description", "", "architect", "agent1", nil)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, project.ID)
@@ -86,7 +86,7 @@ func TestApp_CreateProject_WithParent_Success(t *testing.T) {
 		return nil
 	}
 
-	project, err := a.CreateProject(ctx, "Child Project", "Description", "/tmp/child", "", "architect", "agent1", &parentID)
+	project, err := a.CreateProject(ctx, "Child Project", "Description", "", "architect", "agent1", &parentID)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, project.ID)
@@ -99,7 +99,7 @@ func TestApp_CreateProject_EmptyName_ReturnsError(t *testing.T) {
 	ctx := context.Background()
 	a, _, _, _, _, _, _ := setupTestApp()
 
-	_, err := a.CreateProject(ctx, "", "Description", "/tmp/test", "", "architect", "agent1", nil)
+	_, err := a.CreateProject(ctx, "", "Description", "", "architect", "agent1", nil)
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -116,7 +116,7 @@ func TestApp_CreateProject_ParentNotFound_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	_, err := a.CreateProject(ctx, "Child Project", "Description", "/tmp/child", "", "architect", "agent1", &parentID)
+	_, err := a.CreateProject(ctx, "Child Project", "Description", "", "architect", "agent1", &parentID)
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -149,7 +149,7 @@ func TestApp_UpdateProject_Success(t *testing.T) {
 		return nil
 	}
 
-	err := a.UpdateProject(ctx, projectID, "New Name", "New Description", nil)
+	err := a.UpdateProject(ctx, projectID, "New Name", "New Description", nil, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "New Name", updatedProject.Name)
@@ -167,7 +167,7 @@ func TestApp_UpdateProject_NotFound_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	err := a.UpdateProject(ctx, projectID, "New Name", "New Description", nil)
+	err := a.UpdateProject(ctx, projectID, "New Name", "New Description", nil, nil)
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -198,7 +198,7 @@ func TestApp_UpdateProject_SetsDefaultRole(t *testing.T) {
 	}
 
 	role := "go-developer"
-	err := a.UpdateProject(ctx, projectID, "Test Project", "", &role)
+	err := a.UpdateProject(ctx, projectID, "Test Project", "", nil, &role)
 
 	require.NoError(t, err)
 	assert.Equal(t, "go-developer", updatedProject.DefaultRole)
@@ -229,7 +229,7 @@ func TestApp_UpdateProject_ClearsDefaultRole(t *testing.T) {
 	}
 
 	role := ""
-	err := a.UpdateProject(ctx, projectID, "Test Project", "", &role)
+	err := a.UpdateProject(ctx, projectID, "Test Project", "", nil, &role)
 
 	require.NoError(t, err)
 	assert.Equal(t, "", updatedProject.DefaultRole)
@@ -259,7 +259,7 @@ func TestApp_UpdateProject_NilDefaultRole_DoesNotChange(t *testing.T) {
 		return nil
 	}
 
-	err := a.UpdateProject(ctx, projectID, "Test Project", "", nil)
+	err := a.UpdateProject(ctx, projectID, "Test Project", "", nil, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "go-developer", updatedProject.DefaultRole)

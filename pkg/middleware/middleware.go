@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"bufio"
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -9,8 +11,43 @@ import (
 	"time"
 
 	identityservice "github.com/JLugagne/agach-mcp/internal/identity/domain/service"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 )
+
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.status = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hj, ok := rw.ResponseWriter.(http.Hijacker); ok {
+		return hj.Hijack()
+	}
+	return nil, nil, fmt.Errorf("upstream ResponseWriter does not implement http.Hijacker")
+}
+
+func RequestLogger(logger *logrus.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
+			next.ServeHTTP(rw, r)
+			logger.WithFields(logrus.Fields{
+				"method":   r.Method,
+				"path":     r.URL.Path,
+				"status":   rw.status,
+				"duration": time.Since(start).Round(time.Millisecond).String(),
+				"ip":       remoteAddr(r),
+			}).Info("http")
+		})
+	}
+}
 
 const maxBodyBytes = 512 * 1024
 

@@ -3,6 +3,7 @@ package kanban
 import (
 	"net/http"
 
+	identityservice "github.com/JLugagne/agach-mcp/internal/identity/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/kanban/app"
 	"github.com/JLugagne/agach-mcp/internal/kanban/inbound/commands"
 	"github.com/JLugagne/agach-mcp/internal/kanban/inbound/queries"
@@ -18,8 +19,14 @@ import (
 
 // Config holds the configuration for the Kanban system
 type Config struct {
-	Pool   *pgxpool.Pool
-	Logger *logrus.Logger
+	Pool        *pgxpool.Pool
+	Logger      *logrus.Logger
+	AuthQueries identityservice.AuthQueries
+	// WSRouter is the router on which to register the /ws endpoint.
+	// Use a router without auth middleware, since browsers cannot send
+	// Authorization headers on WebSocket connections; auth is done via
+	// the ?token= query parameter instead. If nil, router is used.
+	WSRouter *mux.Router
 }
 
 // InitKanbanHTTP initializes the Kanban system with HTTP REST API and WebSocket
@@ -44,7 +51,7 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	// Initialize app layer with repositories
 	appInstance := app.NewApp(app.Config{
 		Projects:     repos.Projects,
-		Roles:        repos.Roles,
+		Agents:        repos.Agents,
 		Tasks:        repos.Tasks,
 		Columns:      repos.Columns,
 		Comments:     repos.Comments,
@@ -69,59 +76,9 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	// Initialize controller
 	ctrl := controller.NewController(logger)
 
-	// Initialize command handlers
-	projectCommands := commands.NewProjectCommandsHandler(appInstance, ctrl, hub)
-	roleCommands := commands.NewRoleCommandsHandler(appInstance, ctrl, hub)
-	taskCommands := commands.NewTaskCommandsHandler(appInstance, ctrl, hub, sseHub)
-	commentCommands := commands.NewCommentCommandsHandlerWithQueries(appInstance, appInstance, ctrl, hub)
-	imageCommands := commands.NewImageCommandsHandler(appInstance, ctrl)
-	seenCommands := commands.NewSeenCommandsHandler(appInstance, ctrl, hub)
-	columnCommands := commands.NewColumnCommandsHandler(appInstance, ctrl)
-	projectRoleCommands := commands.NewProjectRoleCommandsHandler(appInstance, appInstance, ctrl)
-	projectAgentCmds := commands.NewProjectAgentCommandsHandler(appInstance, appInstance, ctrl, hub)
-	skillCommands := commands.NewSkillCommandsHandler(appInstance, appInstance, ctrl, hub)
-	dockerfileCommands := commands.NewDockerfileCommandsHandler(appInstance, ctrl)
-
-	// Initialize query handlers
-	projectQueries := queries.NewProjectQueriesHandler(appInstance, ctrl)
-	roleQueries := queries.NewRoleQueriesHandler(appInstance, ctrl)
-	taskQueries := queries.NewTaskQueriesHandler(appInstance, ctrl)
-	commentQueries := queries.NewCommentQueriesHandler(appInstance, ctrl)
-	dependencyQueries := queries.NewDependencyQueriesHandler(appInstance, ctrl)
-	toolUsageQueries := queries.NewToolUsageQueriesHandler(appInstance, ctrl)
-	timelineQueries := queries.NewTimelineQueriesHandler(appInstance, ctrl)
-	projectRoleQueries := queries.NewProjectRoleQueriesHandler(appInstance, ctrl)
-	coldStartStatsQueries := queries.NewColdStartStatsQueriesHandler(appInstance, ctrl)
-	sseHandler := queries.NewSSEHandler(sseHub)
-	skillQueries := queries.NewSkillQueriesHandler(appInstance, ctrl)
-	projectAgentQueries := queries.NewProjectAgentQueriesHandler(appInstance, ctrl)
-	dockerfileQueries := queries.NewDockerfileQueriesHandler(appInstance, ctrl)
-
 	// Register routes
-	projectCommands.RegisterRoutes(router)
-	roleCommands.RegisterRoutes(router)
-	taskCommands.RegisterRoutes(router)
-	commentCommands.RegisterRoutes(router)
-	imageCommands.RegisterRoutes(router)
-	seenCommands.RegisterRoutes(router)
-	columnCommands.RegisterRoutes(router)
-	projectRoleCommands.RegisterRoutes(router)
-	projectQueries.RegisterRoutes(router)
-	roleQueries.RegisterRoutes(router)
-	taskQueries.RegisterRoutes(router)
-	commentQueries.RegisterRoutes(router)
-	dependencyQueries.RegisterRoutes(router)
-	toolUsageQueries.RegisterRoutes(router)
-	timelineQueries.RegisterRoutes(router)
-	projectRoleQueries.RegisterRoutes(router)
-	coldStartStatsQueries.RegisterRoutes(router)
-	sseHandler.RegisterRoutes(router)
-	projectAgentCmds.RegisterRoutes(router)
-	skillCommands.RegisterRoutes(router)
-	skillQueries.RegisterRoutes(router)
-	projectAgentQueries.RegisterRoutes(router)
-	dockerfileCommands.RegisterRoutes(router)
-	dockerfileQueries.RegisterRoutes(router)
+	commands.NewRouter(router, appInstance, ctrl, hub, sseHub)
+	queries.NewRouter(router, appInstance, ctrl, sseHub)
 
 	// WebSocket endpoint
 	upgrader := gorillaws.Upgrader{
@@ -132,7 +89,24 @@ func InitKanbanHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 		},
 	}
 
-	router.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+	wsRouter := router
+	if cfg.WSRouter != nil {
+		wsRouter = cfg.WSRouter
+	}
+	wsRouter.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		// Browsers cannot set custom headers on WebSocket connections.
+		// Accept the JWT via the ?token= query parameter instead.
+		if cfg.AuthQueries != nil {
+			token := r.URL.Query().Get("token")
+			if token == "" {
+				http.Error(w, `{"status":"fail","error":{"code":"UNAUTHORIZED","message":"authentication required"}}`, http.StatusUnauthorized)
+				return
+			}
+			if _, err := cfg.AuthQueries.ValidateJWT(r.Context(), token); err != nil {
+				http.Error(w, `{"status":"fail","error":{"code":"UNAUTHORIZED","message":"authentication required"}}`, http.StatusUnauthorized)
+				return
+			}
+		}
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			logger.WithError(err).Error("Failed to upgrade WebSocket")

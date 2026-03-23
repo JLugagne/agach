@@ -10,29 +10,29 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// RoleQueriesHandler handles role read operations
-type RoleQueriesHandler struct {
+// AgentQueriesHandler handles role read operations
+type AgentQueriesHandler struct {
 	queries    service.Queries
 	controller *controller.Controller
 }
 
-// NewRoleQueriesHandler creates a new role queries handler
-func NewRoleQueriesHandler(queries service.Queries, ctrl *controller.Controller) *RoleQueriesHandler {
-	return &RoleQueriesHandler{
+// NewAgentQueriesHandler creates a new role queries handler
+func NewAgentQueriesHandler(queries service.Queries, ctrl *controller.Controller) *AgentQueriesHandler {
+	return &AgentQueriesHandler{
 		queries:    queries,
 		controller: ctrl,
 	}
 }
 
 // RegisterRoutes registers role query routes
-func (h *RoleQueriesHandler) RegisterRoutes(router *mux.Router) {
-	router.HandleFunc("/api/roles", h.ListRoles).Methods("GET")
-	router.HandleFunc("/api/roles/{slug}", h.GetRole).Methods("GET")
+func (h *AgentQueriesHandler) RegisterRoutes(router *mux.Router) {
+	router.HandleFunc("/api/agents", h.ListAgents).Methods("GET")
+	router.HandleFunc("/api/agents/{slug}", h.GetAgent).Methods("GET")
 }
 
-// ListRoles lists all roles
-func (h *RoleQueriesHandler) ListRoles(w http.ResponseWriter, r *http.Request) {
-	roles, err := h.queries.ListRoles(r.Context())
+// ListAgents lists all roles
+func (h *AgentQueriesHandler) ListAgents(w http.ResponseWriter, r *http.Request) {
+	roles, err := h.queries.ListAgents(r.Context())
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)
@@ -42,14 +42,14 @@ func (h *RoleQueriesHandler) ListRoles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.controller.SendSuccess(w, r, converters.ToPublicRoles(roles))
+	h.controller.SendSuccess(w, r, converters.ToPublicAgents(roles))
 }
 
-// GetRole gets a single role by slug
-func (h *RoleQueriesHandler) GetRole(w http.ResponseWriter, r *http.Request) {
+// GetAgent gets a single role by slug
+func (h *AgentQueriesHandler) GetAgent(w http.ResponseWriter, r *http.Request) {
 	slug := mux.Vars(r)["slug"]
 
-	role, err := h.queries.GetRoleBySlug(r.Context(), slug)
+	role, err := h.queries.GetAgentBySlug(r.Context(), slug)
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)
@@ -59,5 +59,5 @@ func (h *RoleQueriesHandler) GetRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.controller.SendSuccess(w, r, converters.ToPublicRole(*role))
+	h.controller.SendSuccess(w, r, converters.ToPublicAgent(*role))
 }

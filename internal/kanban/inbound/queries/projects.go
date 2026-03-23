@@ -35,21 +35,8 @@ func (h *ProjectQueriesHandler) RegisterRoutes(router *mux.Router) {
 }
 
 // ListProjects lists all root projects with summaries.
-// Accepts optional ?work_dir= query parameter to filter by working directory.
 func (h *ProjectQueriesHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
-	workDir := r.URL.Query().Get("work_dir")
-
-	var (
-		projects interface{}
-		err      error
-	)
-
-	if workDir != "" {
-		projects, err = h.queries.ListProjectsByWorkDir(r.Context(), workDir)
-	} else {
-		projects, err = h.queries.ListProjectsWithSummary(r.Context())
-	}
-
+	projects, err := h.queries.ListProjectsWithSummary(r.Context())
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)

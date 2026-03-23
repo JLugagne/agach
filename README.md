@@ -238,7 +238,7 @@ Strict hexagonal architecture. Domain owns the interfaces. No layer reaches wher
 
 Full REST API available alongside MCP:
 
-- `GET/POST/PATCH/DELETE /api/projects` — Project CRUD (supports `?work_dir=` filtering)
+- `GET/POST/PATCH/DELETE /api/projects` — Project CRUD
 - `GET/PATCH /api/roles` — Role management
 - `GET/POST/PATCH/DELETE /api/projects/{id}/tasks` — Task CRUD
 - `POST /api/projects/{id}/tasks/{taskId}/move` — Move task between columns

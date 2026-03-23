@@ -26,19 +26,19 @@ type BulkTaskInput struct {
 // Commands defines write operations for the Kanban system
 type Commands interface {
 	// Project commands
-	CreateProject(ctx context.Context, name, description, workDir, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
-	UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string, defaultRole *string) error
+	CreateProject(ctx context.Context, name, description, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
+	UpdateProject(ctx context.Context, projectID domain.ProjectID, name, description string, gitURL, defaultRole *string) error
 	DeleteProject(ctx context.Context, projectID domain.ProjectID) error
 
-	// Role commands (global)
-	CreateRole(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error)
-	UpdateRole(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error
-	DeleteRole(ctx context.Context, roleID domain.RoleID) error
+	// Agent commands (global)
+	CreateAgent(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Agent, error)
+	UpdateAgent(ctx context.Context, agentID domain.AgentID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error
+	DeleteAgent(ctx context.Context, agentID domain.AgentID) error
 
-	// Role commands (per-project)
-	CreateProjectRole(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error)
-	UpdateProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error
-	DeleteProjectRole(ctx context.Context, projectID domain.ProjectID, roleID domain.RoleID) error
+	// Agent commands (per-project)
+	CreateProjectAgent(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Agent, error)
+	UpdateProjectAgent(ctx context.Context, projectID domain.ProjectID, agentID domain.AgentID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error
+	DeleteProjectAgent(ctx context.Context, projectID domain.ProjectID, agentID domain.AgentID) error
 
 	// Task commands
 	CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.ProjectID) (domain.Task, error)
@@ -82,67 +82,31 @@ type Commands interface {
 
 	// Agent management commands
 
-	// CloneRole creates a copy of an existing role (global) with a new slug and name.
-	// All fields (description, tech_stack, prompt_hint, prompt_template, content) are copied.
-	// Returns ErrRoleNotFound if sourceSlug does not exist.
-	// Returns ErrRoleAlreadyExists if newSlug is already taken.
-	CloneRole(ctx context.Context, sourceSlug, newSlug, newName string) (domain.Role, error)
+	// CloneAgent creates a copy of an existing agent (global) with a new slug and name.
+	CloneAgent(ctx context.Context, sourceSlug, newSlug, newName string) (domain.Agent, error)
 
 	// AssignAgentToProject assigns a global agent (by slug) to a project.
-	// Returns ErrRoleNotFound if slug does not match any global role.
-	// Returns ErrAgentAlreadyInProject if already assigned.
 	AssignAgentToProject(ctx context.Context, projectID domain.ProjectID, agentSlug string) error
 
 	// RemoveAgentFromProject removes an agent from a project.
-	// Returns ErrAgentNotInProject if not assigned.
-	// Returns ErrAgentHasTasks if there are tasks still assigned to this agent in the
-	// project AND reassignTo is nil AND clearAssignment is false.
-	// If reassignTo is non-nil, calls BulkReassignTasks first.
-	// If clearAssignment is true, sets assigned_role to "" for all affected tasks first.
 	RemoveAgentFromProject(ctx context.Context, projectID domain.ProjectID, agentSlug string, reassignTo *string, clearAssignment bool) error
 
 	// BulkReassignTasks sets assigned_role from oldSlug to newSlug for all tasks in a project.
-	// If newSlug is empty string, clears assigned_role.
-	// Returns the count of updated tasks.
 	BulkReassignTasks(ctx context.Context, projectID domain.ProjectID, oldSlug, newSlug string) (int, error)
 
 	// Skill commands
 
-	// CreateSkill creates a new global skill.
 	CreateSkill(ctx context.Context, slug, name, description, content, icon, color string, sortOrder int) (domain.Skill, error)
-
-	// UpdateSkill updates a skill's mutable fields.
 	UpdateSkill(ctx context.Context, skillID domain.SkillID, name, description, content, icon, color string, sortOrder int) error
-
-	// DeleteSkill deletes a skill.
-	// Returns ErrSkillInUse if the skill is assigned to any agent.
 	DeleteSkill(ctx context.Context, skillID domain.SkillID) error
-
-	// AddSkillToAgent assigns a skill to an agent (global role) by slug.
-	// Returns ErrRoleNotFound or ErrSkillNotFound if either does not exist.
-	// Returns ErrSkillAlreadyExists if already assigned.
 	AddSkillToAgent(ctx context.Context, agentSlug, skillSlug string) error
-
-	// RemoveSkillFromAgent removes a skill assignment from an agent.
-	// Returns ErrSkillNotFound if the assignment does not exist.
 	RemoveSkillFromAgent(ctx context.Context, agentSlug, skillSlug string) error
 
 	// Dockerfile commands
 
-	// CreateDockerfile creates a new versioned dockerfile.
 	CreateDockerfile(ctx context.Context, slug, name, description, version, content string, isLatest bool, sortOrder int) (domain.Dockerfile, error)
-
-	// UpdateDockerfile updates a dockerfile's mutable fields.
 	UpdateDockerfile(ctx context.Context, dockerfileID domain.DockerfileID, name, description, content *string, isLatest *bool, sortOrder *int) error
-
-	// DeleteDockerfile deletes a dockerfile.
-	// Returns ErrDockerfileInUse if the dockerfile is assigned to any project.
 	DeleteDockerfile(ctx context.Context, dockerfileID domain.DockerfileID) error
-
-	// SetProjectDockerfile assigns a dockerfile to a project.
-	// Replaces any existing assignment.
 	SetProjectDockerfile(ctx context.Context, projectID domain.ProjectID, dockerfileID domain.DockerfileID) error
-
-	// ClearProjectDockerfile removes the dockerfile assignment from a project.
 	ClearProjectDockerfile(ctx context.Context, projectID domain.ProjectID) error
 }

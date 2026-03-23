@@ -7,19 +7,19 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain"
 )
 
-func (a *App) CloneRole(ctx context.Context, sourceSlug, newSlug, newName string) (domain.Role, error) {
+func (a *App) CloneAgent(ctx context.Context, sourceSlug, newSlug, newName string) (domain.Role, error) {
 	logger := a.logger.WithContext(ctx)
 
 	if newSlug == "" {
 		return domain.Role{}, domain.ErrRoleSlugRequired
 	}
 
-	source, err := a.roles.FindBySlug(ctx, sourceSlug)
+	source, err := a.agents.FindBySlug(ctx, sourceSlug)
 	if err != nil || source == nil {
 		return domain.Role{}, domain.ErrRoleNotFound
 	}
 
-	existing, err := a.roles.FindBySlug(ctx, newSlug)
+	existing, err := a.agents.FindBySlug(ctx, newSlug)
 	if err == nil && existing != nil {
 		return domain.Role{}, domain.ErrRoleAlreadyExists
 	}
@@ -28,7 +28,7 @@ func (a *App) CloneRole(ctx context.Context, sourceSlug, newSlug, newName string
 		newName = source.Name + " (copy)"
 	}
 
-	cloned, err := a.roles.Clone(ctx, source.ID, newSlug, newName)
+	cloned, err := a.agents.Clone(ctx, source.ID, newSlug, newName)
 	if err != nil {
 		return domain.Role{}, err
 	}
@@ -52,12 +52,12 @@ func (a *App) AssignAgentToProject(ctx context.Context, projectID domain.Project
 		return domain.ErrProjectNotFound
 	}
 
-	role, err := a.roles.FindBySlug(ctx, agentSlug)
+	role, err := a.agents.FindBySlug(ctx, agentSlug)
 	if err != nil || role == nil {
 		return domain.ErrRoleNotFound
 	}
 
-	if err := a.roles.AssignToProject(ctx, projectID, role.ID); err != nil {
+	if err := a.agents.AssignToProject(ctx, projectID, role.ID); err != nil {
 		return err
 	}
 
@@ -80,12 +80,12 @@ func (a *App) RemoveAgentFromProject(ctx context.Context, projectID domain.Proje
 		return domain.ErrProjectNotFound
 	}
 
-	role, err := a.roles.FindBySlug(ctx, agentSlug)
+	role, err := a.agents.FindBySlug(ctx, agentSlug)
 	if err != nil || role == nil {
 		return domain.ErrRoleNotFound
 	}
 
-	assigned, err := a.roles.IsAssignedToProject(ctx, projectID, role.ID)
+	assigned, err := a.agents.IsAssignedToProject(ctx, projectID, role.ID)
 	if err != nil {
 		return err
 	}
@@ -112,7 +112,7 @@ func (a *App) RemoveAgentFromProject(ctx context.Context, projectID domain.Proje
 		}
 	}
 
-	if err := a.roles.RemoveFromProject(ctx, projectID, role.ID); err != nil {
+	if err := a.agents.RemoveFromProject(ctx, projectID, role.ID); err != nil {
 		return err
 	}
 
@@ -136,7 +136,7 @@ func (a *App) BulkReassignTasks(ctx context.Context, projectID domain.ProjectID,
 	}
 
 	if newSlug != "" {
-		target, err := a.roles.FindBySlug(ctx, newSlug)
+		target, err := a.agents.FindBySlug(ctx, newSlug)
 		if err != nil || target == nil {
 			return 0, domain.ErrRoleNotFound
 		}
@@ -152,7 +152,7 @@ func (a *App) BulkReassignTasks(ctx context.Context, projectID domain.ProjectID,
 }
 
 func (a *App) AddSkillToAgent(ctx context.Context, agentSlug, skillSlug string) error {
-	agent, err := a.roles.FindBySlug(ctx, agentSlug)
+	agent, err := a.agents.FindBySlug(ctx, agentSlug)
 	if err != nil || agent == nil {
 		return domain.ErrRoleNotFound
 	}
@@ -166,7 +166,7 @@ func (a *App) AddSkillToAgent(ctx context.Context, agentSlug, skillSlug string) 
 }
 
 func (a *App) RemoveSkillFromAgent(ctx context.Context, agentSlug, skillSlug string) error {
-	agent, err := a.roles.FindBySlug(ctx, agentSlug)
+	agent, err := a.agents.FindBySlug(ctx, agentSlug)
 	if err != nil || agent == nil {
 		return domain.ErrRoleNotFound
 	}
@@ -180,7 +180,7 @@ func (a *App) RemoveSkillFromAgent(ctx context.Context, agentSlug, skillSlug str
 }
 
 func (a *App) ListAgentSkills(ctx context.Context, agentSlug string) ([]domain.Skill, error) {
-	agent, err := a.roles.FindBySlug(ctx, agentSlug)
+	agent, err := a.agents.FindBySlug(ctx, agentSlug)
 	if err != nil || agent == nil {
 		return nil, domain.ErrRoleNotFound
 	}

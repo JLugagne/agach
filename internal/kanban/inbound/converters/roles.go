@@ -5,29 +5,29 @@ import (
 	pkgkanban "github.com/JLugagne/agach-mcp/pkg/kanban"
 )
 
-// ToPublicRole converts domain.Role to pkgkanban.RoleResponse
-func ToPublicRole(role domain.Role) pkgkanban.RoleResponse {
-	return pkgkanban.RoleResponse{
-		ID:             string(role.ID),
-		Slug:           role.Slug,
-		Name:           role.Name,
-		Icon:           role.Icon,
-		Color:          role.Color,
-		Description:    role.Description,
-		TechStack:      role.TechStack,
-		PromptHint:     role.PromptHint,
-		PromptTemplate: role.PromptTemplate,
-		Content:        role.Content,
-		SortOrder:      role.SortOrder,
-		CreatedAt:      role.CreatedAt,
+// ToPublicAgent converts domain.Agent to pkgkanban.AgentResponse
+func ToPublicAgent(agent domain.Agent) pkgkanban.AgentResponse {
+	return pkgkanban.AgentResponse{
+		ID:             string(agent.ID),
+		Slug:           agent.Slug,
+		Name:           agent.Name,
+		Icon:           agent.Icon,
+		Color:          agent.Color,
+		Description:    agent.Description,
+		TechStack:      agent.TechStack,
+		PromptHint:     agent.PromptHint,
+		PromptTemplate: agent.PromptTemplate,
+		Content:        agent.Content,
+		SortOrder:      agent.SortOrder,
+		CreatedAt:      agent.CreatedAt,
 	}
 }
 
-// ToPublicRoles converts []domain.Role to []pkgkanban.RoleResponse
-func ToPublicRoles(roles []domain.Role) []pkgkanban.RoleResponse {
-	result := make([]pkgkanban.RoleResponse, len(roles))
-	for i, r := range roles {
-		result[i] = ToPublicRole(r)
+// ToPublicAgents converts []domain.Agent to []pkgkanban.AgentResponse
+func ToPublicAgents(agents []domain.Agent) []pkgkanban.AgentResponse {
+	result := make([]pkgkanban.AgentResponse, len(agents))
+	for i, a := range agents {
+		result[i] = ToPublicAgent(a)
 	}
 	return result
 }

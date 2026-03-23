@@ -80,7 +80,7 @@ func (h *ProjectAgentCommandsHandler) RemoveAgent(w http.ResponseWriter, r *http
 
 	slug := mux.Vars(r)["slug"]
 	if slug == "" {
-		h.controller.SendFail(w, r, nil, domain.ErrRoleSlugRequired)
+		h.controller.SendFail(w, r, nil, domain.ErrAgentSlugRequired)
 		return
 	}
 

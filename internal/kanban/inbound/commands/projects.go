@@ -45,7 +45,7 @@ func (h *ProjectCommandsHandler) CreateProject(w http.ResponseWriter, r *http.Re
 
 	parentID := converters.ToDomainProjectID(req.ParentID)
 
-	project, err := h.commands.CreateProject(r.Context(), req.Name, req.Description, req.WorkDir, req.GitURL, req.CreatedByRole, req.CreatedByAgent, parentID)
+	project, err := h.commands.CreateProject(r.Context(), req.Name, req.Description, req.GitURL, req.CreatedByRole, req.CreatedByAgent, parentID)
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)
@@ -85,7 +85,7 @@ func (h *ProjectCommandsHandler) UpdateProject(w http.ResponseWriter, r *http.Re
 		desc = *req.Description
 	}
 
-	if err := h.commands.UpdateProject(r.Context(), projectID, name, desc, req.DefaultRole); err != nil {
+	if err := h.commands.UpdateProject(r.Context(), projectID, name, desc, req.GitURL, req.DefaultRole); err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)
 		} else {

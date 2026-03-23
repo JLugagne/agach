@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { getToken, setToken, clearToken, login as apiLogin, logout as apiLogout, type LoginResponse } from '../lib/auth';
 import { authEvents } from '../lib/api';
+import { wsClient } from '../lib/ws';
 
 interface AuthUser {
   id: string;
@@ -14,6 +15,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (partial: Partial<AuthUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -39,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       clearToken();
       localStorage.removeItem('agach_user');
+      wsClient.disconnect();
     };
     authEvents.addEventListener('unauthorized', handler);
     return () => authEvents.removeEventListener('unauthorized', handler);
@@ -49,16 +52,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(data.access_token);
     localStorage.setItem('agach_user', JSON.stringify(data.user));
     setUser(data.user);
+    wsClient.reset();
+    wsClient.connect();
+  }, []);
+
+  const updateUser = useCallback((partial: Partial<AuthUser>) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...partial };
+      localStorage.setItem('agach_user', JSON.stringify(updated));
+      return updated;
+    });
   }, []);
 
   const logout = useCallback(async () => {
+    wsClient.disconnect();
     await apiLogout();
     setUser(null);
     localStorage.removeItem('agach_user');
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

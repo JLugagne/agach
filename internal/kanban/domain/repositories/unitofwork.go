@@ -3,18 +3,18 @@ package repositories
 import (
 	"context"
 
+	agentsrepo "github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/agents"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/columns"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/comments"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/dependencies"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/projects"
-	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/roles"
 	"github.com/JLugagne/agach-mcp/internal/kanban/domain/repositories/tasks"
 )
 
 // Repositories groups all repository interfaces for use within a transaction
 type Repositories struct {
 	Projects     projects.ProjectRepository
-	Roles        roles.RoleRepository
+	Agents       agentsrepo.AgentRepository
 	Tasks        tasks.TaskRepository
 	Columns      columns.ColumnRepository
 	Comments     comments.CommentRepository

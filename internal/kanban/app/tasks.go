@@ -1162,6 +1162,72 @@ func (a *App) GetColdStartStats(ctx context.Context, projectID domain.ProjectID)
 	return stats, nil
 }
 
+// GetModelTokenStats returns aggregated token usage grouped by model for a project.
+func (a *App) GetModelTokenStats(ctx context.Context, projectID domain.ProjectID) ([]domain.ModelTokenStat, error) {
+	logger := a.logger.WithContext(ctx).WithField("projectID", projectID)
+
+	rootID, err := a.resolveRootProjectID(ctx, projectID)
+	if err != nil {
+		logger.WithError(err).Error("failed to resolve root project ID")
+		return nil, err
+	}
+
+	stats, err := a.tasks.GetModelTokenStats(ctx, rootID)
+	if err != nil {
+		logger.WithError(err).Error("failed to get model token stats")
+		return nil, err
+	}
+
+	return stats, nil
+}
+
+// ListModelPricing returns all model pricing records.
+func (a *App) ListModelPricing(ctx context.Context) ([]domain.ModelPricing, error) {
+	return a.projects.ListModelPricing(ctx)
+}
+
+// GetFeatureStats returns aggregated feature statistics for a project.
+func (a *App) GetFeatureStats(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error) {
+	logger := a.logger.WithContext(ctx).WithField("projectID", projectID)
+
+	rootID, err := a.resolveRootProjectID(ctx, projectID)
+	if err != nil {
+		logger.WithError(err).Error("failed to resolve root project ID")
+		return nil, err
+	}
+
+	features, err := a.ListSubProjectsWithSummary(ctx, rootID)
+	if err != nil {
+		logger.WithError(err).Error("failed to list features")
+		return nil, err
+	}
+
+	stats := &domain.FeatureStats{
+		TotalCount: len(features),
+	}
+
+	for _, f := range features {
+		s := f.TaskSummary
+		total := s.TodoCount + s.InProgressCount + s.DoneCount + s.BlockedCount
+		active := s.TodoCount + s.InProgressCount + s.BlockedCount
+
+		switch {
+		case s.BlockedCount > 0:
+			stats.BlockedCount++
+		case total > 0 && active == 0:
+			stats.DoneCount++
+		case s.InProgressCount > 0:
+			stats.InProgressCount++
+		case s.TodoCount > 0:
+			stats.ReadyCount++
+		default:
+			stats.NotReadyCount++
+		}
+	}
+
+	return stats, nil
+}
+
 // UpdateTaskSessionID saves the Claude Code session ID on a task for later resumption.
 func (a *App) UpdateTaskSessionID(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error {
 	return a.tasks.UpdateSessionID(ctx, projectID, taskID, sessionID)

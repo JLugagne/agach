@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createProject, setProjectDockerfile, listDockerfiles, listRoles } from '../lib/api';
-import type { DockerfileResponse, RoleResponse } from '../lib/types';
+import { createProject, setProjectDockerfile, listDockerfiles, listAgents } from '../lib/api';
+import type { DockerfileResponse, AgentResponse } from '../lib/types';
 
 interface Props {
   onClose: () => void;
@@ -13,18 +13,17 @@ export default function CreateProjectDialog({ onClose, onCreated }: Props) {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [workDir, setWorkDir] = useState('');
   const [gitUrl, setGitUrl] = useState('');
   const [selectedDockerfileId, setSelectedDockerfileId] = useState('');
   const [selectedRoleSlugs, setSelectedRoleSlugs] = useState<Set<string>>(new Set());
 
   const [dockerfiles, setDockerfiles] = useState<DockerfileResponse[]>([]);
-  const [roles, setRoles] = useState<RoleResponse[]>([]);
+  const [roles, setRoles] = useState<AgentResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([listDockerfiles(), listRoles()]).then(([dfs, rls]) => {
+    Promise.all([listDockerfiles(), listAgents()]).then(([dfs, rls]) => {
       setDockerfiles(dfs ?? []);
       setRoles(rls ?? []);
     }).catch(() => {});
@@ -48,7 +47,6 @@ export default function CreateProjectDialog({ onClose, onCreated }: Props) {
       const project = await createProject({
         name: name.trim(),
         description: description.trim() || undefined,
-        work_dir: workDir.trim() || undefined,
         git_url: gitUrl.trim() || undefined,
       });
 
@@ -120,20 +118,6 @@ export default function CreateProjectDialog({ onClose, onCreated }: Props) {
               placeholder="What is this project about?"
               rows={2}
               className="w-full px-3 py-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-primary)] text-[13px] outline-none focus:border-[var(--primary)] transition-colors resize-none"
-            />
-          </div>
-
-          {/* Work Dir */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[12px] font-medium text-[var(--text-secondary)]">Work Directory</label>
-            <input
-              type="text"
-              value={workDir}
-              onChange={e => setWorkDir(e.target.value)}
-              data-qa="create-project-workdir-input"
-              placeholder="/home/user/my-project"
-              className="w-full px-3 py-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-primary)] text-[13px] outline-none focus:border-[var(--primary)] transition-colors"
-              style={{ fontFamily: 'JetBrains Mono, monospace' }}
             />
           </div>
 
@@ -228,7 +212,7 @@ export default function CreateProjectDialog({ onClose, onCreated }: Props) {
             type="submit"
             disabled={loading || !name.trim()}
             data-qa="create-project-submit-btn"
-            className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-[var(--primary)] text-[var(--primary-text)] hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? 'Creating…' : 'Create Project'}
           </button>

@@ -36,8 +36,8 @@ func (h *SkillCommandsHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/skills", h.CreateSkill).Methods("POST")
 	router.HandleFunc("/api/skills/{slug}", h.UpdateSkill).Methods("PATCH")
 	router.HandleFunc("/api/skills/{slug}", h.DeleteSkill).Methods("DELETE")
-	router.HandleFunc("/api/roles/{slug}/skills", h.AddSkillToAgent).Methods("POST")
-	router.HandleFunc("/api/roles/{slug}/skills/{skillSlug}", h.RemoveSkillFromAgent).Methods("DELETE")
+	router.HandleFunc("/api/agents/{slug}/skills", h.AddSkillToAgent).Methods("POST")
+	router.HandleFunc("/api/agents/{slug}/skills/{skillSlug}", h.RemoveSkillFromAgent).Methods("DELETE")
 }
 
 // CreateSkill creates a new skill
@@ -180,7 +180,7 @@ func (h *SkillCommandsHandler) DeleteSkill(w http.ResponseWriter, r *http.Reques
 func (h *SkillCommandsHandler) AddSkillToAgent(w http.ResponseWriter, r *http.Request) {
 	agentSlug := mux.Vars(r)["slug"]
 	if agentSlug == "" {
-		h.controller.SendFail(w, r, nil, domain.ErrRoleSlugRequired)
+		h.controller.SendFail(w, r, nil, domain.ErrAgentSlugRequired)
 		return
 	}
 
@@ -213,7 +213,7 @@ func (h *SkillCommandsHandler) RemoveSkillFromAgent(w http.ResponseWriter, r *ht
 	skillSlug := mux.Vars(r)["skillSlug"]
 
 	if agentSlug == "" {
-		h.controller.SendFail(w, r, nil, domain.ErrRoleSlugRequired)
+		h.controller.SendFail(w, r, nil, domain.ErrAgentSlugRequired)
 		return
 	}
 	if skillSlug == "" {

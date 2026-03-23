@@ -24,7 +24,7 @@ func TestSkillContract(t *testing.T) {
 	repo := setupTestRepositories(t)
 
 	roleID := domain.NewRoleID()
-	err := repo.Roles.Create(ctx, domain.Role{
+	err := repo.Agents.Create(ctx, domain.Role{
 		ID:        roleID,
 		Slug:      "skill-test-agent",
 		Name:      "Skill Test Agent",

@@ -42,6 +42,7 @@ function App() {
             <Route path="/projects/:projectId/board" element={<ProtectedRoute><Layout><KanbanPage /></Layout></ProtectedRoute>} />
             <Route path="/projects/:projectId/backlog" element={<ProtectedRoute><Layout><BacklogPage /></Layout></ProtectedRoute>} />
             <Route path="/projects/:projectId/settings" element={<ProtectedRoute><Layout><ProjectSettingsPage /></Layout></ProtectedRoute>} />
+            <Route path="/projects/:projectId/settings/agents" element={<ProtectedRoute><Layout><ProjectSettingsPage /></Layout></ProtectedRoute>} />
             <Route path="/projects/:projectId/features" element={<ProtectedRoute><Layout><FeaturesPage /></Layout></ProtectedRoute>} />
             <Route path="/projects/:projectId/settings/sub-projects" element={<ProtectedRoute><Layout><FeaturesPage /></Layout></ProtectedRoute>} />
             <Route path="/projects/:projectId/export/gemini" element={<ProtectedRoute><Layout><ExportGeminiPage /></Layout></ProtectedRoute>} />

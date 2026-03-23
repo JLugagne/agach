@@ -44,6 +44,7 @@ type MockTaskRepository struct {
 	GetTimelineFunc               func(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error)
 	UpdateSessionIDFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
 	GetColdStartStatsFunc         func(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error)
+	GetModelTokenStatsFunc        func(ctx context.Context, projectID domain.ProjectID) ([]domain.ModelTokenStat, error)
 }
 
 func (m *MockTaskRepository) BulkCreate(ctx context.Context, projectID domain.ProjectID, tasks []domain.Task) error {
@@ -177,6 +178,13 @@ func (m *MockTaskRepository) GetColdStartStats(ctx context.Context, projectID do
 		panic("called not defined GetColdStartStatsFunc")
 	}
 	return m.GetColdStartStatsFunc(ctx, projectID)
+}
+
+func (m *MockTaskRepository) GetModelTokenStats(ctx context.Context, projectID domain.ProjectID) ([]domain.ModelTokenStat, error) {
+	if m.GetModelTokenStatsFunc == nil {
+		panic("called not defined GetModelTokenStatsFunc")
+	}
+	return m.GetModelTokenStatsFunc(ctx, projectID)
 }
 
 // TasksContractTesting runs all contract tests for a TaskRepository implementation.

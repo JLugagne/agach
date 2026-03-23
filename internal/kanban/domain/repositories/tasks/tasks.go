@@ -72,6 +72,9 @@ type TaskRepository interface {
 	// ListByAssignedRole returns all tasks in a project that have assigned_role == slug.
 	// Used to check whether an agent can be safely removed.
 	ListByAssignedRole(ctx context.Context, projectID domain.ProjectID, slug string) ([]domain.Task, error)
+
+	// GetModelTokenStats returns aggregated token usage grouped by model for a project.
+	GetModelTokenStats(ctx context.Context, projectID domain.ProjectID) ([]domain.ModelTokenStat, error)
 }
 
 // TaskFilters defines optional filters for listing tasks

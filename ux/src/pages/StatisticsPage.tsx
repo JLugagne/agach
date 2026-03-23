@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { getToolUsage, getBoard, getProjectSummary, getTimeline, getColdStartStats } from '../lib/api';
-import type { ToolUsageStatResponse, ProjectSummaryResponse, TaskWithDetailsResponse, TimelineEntryResponse } from '../lib/types';
+import { getToolUsage, getBoard, getProjectSummary, getTimeline, getColdStartStats, getModelTokenStats, getModelPricing, getFeatureStats } from '../lib/api';
+import type { ToolUsageStatResponse, ProjectSummaryResponse, TaskWithDetailsResponse, TimelineEntryResponse, ModelTokenStatResponse, ModelPricingResponse, FeatureStatsResponse } from '../lib/types';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { formatDuration } from '../lib/utils';
 
@@ -35,6 +35,9 @@ export default function StatisticsPage() {
   const [timeline, setTimeline] = useState<TimelineEntryResponse[]>([]);
   const [timelineError, setTimelineError] = useState(false);
   const [coldStartStats, setColdStartStats] = useState<RoleColdStartStat[]>([]);
+  const [modelTokenStats, setModelTokenStats] = useState<ModelTokenStatResponse[]>([]);
+  const [modelPricing, setModelPricing] = useState<ModelPricingResponse[]>([]);
+  const [featureStats, setFeatureStats] = useState<FeatureStatsResponse | null>(null);
   const [timingStats, setTimingStats] = useState<{
     avgDuration: number;
     totalSaved: number;
@@ -48,15 +51,21 @@ export default function StatisticsPage() {
     if (!projectId) return;
     setLoading(true);
     try {
-      const [usage, summaryData, board, coldStart] = await Promise.all([
+      const [usage, summaryData, board, coldStart, modelStats, pricing, featStats] = await Promise.all([
         getToolUsage(projectId).catch(() => [] as ToolUsageStatResponse[]),
         getProjectSummary(projectId).catch(() => null),
         getBoard(projectId).catch(() => null),
         getColdStartStats(projectId).catch(() => [] as RoleColdStartStat[]),
+        getModelTokenStats(projectId).catch(() => [] as ModelTokenStatResponse[]),
+        getModelPricing().catch(() => [] as ModelPricingResponse[]),
+        getFeatureStats(projectId).catch(() => null),
       ]);
       setToolUsage(usage ?? []);
       setSummary(summaryData);
       setColdStartStats((coldStart ?? []) as RoleColdStartStat[]);
+      setModelTokenStats((modelStats ?? []) as ModelTokenStatResponse[]);
+      setModelPricing((pricing ?? []) as ModelPricingResponse[]);
+      setFeatureStats(featStats as FeatureStatsResponse | null);
 
       // Aggregate token usage and role/priority stats from all tasks
       if (board?.columns) {
@@ -156,6 +165,50 @@ export default function StatisticsPage() {
     ),
   );
 
+  // Build pricing lookup by model_id
+  const pricingMap = useMemo(() => {
+    const map: Record<string, ModelPricingResponse> = {};
+    for (const p of modelPricing) {
+      map[p.model_id] = p;
+    }
+    return map;
+  }, [modelPricing]);
+
+  // Calculate costs per model
+  const modelCosts = useMemo(() => {
+    return modelTokenStats.map((stat) => {
+      // Try exact match, then prefix match for model pricing
+      let pricing = pricingMap[stat.model];
+      if (!pricing) {
+        // Try matching by prefix (e.g., "claude-sonnet-4-6-20250620" might be stored differently)
+        for (const [modelId, p] of Object.entries(pricingMap)) {
+          if (stat.model.startsWith(modelId) || modelId.startsWith(stat.model)) {
+            pricing = p;
+            break;
+          }
+        }
+      }
+
+      const inputCost = pricing ? (stat.input_tokens / 1_000_000) * pricing.input_price_per_1m : 0;
+      const outputCost = pricing ? (stat.output_tokens / 1_000_000) * pricing.output_price_per_1m : 0;
+      const cacheReadCost = pricing ? (stat.cache_read_tokens / 1_000_000) * pricing.cache_read_price_per_1m : 0;
+      const cacheWriteCost = pricing ? (stat.cache_write_tokens / 1_000_000) * pricing.cache_write_price_per_1m : 0;
+      const totalCost = inputCost + outputCost + cacheReadCost + cacheWriteCost;
+
+      return {
+        ...stat,
+        inputCost,
+        outputCost,
+        cacheReadCost,
+        cacheWriteCost,
+        totalCost,
+        hasPricing: !!pricing,
+      };
+    });
+  }, [modelTokenStats, pricingMap]);
+
+  const totalEstimatedCost = useMemo(() => modelCosts.reduce((sum, m) => sum + m.totalCost, 0), [modelCosts]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -190,8 +243,70 @@ export default function StatisticsPage() {
           <StatCard label="Blocked" value={summary?.blocked_count ?? 0} />
         </div>
 
-        {/* Token usage */}
-        <Section title="Token Usage">
+        {/* Feature Stats */}
+        {featureStats && featureStats.total_count > 0 && (
+          <Section title="Features">
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+              <MiniStatCard label="Total" value={featureStats.total_count} />
+              <MiniStatCard label="Not Ready" value={featureStats.not_ready_count} color="var(--text-muted)" />
+              <MiniStatCard label="Ready" value={featureStats.ready_count} color="var(--primary)" />
+              <MiniStatCard label="In Progress" value={featureStats.in_progress_count} color="#007AFF" />
+              <MiniStatCard label="Done" value={featureStats.done_count} color="var(--status-done)" />
+              <MiniStatCard label="Blocked" value={featureStats.blocked_count} color="#FF3B30" />
+            </div>
+          </Section>
+        )}
+
+        {/* Token usage per model */}
+        {modelTokenStats.length > 0 && (
+          <Section title="Token Usage by Model">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-[var(--text-muted)] uppercase tracking-wider" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    <th className="text-left py-2 pr-4">Model</th>
+                    <th className="text-right py-2 px-2">Tasks</th>
+                    <th className="text-right py-2 px-2">Input</th>
+                    <th className="text-right py-2 px-2">Output</th>
+                    <th className="text-right py-2 px-2">Cache R</th>
+                    <th className="text-right py-2 px-2">Cache W</th>
+                    <th className="text-right py-2 px-2">Est. Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {modelCosts.map((stat) => (
+                    <tr key={stat.model} className="border-t border-[var(--border-primary)]">
+                      <td className="py-2 pr-4 text-[var(--text-secondary)] font-mono text-xs truncate max-w-[200px]" title={stat.model}>
+                        {formatModelName(stat.model)}
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{stat.task_count}</td>
+                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{formatNumber(stat.input_tokens)}</td>
+                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{formatNumber(stat.output_tokens)}</td>
+                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{formatNumber(stat.cache_read_tokens)}</td>
+                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{formatNumber(stat.cache_write_tokens)}</td>
+                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">
+                        {stat.hasPricing ? `$${stat.totalCost.toFixed(2)}` : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                {totalEstimatedCost > 0 && (
+                  <tfoot>
+                    <tr className="border-t-2 border-[var(--border-primary)]">
+                      <td colSpan={6} className="py-2 pr-4 text-xs text-[var(--text-muted)] text-right font-mono uppercase">Total Est. Cost</td>
+                      <td className="py-2 px-2 text-right font-mono font-semibold text-[var(--text-primary)]">
+                        ${totalEstimatedCost.toFixed(2)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </Section>
+        )}
+
+        {/* Token usage totals */}
+        <Section title="Token Usage (Total)">
           {totalTokens === 0 ? (
             <p className="text-sm text-[var(--text-muted)]">No token usage recorded yet.</p>
           ) : (
@@ -428,13 +543,8 @@ interface BurndownPoint {
 
 function BurndownChart({ data, totalTasks }: { data: TimelineEntryResponse[]; totalTasks: number }) {
   const points = useMemo<BurndownPoint[]>(() => {
-    // Work forward: start from (totalTasks - sum of all completed before the window)
-    // We use a running total starting from a reasonable baseline.
-    // We compute: baseline = totalTasks + (total completed in window) - (total created in window)
-    // Then walk forward applying daily deltas.
     const totalCreated = data.reduce((s, d) => s + d.tasks_created, 0);
     const totalCompleted = data.reduce((s, d) => s + d.tasks_completed, 0);
-    // Estimate tasks at the start of the window
     const startRemaining = Math.max(0, totalTasks + totalCompleted - totalCreated);
 
     let running = startRemaining;
@@ -460,14 +570,12 @@ function BurndownChart({ data, totalTasks }: { data: TimelineEntryResponse[]; to
   const polylinePoints = points.map((p, i) => `${toX(i)},${toY(p.remaining)}`).join(' ');
   const areaPoints = `${toX(0)},${chartH} ${polylinePoints} ${toX(n - 1)},${chartH}`;
 
-  // Y-axis labels: 0, mid, max
   const yLabels = [
     { v: 0, y: chartH },
     { v: Math.round(maxVal / 2), y: toY(maxVal / 2) },
     { v: maxVal, y: toY(maxVal) },
   ];
 
-  // X-axis: show first, middle, last date labels
   const xLabels: { i: number; label: string }[] = [];
   if (n > 0) {
     xLabels.push({ i: 0, label: formatDateLabel(points[0].date) });
@@ -482,65 +590,16 @@ function BurndownChart({ data, totalTasks }: { data: TimelineEntryResponse[]; to
       </p>
       <div className="bg-[var(--bg-tertiary)] rounded-lg p-4 overflow-x-auto">
         <svg viewBox={`0 0 ${width} ${height}`} width="100%" style={{ minWidth: 280, display: 'block' }}>
-          {/* Y-axis labels */}
           {yLabels.map(({ v, y }) => (
-            <text
-              key={v}
-              x={paddingLeft - 4}
-              y={y + 4}
-              textAnchor="end"
-              fontSize={9}
-              fill="var(--text-muted)"
-              fontFamily="JetBrains Mono, monospace"
-            >
-              {v}
-            </text>
+            <text key={v} x={paddingLeft - 4} y={y + 4} textAnchor="end" fontSize={9} fill="var(--text-muted)" fontFamily="JetBrains Mono, monospace">{v}</text>
           ))}
-
-          {/* Horizontal grid lines */}
           {yLabels.map(({ v, y }) => (
-            <line
-              key={`grid-${v}`}
-              x1={paddingLeft}
-              y1={y}
-              x2={width}
-              y2={y}
-              stroke="var(--border-primary)"
-              strokeWidth={0.5}
-              strokeDasharray="3,3"
-            />
+            <line key={`grid-${v}`} x1={paddingLeft} y1={y} x2={width} y2={y} stroke="var(--border-primary)" strokeWidth={0.5} strokeDasharray="3,3" />
           ))}
-
-          {/* Area fill */}
-          <polygon
-            points={areaPoints}
-            fill="var(--primary)"
-            opacity={0.12}
-          />
-
-          {/* Line */}
-          <polyline
-            points={polylinePoints}
-            fill="none"
-            stroke="var(--primary)"
-            strokeWidth={2}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-
-          {/* X-axis labels */}
+          <polygon points={areaPoints} fill="var(--primary)" opacity={0.12} />
+          <polyline points={polylinePoints} fill="none" stroke="var(--primary)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
           {xLabels.map(({ i, label }) => (
-            <text
-              key={i}
-              x={toX(i)}
-              y={height - 4}
-              textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
-              fontSize={9}
-              fill="var(--text-muted)"
-              fontFamily="JetBrains Mono, monospace"
-            >
-              {label}
-            </text>
+            <text key={i} x={toX(i)} y={height - 4} textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} fontSize={9} fill="var(--text-muted)" fontFamily="JetBrains Mono, monospace">{label}</text>
           ))}
         </svg>
       </div>
@@ -551,13 +610,23 @@ function BurndownChart({ data, totalTasks }: { data: TimelineEntryResponse[]; to
 // ---------- Shared helpers ----------
 
 function formatDateLabel(dateStr: string): string {
-  // dateStr is "YYYY-MM-DD"
   const parts = dateStr.split('-');
   if (parts.length !== 3) return dateStr;
   const month = parseInt(parts[1], 10);
   const day = parseInt(parts[2], 10);
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${monthNames[month - 1]} ${day}`;
+}
+
+function formatModelName(model: string): string {
+  // Shorten common prefixes for display
+  return model
+    .replace('claude-', '')
+    .replace('-20250514', '')
+    .replace('-20250620', '')
+    .replace('-20241022', '')
+    .replace('-20240229', '')
+    .replace('-20240307', '');
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -576,6 +645,15 @@ function StatCard({ label, value }: { label: string; value: number | string }) {
     <div className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-lg p-4">
       <div className="text-xs text-[var(--text-muted)] mb-1">{label}</div>
       <div className="text-lg font-semibold text-[var(--text-primary)] font-mono">{value}</div>
+    </div>
+  );
+}
+
+function MiniStatCard({ label, value, color }: { label: string; value: number; color?: string }) {
+  return (
+    <div className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-center">
+      <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{label}</div>
+      <div className="text-base font-semibold font-mono" style={{ color: color || 'var(--text-primary)' }}>{value}</div>
     </div>
   );
 }

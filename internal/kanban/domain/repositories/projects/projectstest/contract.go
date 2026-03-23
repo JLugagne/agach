@@ -30,8 +30,8 @@ type MockProjectRepository struct {
 	DeleteFunc                 func(ctx context.Context, id domain.ProjectID) ([]domain.ProjectID, error)
 	GetSummaryFunc             func(ctx context.Context, id domain.ProjectID) (*domain.ProjectSummary, error)
 	CountChildrenFunc          func(ctx context.Context, id domain.ProjectID) (int, error)
-	ListByWorkDirFunc          func(ctx context.Context, workDir string) ([]domain.Project, error)
 	ListFeaturesActiveOnlyFunc func(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error)
+	ListModelPricingFunc       func(ctx context.Context) ([]domain.ModelPricing, error)
 }
 
 func (m *MockProjectRepository) Create(ctx context.Context, project domain.Project) error {
@@ -90,18 +90,18 @@ func (m *MockProjectRepository) CountChildren(ctx context.Context, id domain.Pro
 	return m.CountChildrenFunc(ctx, id)
 }
 
-func (m *MockProjectRepository) ListByWorkDir(ctx context.Context, workDir string) ([]domain.Project, error) {
-	if m.ListByWorkDirFunc == nil {
-		panic("called not defined ListByWorkDirFunc")
-	}
-	return m.ListByWorkDirFunc(ctx, workDir)
-}
-
 func (m *MockProjectRepository) ListFeaturesActiveOnly(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error) {
 	if m.ListFeaturesActiveOnlyFunc == nil {
 		panic("called not defined ListFeaturesActiveOnlyFunc")
 	}
 	return m.ListFeaturesActiveOnlyFunc(ctx, parentID)
+}
+
+func (m *MockProjectRepository) ListModelPricing(ctx context.Context) ([]domain.ModelPricing, error) {
+	if m.ListModelPricingFunc == nil {
+		return nil, nil
+	}
+	return m.ListModelPricingFunc(ctx)
 }
 
 // ProjectsContractTesting runs all contract tests for a ProjectRepository implementation.
@@ -362,63 +362,6 @@ func ProjectsContractTesting(t *testing.T, repo projects.ProjectRepository) {
 		assert.True(t, ids[rootID], "Root should be in tree")
 		assert.True(t, ids[sub1ID], "Sub1 should be in tree")
 		assert.True(t, ids[subsub1ID], "SubSub1 should be in tree")
-	})
-
-	t.Run("Contract: ListByWorkDir returns projects matching work_dir", func(t *testing.T) {
-		workDir := "/unique/work/dir/" + string(domain.NewProjectID())
-
-		project1 := domain.Project{
-			ID:             domain.NewProjectID(),
-			ParentID:       nil,
-			Name:           "WorkDir Project 1",
-			WorkDir:        workDir,
-			CreatedByRole:  "architect",
-			CreatedByAgent: "test-agent",
-			CreatedAt:      time.Now(),
-			UpdatedAt:      time.Now(),
-		}
-		project2 := domain.Project{
-			ID:             domain.NewProjectID(),
-			ParentID:       nil,
-			Name:           "WorkDir Project 2",
-			WorkDir:        workDir,
-			CreatedByRole:  "architect",
-			CreatedByAgent: "test-agent",
-			CreatedAt:      time.Now(),
-			UpdatedAt:      time.Now(),
-		}
-		other := domain.Project{
-			ID:             domain.NewProjectID(),
-			ParentID:       nil,
-			Name:           "Other Project",
-			WorkDir:        "/other/dir",
-			CreatedByRole:  "architect",
-			CreatedByAgent: "test-agent",
-			CreatedAt:      time.Now(),
-			UpdatedAt:      time.Now(),
-		}
-
-		require.NoError(t, repo.Create(ctx, project1))
-		require.NoError(t, repo.Create(ctx, project2))
-		require.NoError(t, repo.Create(ctx, other))
-
-		found, err := repo.ListByWorkDir(ctx, workDir)
-		require.NoError(t, err, "ListByWorkDir should succeed")
-		assert.Len(t, found, 2, "Should return exactly 2 projects matching work_dir")
-
-		ids := make(map[domain.ProjectID]bool)
-		for _, p := range found {
-			ids[p.ID] = true
-		}
-		assert.True(t, ids[project1.ID], "Project 1 should be in result")
-		assert.True(t, ids[project2.ID], "Project 2 should be in result")
-		assert.False(t, ids[other.ID], "Other project should not be in result")
-	})
-
-	t.Run("Contract: ListByWorkDir returns empty slice for unknown work_dir", func(t *testing.T) {
-		found, err := repo.ListByWorkDir(ctx, "/nonexistent/work/dir/that/does/not/exist")
-		require.NoError(t, err, "ListByWorkDir should succeed with empty result")
-		assert.Empty(t, found, "Should return empty slice for unknown work_dir")
 	})
 
 	t.Run("Contract: IsFeature returns false for root project", func(t *testing.T) {

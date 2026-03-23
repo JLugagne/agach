@@ -6,7 +6,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { reorderTask } from '../../lib/api';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Plus } from 'lucide-react';
 
 interface ColumnProps {
   column: ColumnWithTasksResponse;
@@ -21,6 +21,7 @@ interface ColumnProps {
   onRefresh?: () => void;
   features?: ProjectWithSummary[];
   onFeatureClick?: (feature: ProjectWithSummary) => void;
+  onAddTask?: () => void;
 }
 
 const statusColorVars: Record<string, { dot: string; label: string; countBg: string; countText: string }> = {
@@ -43,6 +44,7 @@ export default function Column({
   onRefresh,
   features,
   onFeatureClick,
+  onAddTask,
 }: ColumnProps) {
   const colors = statusColorVars[column.slug] || statusColorVars.todo;
   const [localTasks, setLocalTasks] = useState<TaskWithDetailsResponse[] | null>(null);
@@ -50,7 +52,6 @@ export default function Column({
   const tasks = localTasks ?? column.tasks ?? [];
   const wipLimit = column.wip_limit;
   const isAtWip = wipLimit > 0 && tasks.length >= wipLimit;
-  const isOverWip = wipLimit > 0 && tasks.length > wipLimit;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -96,47 +97,33 @@ export default function Column({
   return (
     <div
       data-qa="column"
-      className="flex flex-col rounded-lg bg-[var(--bg-tertiary)] min-w-0 flex-1 h-full transition-all duration-200"
-      style={{
-        border: isOverWip
-          ? '1px solid color-mix(in srgb, var(--status-blocked) 60%, transparent)'
-          : '1px solid var(--border-primary)',
-        boxShadow: isOverWip
-          ? '0 0 0 1px color-mix(in srgb, var(--status-blocked) 20%, transparent)'
-          : undefined,
-      }}
+      className="flex flex-col min-w-0 flex-1 h-full"
     >
       {/* Header */}
       <div
-        className="flex items-center justify-between px-4 h-[44px] rounded-t-lg flex-shrink-0 transition-colors duration-200"
-        style={{
-          backgroundColor: isOverWip
-            ? 'color-mix(in srgb, var(--status-blocked) 8%, var(--bg-secondary))'
-            : 'var(--bg-secondary)',
-        }}
+        className="flex items-center justify-between mb-4 flex-shrink-0"
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <div
-            className="w-2 h-2 rounded-full"
+            className="w-2.5 h-2.5 rounded-full"
             style={{ backgroundColor: colors.dot }}
           />
           <span
             data-qa="column-title"
-            className="text-xs font-['JetBrains_Mono'] font-bold uppercase tracking-wider"
-            style={{ color: colors.label }}
+            className="text-xs font-bold uppercase tracking-wider"
+            style={{ color: colors.label, fontFamily: 'JetBrains Mono, monospace' }}
           >
             {column.name}
           </span>
-        </div>
-        <div className="flex items-center gap-1.5">
           {wipLimit > 0 ? (
             <span
-              className="px-1.5 py-0.5 rounded text-[10px] font-['JetBrains_Mono'] font-bold min-w-[28px] text-center flex items-center gap-0.5"
+              className="px-1.5 py-0.5 rounded-md text-[10px] font-bold min-w-[28px] text-center flex items-center gap-0.5"
               style={{
                 backgroundColor: isAtWip
                   ? 'color-mix(in srgb, var(--status-blocked) 15%, transparent)'
                   : colors.countBg,
                 color: isAtWip ? 'var(--status-blocked)' : colors.countText,
+                fontFamily: 'JetBrains Mono, monospace',
               }}
             >
               {isAtWip && (
@@ -146,21 +133,33 @@ export default function Column({
             </span>
           ) : (
             <span
-              className="px-1.5 py-0.5 rounded text-[10px] font-['JetBrains_Mono'] font-bold min-w-[20px] text-center"
-              style={{ backgroundColor: colors.countBg, color: colors.countText }}
+              className="px-1.5 py-0.5 rounded-md text-[10px] font-bold min-w-[20px] text-center"
+              style={{
+                backgroundColor: colors.countBg,
+                color: colors.countText,
+                fontFamily: 'JetBrains Mono, monospace',
+              }}
             >
               {tasks.length}
             </span>
           )}
         </div>
+        {onAddTask && (
+          <button
+            onClick={onAddTask}
+            className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer p-0.5"
+          >
+            <Plus size={16} />
+          </button>
+        )}
       </div>
 
       {/* Cards */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-          <div className="flex flex-col gap-2 p-3 overflow-y-auto flex-1">
+          <div className="flex flex-col gap-3 overflow-y-auto flex-1">
             {tasks.length === 0 && (features ?? []).length === 0 ? (
-              <p className="text-[var(--text-muted)] text-xs font-['Inter'] text-center py-6">
+              <p className="text-[var(--text-muted)] text-xs text-center py-8" style={{ fontFamily: 'Inter, sans-serif' }}>
                 No tasks
               </p>
             ) : (

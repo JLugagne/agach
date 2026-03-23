@@ -36,7 +36,7 @@ func TestCreateProject_Success(t *testing.T) {
 	now := time.Now()
 
 	mock := &servicetest.MockCommands{
-		CreateProjectFunc: func(ctx context.Context, name, description, workDir, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
+		CreateProjectFunc: func(ctx context.Context, name, description, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
 			return domain.Project{
 				ID:             projectID,
 				Name:           name,
@@ -102,7 +102,7 @@ func TestCreateProject_DomainError(t *testing.T) {
 	mock := &servicetest.MockCommands{
 		// Return the bare domain error so that SendFail's direct type assertion
 		// (*domain.Error) succeeds and returns the correct error code.
-		CreateProjectFunc: func(ctx context.Context, name, description, workDir, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
+		CreateProjectFunc: func(ctx context.Context, name, description, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
 			return domain.Project{}, domain.ErrProjectAlreadyExists
 		},
 	}
@@ -131,7 +131,7 @@ func TestCreateProject_DomainError(t *testing.T) {
 
 func TestCreateProject_ServerError(t *testing.T) {
 	mock := &servicetest.MockCommands{
-		CreateProjectFunc: func(ctx context.Context, name, description, workDir, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
+		CreateProjectFunc: func(ctx context.Context, name, description, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
 			return domain.Project{}, errors.New("unexpected database failure")
 		},
 	}

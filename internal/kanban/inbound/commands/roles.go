@@ -13,16 +13,16 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// RoleCommandsHandler handles role write operations
-type RoleCommandsHandler struct {
+// AgentCommandsHandler handles role write operations
+type AgentCommandsHandler struct {
 	commands   service.Commands
 	controller *controller.Controller
 	hub        *websocket.Hub
 }
 
-// NewRoleCommandsHandler creates a new role commands handler
-func NewRoleCommandsHandler(commands service.Commands, ctrl *controller.Controller, hub *websocket.Hub) *RoleCommandsHandler {
-	return &RoleCommandsHandler{
+// NewAgentCommandsHandler creates a new role commands handler
+func NewAgentCommandsHandler(commands service.Commands, ctrl *controller.Controller, hub *websocket.Hub) *AgentCommandsHandler {
+	return &AgentCommandsHandler{
 		commands:   commands,
 		controller: ctrl,
 		hub:        hub,
@@ -30,22 +30,22 @@ func NewRoleCommandsHandler(commands service.Commands, ctrl *controller.Controll
 }
 
 // RegisterRoutes registers role command routes
-func (h *RoleCommandsHandler) RegisterRoutes(router *mux.Router) {
-	router.HandleFunc("/api/roles", h.CreateRole).Methods("POST")
-	router.HandleFunc("/api/roles/{slug}", h.UpdateRole).Methods("PATCH")
-	router.HandleFunc("/api/roles/{slug}", h.DeleteRole).Methods("DELETE")
-	router.HandleFunc("/api/roles/{slug}/clone", h.CloneRole).Methods("POST")
+func (h *AgentCommandsHandler) RegisterRoutes(router *mux.Router) {
+	router.HandleFunc("/api/agents", h.CreateAgent).Methods("POST")
+	router.HandleFunc("/api/agents/{slug}", h.UpdateAgent).Methods("PATCH")
+	router.HandleFunc("/api/agents/{slug}", h.DeleteAgent).Methods("DELETE")
+	router.HandleFunc("/api/agents/{slug}/clone", h.CloneAgent).Methods("POST")
 }
 
-// CreateRole creates a new role
-func (h *RoleCommandsHandler) CreateRole(w http.ResponseWriter, r *http.Request) {
-	var req pkgkanban.CreateRoleRequest
-	if err := h.controller.DecodeAndValidate(r, &req, pkgkanban.ErrInvalidRoleRequest); err != nil {
-		h.controller.SendFail(w, r, nil, errors.Join(pkgkanban.ErrInvalidRoleRequest, err))
+// CreateAgent creates a new role
+func (h *AgentCommandsHandler) CreateAgent(w http.ResponseWriter, r *http.Request) {
+	var req pkgkanban.CreateAgentRequest
+	if err := h.controller.DecodeAndValidate(r, &req, pkgkanban.ErrInvalidAgentRequest); err != nil {
+		h.controller.SendFail(w, r, nil, errors.Join(pkgkanban.ErrInvalidAgentRequest, err))
 		return
 	}
 
-	role, err := h.commands.CreateRole(
+	role, err := h.commands.CreateAgent(
 		r.Context(),
 		req.Slug,
 		req.Name,
@@ -66,31 +66,31 @@ func (h *RoleCommandsHandler) CreateRole(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Broadcast role_created event
+	// Broadcast agent_created event
 	h.hub.Broadcast(websocket.Event{
-		Type: "role_created",
-		Data: converters.ToPublicRole(role),
+		Type: "agent_created",
+		Data: converters.ToPublicAgent(role),
 	})
 
-	h.controller.SendSuccess(w, r, converters.ToPublicRole(role))
+	h.controller.SendSuccess(w, r, converters.ToPublicAgent(role))
 }
 
-// UpdateRole updates an existing role
-func (h *RoleCommandsHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
+// UpdateAgent updates an existing role
+func (h *AgentCommandsHandler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 	slug := mux.Vars(r)["slug"]
 	if slug == "" {
-		h.controller.SendFail(w, r, nil, domain.ErrRoleSlugRequired)
+		h.controller.SendFail(w, r, nil, domain.ErrAgentSlugRequired)
 		return
 	}
 
-	var req pkgkanban.UpdateRoleRequest
-	if err := h.controller.DecodeAndValidate(r, &req, pkgkanban.ErrInvalidRoleRequest); err != nil {
-		h.controller.SendFail(w, r, nil, errors.Join(pkgkanban.ErrInvalidRoleRequest, err))
+	var req pkgkanban.UpdateAgentRequest
+	if err := h.controller.DecodeAndValidate(r, &req, pkgkanban.ErrInvalidAgentRequest); err != nil {
+		h.controller.SendFail(w, r, nil, errors.Join(pkgkanban.ErrInvalidAgentRequest, err))
 		return
 	}
 
 	// Get role ID from slug first (we need the ID)
-	// This is a temporary workaround - ideally we'd add GetRoleBySlug to Commands or modify UpdateRole signature
+	// This is a temporary workaround - ideally we'd add GetRoleBySlug to Commands or modify UpdateAgent signature
 	// For now, we'll handle this through the service layer
 	// TODO: Enhance this flow
 
@@ -129,10 +129,10 @@ func (h *RoleCommandsHandler) UpdateRole(w http.ResponseWriter, r *http.Request)
 
 	// We need RoleID but have slug - this requires a query first
 	// This violates clean separation but is pragmatic for REST API
-	// Alternative: create UpdateRoleBySlug in Commands
+	// Alternative: create UpdateAgentBySlug in Commands
 	roleID := domain.RoleID(slug) // HACK: for now assume slug == id, fix later
 
-	err := h.commands.UpdateRole(
+	err := h.commands.UpdateAgent(
 		r.Context(),
 		roleID,
 		name,
@@ -153,27 +153,27 @@ func (h *RoleCommandsHandler) UpdateRole(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Broadcast role_updated event
+	// Broadcast agent_updated event
 	h.hub.Broadcast(websocket.Event{
-		Type: "role_updated",
+		Type: "agent_updated",
 		Data: map[string]string{"slug": slug},
 	})
 
 	h.controller.SendSuccess(w, r, map[string]string{"message": "role updated"})
 }
 
-// DeleteRole deletes a role
-func (h *RoleCommandsHandler) DeleteRole(w http.ResponseWriter, r *http.Request) {
+// DeleteAgent deletes a role
+func (h *AgentCommandsHandler) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	slug := mux.Vars(r)["slug"]
 	if slug == "" {
-		h.controller.SendFail(w, r, nil, domain.ErrRoleSlugRequired)
+		h.controller.SendFail(w, r, nil, domain.ErrAgentSlugRequired)
 		return
 	}
 
-	// Same slug/ID issue as UpdateRole
+	// Same slug/ID issue as UpdateAgent
 	roleID := domain.RoleID(slug)
 
-	err := h.commands.DeleteRole(r.Context(), roleID)
+	err := h.commands.DeleteAgent(r.Context(), roleID)
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)
@@ -183,30 +183,30 @@ func (h *RoleCommandsHandler) DeleteRole(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Broadcast role_deleted event
+	// Broadcast agent_deleted event
 	h.hub.Broadcast(websocket.Event{
-		Type: "role_deleted",
+		Type: "agent_deleted",
 		Data: map[string]string{"slug": slug},
 	})
 
 	h.controller.SendSuccess(w, r, map[string]string{"message": "role deleted"})
 }
 
-// CloneRole clones an existing role into a new role with a different slug
-func (h *RoleCommandsHandler) CloneRole(w http.ResponseWriter, r *http.Request) {
+// CloneAgent clones an existing role into a new role with a different slug
+func (h *AgentCommandsHandler) CloneAgent(w http.ResponseWriter, r *http.Request) {
 	sourceSlug := mux.Vars(r)["slug"]
 	if sourceSlug == "" {
-		h.controller.SendFail(w, r, nil, domain.ErrRoleSlugRequired)
+		h.controller.SendFail(w, r, nil, domain.ErrAgentSlugRequired)
 		return
 	}
 
-	var req pkgkanban.CloneRoleRequest
-	if err := h.controller.DecodeAndValidate(r, &req, pkgkanban.ErrInvalidRoleRequest); err != nil {
-		h.controller.SendFail(w, r, nil, errors.Join(pkgkanban.ErrInvalidRoleRequest, err))
+	var req pkgkanban.CloneAgentRequest
+	if err := h.controller.DecodeAndValidate(r, &req, pkgkanban.ErrInvalidAgentRequest); err != nil {
+		h.controller.SendFail(w, r, nil, errors.Join(pkgkanban.ErrInvalidAgentRequest, err))
 		return
 	}
 
-	cloned, err := h.commands.CloneRole(r.Context(), sourceSlug, req.NewSlug, req.NewName)
+	cloned, err := h.commands.CloneAgent(r.Context(), sourceSlug, req.NewSlug, req.NewName)
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)
@@ -224,5 +224,5 @@ func (h *RoleCommandsHandler) CloneRole(w http.ResponseWriter, r *http.Request) 
 		},
 	})
 
-	h.controller.SendSuccess(w, r, converters.ToPublicRole(cloned))
+	h.controller.SendSuccess(w, r, converters.ToPublicAgent(cloned))
 }

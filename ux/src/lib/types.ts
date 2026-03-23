@@ -11,7 +11,6 @@ export interface ProjectResponse {
   parent_id: string | null;
   name: string;
   description: string;
-  work_dir: string;
   git_url: string;
   created_by_role: string;
   created_by_agent: string;
@@ -39,7 +38,6 @@ export interface ProjectWithSummary extends ProjectResponse {
 export interface CreateProjectRequest {
   name: string;
   description?: string;
-  work_dir?: string;
   git_url?: string;
   dockerfile_id?: string;
   roles?: string[];
@@ -51,11 +49,12 @@ export interface CreateProjectRequest {
 export interface UpdateProjectRequest {
   name?: string;
   description?: string;
+  git_url?: string;
   default_role?: string;
 }
 
-// Roles
-export interface RoleResponse {
+// Agents
+export interface AgentResponse {
   id: string;
   slug: string;
   name: string;
@@ -108,7 +107,7 @@ export interface AddSkillToAgentRequest {
   skill_slug: string;
 }
 
-export interface CreateRoleRequest {
+export interface CreateAgentRequest {
   slug: string;
   name: string;
   icon?: string;
@@ -116,20 +115,24 @@ export interface CreateRoleRequest {
   description?: string;
   tech_stack?: string[];
   prompt_hint?: string;
+  prompt_template?: string;
   sort_order?: number;
+  skill_slugs?: string[];
 }
 
-export interface UpdateRoleRequest {
+export interface UpdateAgentRequest {
   name?: string;
   icon?: string;
   color?: string;
   description?: string;
   tech_stack?: string[];
   prompt_hint?: string;
+  prompt_template?: string;
   sort_order?: number;
+  skill_slugs?: string[];
 }
 
-export interface CloneRoleRequest {
+export interface CloneAgentRequest {
   new_slug: string;
   new_name?: string;
 }
@@ -313,6 +316,37 @@ export interface TimelineEntryResponse {
   date: string;
   tasks_created: number;
   tasks_completed: number;
+}
+
+// Model token stats
+export interface ModelTokenStatResponse {
+  model: string;
+  task_count: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+}
+
+// Model pricing
+export interface ModelPricingResponse {
+  id: string;
+  model_id: string;
+  input_price_per_1m: number;
+  output_price_per_1m: number;
+  cache_read_price_per_1m: number;
+  cache_write_price_per_1m: number;
+  updated_at: string;
+}
+
+// Feature stats
+export interface FeatureStatsResponse {
+  total_count: number;
+  not_ready_count: number;
+  ready_count: number;
+  in_progress_count: number;
+  done_count: number;
+  blocked_count: number;
 }
 
 // Project-agent management

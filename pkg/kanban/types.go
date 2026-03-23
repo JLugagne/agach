@@ -10,7 +10,6 @@ import (
 type CreateProjectRequest struct {
 	Name           string  `json:"name" validate:"required,min=1,max=200"`
 	Description    string  `json:"description" validate:"max=5000"`
-	WorkDir        string  `json:"work_dir" validate:"max=1000"`
 	GitURL         string  `json:"git_url" validate:"omitempty,max=500"`
 	ParentID       *string `json:"parent_id" validate:"omitempty,entity_id"`
 	CreatedByRole  string  `json:"created_by_role" validate:"max=100"`
@@ -21,6 +20,7 @@ type CreateProjectRequest struct {
 type UpdateProjectRequest struct {
 	Name        *string `json:"name" validate:"omitempty,min=1,max=200"`
 	Description *string `json:"description" validate:"omitempty,max=5000"`
+	GitURL      *string `json:"git_url" validate:"omitempty,max=500"`
 	DefaultRole *string `json:"default_role" validate:"omitempty,max=100"`
 }
 
@@ -30,7 +30,6 @@ type ProjectResponse struct {
 	ParentID       *string   `json:"parent_id"`
 	Name           string    `json:"name"`
 	Description    string    `json:"description"`
-	WorkDir        string    `json:"work_dir"`
 	GitURL         string    `json:"git_url"`
 	CreatedByRole  string    `json:"created_by_role"`
 	CreatedByAgent string    `json:"created_by_agent"`
@@ -49,8 +48,8 @@ type ProjectSummaryResponse struct {
 	BlockedCount    int `json:"blocked_count"`
 }
 
-// CreateRoleRequest represents a request to create a role
-type CreateRoleRequest struct {
+// CreateAgentRequest represents a request to create an agent
+type CreateAgentRequest struct {
 	Slug           string   `json:"slug" validate:"required,min=1,max=50,slug"`
 	Name           string   `json:"name" validate:"required,min=1,max=100"`
 	Icon           string   `json:"icon" validate:"max=10"`
@@ -59,11 +58,12 @@ type CreateRoleRequest struct {
 	TechStack      []string `json:"tech_stack" validate:"max=100,dive,max=50"`
 	PromptHint     string   `json:"prompt_hint" validate:"max=5000"`
 	PromptTemplate string   `json:"prompt_template" validate:"omitempty,max=50000"`
+	SkillSlugs     []string `json:"skill_slugs" validate:"max=100,dive,max=50"`
 	SortOrder      int      `json:"sort_order"`
 }
 
-// UpdateRoleRequest represents a request to update a role
-type UpdateRoleRequest struct {
+// UpdateAgentRequest represents a request to update an agent
+type UpdateAgentRequest struct {
 	Name           *string   `json:"name" validate:"omitempty,min=1,max=100"`
 	Icon           *string   `json:"icon" validate:"omitempty,max=10"`
 	Color          *string   `json:"color" validate:"omitempty,hexcolor"`
@@ -71,11 +71,12 @@ type UpdateRoleRequest struct {
 	TechStack      *[]string `json:"tech_stack" validate:"omitempty,max=100,dive,max=50"`
 	PromptHint     *string   `json:"prompt_hint" validate:"omitempty,max=5000"`
 	PromptTemplate *string   `json:"prompt_template" validate:"omitempty,max=50000"`
+	SkillSlugs     *[]string `json:"skill_slugs" validate:"omitempty,max=100,dive,max=50"`
 	SortOrder      *int      `json:"sort_order"`
 }
 
-// RoleResponse represents a role in API responses
-type RoleResponse struct {
+// AgentResponse represents an agent in API responses
+type AgentResponse struct {
 	ID             string    `json:"id"`
 	Slug           string    `json:"slug"`
 	Name           string    `json:"name"`
@@ -90,6 +91,11 @@ type RoleResponse struct {
 	SortOrder      int       `json:"sort_order"`
 	CreatedAt      time.Time `json:"created_at"`
 }
+
+// Backward compatibility aliases
+type CreateRoleRequest = CreateAgentRequest
+type UpdateRoleRequest = UpdateAgentRequest
+type RoleResponse = AgentResponse
 
 // CreateSkillRequest represents a request to create a skill
 type CreateSkillRequest struct {
@@ -365,11 +371,14 @@ type TasksByAgentResponse struct {
 	Tasks     []TaskResponse `json:"tasks"`
 }
 
-// CloneRoleRequest represents a request to clone a role
-type CloneRoleRequest struct {
+// CloneAgentRequest represents a request to clone an agent
+type CloneAgentRequest struct {
 	NewSlug string `json:"new_slug" validate:"required,min=1,max=50,slug"`
 	NewName string `json:"new_name" validate:"omitempty,max=100"`
 }
+
+// CloneRoleRequest is an alias for backward compatibility
+type CloneRoleRequest = CloneAgentRequest
 
 // AssignAgentToProjectRequest represents a request to assign an agent to a project
 type AssignAgentToProjectRequest struct {
@@ -440,10 +449,12 @@ var (
 		Code:    "INVALID_PROJECT_REQUEST",
 		Message: "invalid project request data",
 	}
-	ErrInvalidRoleRequest = &apierror.Error{
-		Code:    "INVALID_ROLE_REQUEST",
-		Message: "invalid role request data",
+	ErrInvalidAgentRequest = &apierror.Error{
+		Code:    "INVALID_AGENT_REQUEST",
+		Message: "invalid agent request data",
 	}
+	// Backward compatibility
+	ErrInvalidRoleRequest = ErrInvalidAgentRequest
 	ErrInvalidTaskRequest = &apierror.Error{
 		Code:    "INVALID_TASK_REQUEST",
 		Message: "invalid task request data",

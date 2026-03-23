@@ -53,31 +53,39 @@ var (
 		Message: "project name is required",
 	}
 
-	// Role errors
-	ErrRoleNotFound = &Error{
-		Code:    "ROLE_NOT_FOUND",
-		Message: "role not found",
+	// Agent errors
+	ErrAgentNotFound = &Error{
+		Code:    "AGENT_NOT_FOUND",
+		Message: "agent not found",
 	}
-	ErrRoleAlreadyExists = &Error{
-		Code:    "ROLE_ALREADY_EXISTS",
-		Message: "role already exists with this slug",
+	ErrAgentAlreadyExists = &Error{
+		Code:    "AGENT_ALREADY_EXISTS",
+		Message: "agent already exists with this slug",
 	}
-	ErrRoleInUse = &Error{
-		Code:    "ROLE_IN_USE",
-		Message: "role is still in use by tasks",
+	ErrAgentInUse = &Error{
+		Code:    "AGENT_IN_USE",
+		Message: "agent is still in use by tasks",
 	}
-	ErrInvalidRoleData = &Error{
-		Code:    "INVALID_ROLE_DATA",
-		Message: "invalid role data",
+	ErrInvalidAgentData = &Error{
+		Code:    "INVALID_AGENT_DATA",
+		Message: "invalid agent data",
 	}
-	ErrRoleSlugRequired = &Error{
-		Code:    "ROLE_SLUG_REQUIRED",
-		Message: "role slug is required",
+	ErrAgentSlugRequired = &Error{
+		Code:    "AGENT_SLUG_REQUIRED",
+		Message: "agent slug is required",
 	}
-	ErrRoleNameRequired = &Error{
-		Code:    "ROLE_NAME_REQUIRED",
-		Message: "role name is required",
+	ErrAgentNameRequired = &Error{
+		Code:    "AGENT_NAME_REQUIRED",
+		Message: "agent name is required",
 	}
+
+	// Backward compatibility aliases
+	ErrRoleNotFound     = ErrAgentNotFound
+	ErrRoleAlreadyExists = ErrAgentAlreadyExists
+	ErrRoleInUse        = ErrAgentInUse
+	ErrInvalidRoleData  = ErrInvalidAgentData
+	ErrRoleSlugRequired = ErrAgentSlugRequired
+	ErrRoleNameRequired = ErrAgentNameRequired
 
 	// Task errors
 	ErrTaskNotFound = &Error{

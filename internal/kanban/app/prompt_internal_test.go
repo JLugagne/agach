@@ -73,70 +73,48 @@ func Test_extractTestInfo_FuncPattern_ParsesTestName(t *testing.T) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 func Test_inferTestCommand_NilRole_ReturnsDefault(t *testing.T) {
-	cmd := inferTestCommand("", nil)
+	cmd := inferTestCommand(nil)
 	assert.Equal(t, "go test ./...", cmd)
 }
 
 func Test_inferTestCommand_GoTechStack(t *testing.T) {
 	role := &domain.Role{TechStack: []string{"Go"}}
-	assert.Equal(t, "go test ./...", inferTestCommand("", role))
+	assert.Equal(t, "go test ./...", inferTestCommand(role))
 }
 
 func Test_inferTestCommand_GolangTechStack(t *testing.T) {
 	role := &domain.Role{TechStack: []string{"golang"}}
-	assert.Equal(t, "go test ./...", inferTestCommand("", role))
+	assert.Equal(t, "go test ./...", inferTestCommand(role))
 }
 
 func Test_inferTestCommand_NodeTechStack(t *testing.T) {
 	role := &domain.Role{TechStack: []string{"Node"}}
-	assert.Equal(t, "npm test", inferTestCommand("", role))
+	assert.Equal(t, "npm test", inferTestCommand(role))
 }
 
 func Test_inferTestCommand_TypescriptTechStack(t *testing.T) {
 	role := &domain.Role{TechStack: []string{"TypeScript"}}
-	assert.Equal(t, "npm test", inferTestCommand("", role))
+	assert.Equal(t, "npm test", inferTestCommand(role))
 }
 
 func Test_inferTestCommand_JavascriptTechStack(t *testing.T) {
 	role := &domain.Role{TechStack: []string{"javascript"}}
-	assert.Equal(t, "npm test", inferTestCommand("", role))
+	assert.Equal(t, "npm test", inferTestCommand(role))
 }
 
 func Test_inferTestCommand_PythonTechStack(t *testing.T) {
 	role := &domain.Role{TechStack: []string{"Python"}}
-	assert.Equal(t, "pytest", inferTestCommand("", role))
+	assert.Equal(t, "pytest", inferTestCommand(role))
 }
 
 func Test_inferTestCommand_RustTechStack(t *testing.T) {
 	role := &domain.Role{TechStack: []string{"Rust"}}
-	assert.Equal(t, "cargo test", inferTestCommand("", role))
+	assert.Equal(t, "cargo test", inferTestCommand(role))
 }
 
-func Test_inferTestCommand_WorkDirWithGoMod(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test"), 0o644))
-	cmd := inferTestCommand(dir, nil)
-	assert.Equal(t, "go test ./...", cmd)
-}
-
-func Test_inferTestCommand_WorkDirWithPackageJSON(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0o644))
-	cmd := inferTestCommand(dir, nil)
-	assert.Equal(t, "npm test", cmd)
-}
-
-func Test_inferTestCommand_WorkDirWithCargoToml(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte("[package]"), 0o644))
-	cmd := inferTestCommand(dir, nil)
-	assert.Equal(t, "cargo test", cmd)
-}
-
-func Test_inferTestCommand_UnknownTechStack_WorkDirNoFile_Default(t *testing.T) {
+func Test_inferTestCommand_UnknownTechStack_Default(t *testing.T) {
 	role := &domain.Role{TechStack: []string{"cobol"}}
-	dir := t.TempDir()
-	cmd := inferTestCommand(dir, role)
+	cmd := inferTestCommand(role)
 	assert.Equal(t, "go test ./...", cmd)
 }
 

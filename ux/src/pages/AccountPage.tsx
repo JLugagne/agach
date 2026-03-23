@@ -11,7 +11,7 @@ interface UserProfile {
 }
 
 export default function AccountPage() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
   // Profile form
@@ -40,6 +40,7 @@ export default function AccountPage() {
     try {
       const updated = await updateProfile({ display_name: displayName });
       setProfile(updated);
+      updateUser({ display_name: updated.display_name });
       setProfileMsg({ ok: true, text: 'Profile updated.' });
     } catch (err) {
       setProfileMsg({ ok: false, text: err instanceof Error ? err.message : 'Failed to update profile.' });
@@ -126,7 +127,7 @@ export default function AccountPage() {
                 type="submit"
                 disabled={profileSaving}
                 data-qa="account-save-profile-btn"
-                className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
+                className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-[var(--primary)] text-[var(--primary-text)] hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
                 style={{ fontFamily: 'Inter, sans-serif' }}
               >
                 {profileSaving ? 'Saving…' : 'Save'}
@@ -174,7 +175,7 @@ export default function AccountPage() {
                 type="submit"
                 disabled={pwSaving}
                 data-qa="account-change-password-btn"
-                className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
+                className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-[var(--primary)] text-[var(--primary-text)] hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
                 style={{ fontFamily: 'Inter, sans-serif' }}
               >
                 {pwSaving ? 'Saving…' : 'Change Password'}

@@ -24,7 +24,8 @@ test.describe('Suite 1: Home Page', () => {
       expect(count).toBeGreaterThan(0);
       return;
     }
-    await expect(page.getByText(/no projects/i)).toBeVisible();
+    // Empty state should show the create button
+    await expect(page.locator('[data-qa="create-project-empty-btn"]')).toBeVisible();
   });
 
   test('1.3 — Navigate to kanban board by clicking "Open"', async ({ page, request }) => {
@@ -44,28 +45,7 @@ test.describe('Suite 1: Home Page', () => {
     }
   });
 
-  test('1.4 — Folder group toggle collapses/expands projects', async ({ page, request }) => {
-    const projectId = await createProject(request, 'Test Project 1.4');
-    try {
-      await page.goto('/');
-      await expect(page.locator('[data-qa="project-card"]').first()).toBeVisible();
-
-      const toggle = page.locator('[data-qa="folder-group-toggle"]').first();
-      await expect(toggle).toBeVisible();
-
-      // Collapse
-      await toggle.click();
-      await expect(page.locator('[data-qa="project-card"]').first()).toBeHidden();
-
-      // Expand
-      await toggle.click();
-      await expect(page.locator('[data-qa="project-card"]').first()).toBeVisible();
-    } finally {
-      await deleteProject(request, projectId);
-    }
-  });
-
-  test('1.5 — Theme toggle switches theme', async ({ page }) => {
+  test('1.4 — Theme toggle switches theme', async ({ page }) => {
     await page.goto('/');
     const themeToggle = page.locator('[data-qa="theme-toggle-btn"]');
     await expect(themeToggle).toBeVisible();
@@ -102,8 +82,7 @@ test.describe('Suite 2: Navigation', () => {
     try {
       await page.goto(`/projects/${projectId}`);
       await expect(page.locator('[data-qa="nav-kanban-btn"]')).toBeVisible();
-      await expect(page.locator('[data-qa="nav-backlog-btn"]')).toBeVisible();
-      await expect(page.locator('[data-qa="nav-roles-btn"]')).toBeVisible();
+      await expect(page.locator('[data-qa="nav-features-btn"]')).toBeVisible();
       await expect(page.locator('[data-qa="nav-statistics-btn"]')).toBeVisible();
       await expect(page.locator('[data-qa="nav-settings-btn"]')).toBeVisible();
     } finally {
@@ -111,12 +90,12 @@ test.describe('Suite 2: Navigation', () => {
     }
   });
 
-  test('2.2 — Navigate to Backlog via sidebar', async ({ page, request }) => {
+  test('2.2 — Navigate to Features via sidebar', async ({ page, request }) => {
     const projectId = await createProject(request, 'Test Project 2.2');
     try {
       await page.goto(`/projects/${projectId}`);
-      await page.locator('[data-qa="nav-backlog-btn"]').click();
-      await expect(page).toHaveURL(/\/backlog/);
+      await page.locator('[data-qa="nav-features-btn"]').click();
+      await expect(page).toHaveURL(/\/features/);
     } finally {
       await deleteProject(request, projectId);
     }
@@ -144,19 +123,8 @@ test.describe('Suite 2: Navigation', () => {
     }
   });
 
-  test('2.5 — Navigate to Roles via sidebar', async ({ page, request }) => {
+  test('2.5 — Logo navigates home', async ({ page, request }) => {
     const projectId = await createProject(request, 'Test Project 2.5');
-    try {
-      await page.goto(`/projects/${projectId}`);
-      await page.locator('[data-qa="nav-roles-btn"]').click();
-      await expect(page).toHaveURL(/\/roles/);
-    } finally {
-      await deleteProject(request, projectId);
-    }
-  });
-
-  test('2.6 — Logo navigates home', async ({ page, request }) => {
-    const projectId = await createProject(request, 'Test Project 2.6');
     try {
       await page.goto(`/projects/${projectId}`);
       await page.locator('[data-qa="logo-home-link"]').click();
@@ -166,15 +134,21 @@ test.describe('Suite 2: Navigation', () => {
     }
   });
 
-  test('2.7 — Global Roles page accessible from home', async ({ page }) => {
+  test('2.6 — Global Roles page accessible from home', async ({ page }) => {
     await page.goto('/');
     await page.locator('[data-qa="nav-roles-btn"]').click();
     await expect(page).toHaveURL('/roles');
   });
 
-  test('2.8 — Global Skills page accessible from home', async ({ page }) => {
+  test('2.7 — Global Skills page accessible from home', async ({ page }) => {
     await page.goto('/');
     await page.locator('[data-qa="nav-skills-btn"]').click();
     await expect(page).toHaveURL('/skills');
+  });
+
+  test('2.8 — Global Dockerfiles page accessible from home', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('[data-qa="nav-dockerfiles-btn"]').click();
+    await expect(page).toHaveURL('/dockerfiles');
   });
 });

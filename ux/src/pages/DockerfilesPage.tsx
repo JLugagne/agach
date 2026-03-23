@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, X, Loader2, Trash2, Pencil, Tag } from 'lucide-react';
+import { Plus, X, Loader2, Trash2, Pencil, Tag, Container } from 'lucide-react';
 import { listDockerfiles, createDockerfile, updateDockerfile, deleteDockerfile } from '../lib/api';
 import type { DockerfileResponse, CreateDockerfileRequest, UpdateDockerfileRequest } from '../lib/types';
 
@@ -83,37 +83,46 @@ export default function DockerfilesPage() {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-5xl mx-auto px-8 py-12">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-[28px] text-[#F0F0F0] mb-1" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
-              Dockerfiles
-            </h1>
-            <p className="text-sm text-[var(--text-dim)]">
-              {dockerfiles.length} version{dockerfiles.length !== 1 ? 's' : ''} across {Object.keys(grouped).length} dockerfile{Object.keys(grouped).length !== 1 ? 's' : ''}
-            </p>
-          </div>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-[28px] font-semibold text-[var(--text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+            Dockerfiles
+          </h1>
           <button
             onClick={openCreate}
             data-qa="new-dockerfile-btn"
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 transition-colors"
+            className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-[13px] font-medium bg-[var(--primary)] text-[var(--primary-text)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
+            style={{ fontFamily: 'Inter, sans-serif' }}
           >
-            <Plus size={15} />
+            <Plus size={14} />
             New Dockerfile
           </button>
         </div>
+        <p className="text-sm text-[var(--text-muted)] mb-10" style={{ fontFamily: 'Inter, sans-serif' }}>
+          {dockerfiles.length} version{dockerfiles.length !== 1 ? 's' : ''} across {Object.keys(grouped).length} dockerfile{Object.keys(grouped).length !== 1 ? 's' : ''}
+        </p>
 
         {loading ? (
           <div className="flex items-center justify-center py-24">
-            <Loader2 className="animate-spin text-[var(--text-dim)]" size={24} />
+            <Loader2 className="animate-spin text-[var(--text-muted)]" size={24} />
           </div>
         ) : dockerfiles.length === 0 ? (
-          <div className="text-center py-24">
-            <p className="text-[var(--text-dim)] text-sm mb-4">No dockerfiles yet. Create your first dockerfile to get started.</p>
+          <div className="flex flex-col items-center justify-center py-24 gap-5">
+            <div className="w-20 h-20 rounded-2xl bg-[var(--bg-tertiary)] flex items-center justify-center">
+              <Container size={36} className="text-[var(--text-muted)]" />
+            </div>
+            <p className="text-lg font-medium text-[var(--text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+              No dockerfiles yet.
+            </p>
+            <p className="text-sm text-[var(--text-muted)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+              Get started by creating your first dockerfile
+            </p>
             <button
               onClick={openCreate}
               data-qa="create-first-dockerfile-btn"
-              className="text-sm text-[#00C896] hover:text-[#00C896]/80 transition-colors"
+              className="flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium bg-[var(--primary)] text-[var(--primary-text)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
+              style={{ fontFamily: 'Inter, sans-serif' }}
             >
+              <Plus size={16} />
               Create your first dockerfile
             </button>
           </div>
@@ -122,7 +131,7 @@ export default function DockerfilesPage() {
             {Object.entries(grouped).map(([slug, versions]) => (
               <div key={slug}>
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="font-mono text-xs text-[var(--text-dim)] bg-[#1A1A1A] border border-[#252525] px-2 py-0.5 rounded">
+                  <span className="font-mono text-xs text-[var(--text-dim)] bg-[var(--bg-secondary)] border border-[var(--border-primary)] px-2 py-0.5 rounded">
                     {slug}
                   </span>
                   <span className="text-xs text-[var(--text-dim)]">{versions.length} version{versions.length !== 1 ? 's' : ''}</span>
@@ -136,7 +145,7 @@ export default function DockerfilesPage() {
                         onDelete={() => handleDeleteClick(dockerfile)}
                       />
                       {deleteConfirm?.id === dockerfile.id && (
-                        <div className="mt-2 p-3 rounded-md bg-[#1A1A1A] border border-[#F06060]/30">
+                        <div className="mt-2 p-3 rounded-md bg-[var(--bg-secondary)] border border-[#F06060]/30">
                           <p className="text-xs text-[var(--text-muted)] mb-2">
                             Are you sure? This will permanently delete this dockerfile version.
                           </p>
@@ -191,18 +200,18 @@ function DockerfileCard({
   onDelete: () => void;
 }) {
   return (
-    <div className="rounded-lg bg-[#111111] border border-[#1E1E1E] p-5 text-left transition-colors hover:border-[#252525] w-full">
+    <div className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border-primary)] p-5 text-left transition-colors hover:border-[var(--border-secondary)] w-full">
       <div className="flex items-start gap-3 mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-heading text-[15px] text-[#F0F0F0] truncate">{dockerfile.name}</h3>
+            <h3 className="font-heading text-[15px] text-[var(--text-primary)] truncate">{dockerfile.name}</h3>
             <div className="flex items-center gap-1.5 shrink-0">
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-[#1A1A1A] text-[var(--text-muted)] border border-[#252525]">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-[var(--bg-secondary)] text-[var(--text-muted)] border border-[var(--border-primary)]">
                 <Tag size={9} />
                 {dockerfile.version}
               </span>
               {dockerfile.is_latest && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-[#00C896]/10 text-[#00C896] border border-[#00C896]/20">
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20">
                   latest
                 </span>
               )}
@@ -316,10 +325,10 @@ function DockerfileModal({ dockerfile, onClose, onSaved }: DockerfileModalProps)
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="flex-1 bg-black/50" onClick={onClose} />
-      <div className="w-[720px] h-full bg-[#111111] border-l border-[#1E1E1E] flex flex-col animate-[slide-in-right_0.2s_ease-out]">
+      <div className="w-[720px] h-full bg-[var(--bg-primary)] border-l border-[var(--border-primary)] flex flex-col animate-[slide-in-right_0.2s_ease-out]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-[#1E1E1E]">
-          <h2 className="text-lg text-[#F0F0F0]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--border-primary)]">
+          <h2 className="text-lg text-[var(--text-primary)]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
             {isEdit ? 'Edit Dockerfile' : 'New Dockerfile'}
           </h2>
           <button
@@ -349,7 +358,7 @@ function DockerfileModal({ dockerfile, onClose, onSaved }: DockerfileModalProps)
                 onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="e.g. Production API"
                 data-qa="dockerfile-name-input"
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
+                className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50"
                 autoFocus
               />
             </div>
@@ -362,7 +371,7 @@ function DockerfileModal({ dockerfile, onClose, onSaved }: DockerfileModalProps)
                 placeholder="production-api"
                 disabled={isEdit}
                 data-qa="dockerfile-slug-input"
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 disabled:opacity-50 font-mono"
+                className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50 disabled:opacity-50 font-mono"
               />
             </div>
           </div>
@@ -378,7 +387,7 @@ function DockerfileModal({ dockerfile, onClose, onSaved }: DockerfileModalProps)
                 placeholder="e.g. 1.0.0 or 2024-01"
                 disabled={isEdit}
                 data-qa="dockerfile-version-input"
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 disabled:opacity-50 font-mono"
+                className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50 disabled:opacity-50 font-mono"
               />
             </div>
             <div className="flex flex-col justify-end">
@@ -388,9 +397,9 @@ function DockerfileModal({ dockerfile, onClose, onSaved }: DockerfileModalProps)
                   checked={isLatest}
                   onChange={(e) => setIsLatest(e.target.checked)}
                   data-qa="dockerfile-is-latest-checkbox"
-                  className="w-4 h-4 rounded border-[#252525] bg-[#1A1A1A] accent-[#00C896]"
+                  className="w-4 h-4 rounded border-[var(--border-primary)] bg-[var(--bg-secondary)] accent-[var(--primary)]"
                 />
-                <span className="text-sm text-[#F0F0F0]">Mark as latest</span>
+                <span className="text-sm text-[var(--text-primary)]">Mark as latest</span>
               </label>
               <p className="text-xs text-[var(--text-dim)] mt-1">
                 When a project is assigned this dockerfile, it will use the latest version by default.
@@ -407,7 +416,7 @@ function DockerfileModal({ dockerfile, onClose, onSaved }: DockerfileModalProps)
               placeholder="Describe this dockerfile configuration..."
               rows={2}
               data-qa="dockerfile-description-textarea"
-              className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y"
+              className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50 resize-y"
             />
           </div>
 
@@ -420,7 +429,7 @@ function DockerfileModal({ dockerfile, onClose, onSaved }: DockerfileModalProps)
               placeholder={'services:\n  app:\n    image: myapp:latest\n    ports:\n      - "8080:8080"'}
               rows={16}
               data-qa="dockerfile-content-textarea"
-              className="w-full bg-[#0D0D0D] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y font-mono text-xs"
+              className="w-full bg-[#0D0D0D] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50 resize-y font-mono text-xs"
             />
           </div>
 
@@ -432,13 +441,13 @@ function DockerfileModal({ dockerfile, onClose, onSaved }: DockerfileModalProps)
               value={sortOrder}
               onChange={(e) => setSortOrder(Number(e.target.value))}
               data-qa="dockerfile-sort-order-input"
-              className="w-24 bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] focus:outline-none focus:border-[#00C896]/50"
+              className="w-24 bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]/50"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end px-6 py-4 border-t border-[#1E1E1E] gap-3">
+        <div className="flex items-center justify-end px-6 py-4 border-t border-[var(--border-primary)] gap-3">
           <button
             onClick={onClose}
             data-qa="cancel-dockerfile-modal-footer-btn"
@@ -450,7 +459,7 @@ function DockerfileModal({ dockerfile, onClose, onSaved }: DockerfileModalProps)
             onClick={handleSave}
             disabled={!name.trim() || !slug.trim() || !version.trim() || saving}
             data-qa="save-dockerfile-btn"
-            className="px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 disabled:opacity-50 transition-colors"
+            className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-text)] text-sm font-medium rounded-md hover:bg-[var(--primary-hover)]/80 disabled:opacity-50 transition-colors"
           >
             {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Dockerfile'}
           </button>

@@ -1,125 +1,125 @@
 import { test, expect } from '@playwright/test';
-import { createProject, deleteProject, createFeature, createRole, deleteRole, BASE_URL } from './helpers';
+import { createProject, deleteProject, createFeature, createAgent, deleteAgent, BASE_URL } from './helpers';
 
-test.describe('5. Roles Management', () => {
-  test('5.1 — Roles page shows list of roles', async ({ page }) => {
+test.describe('5. Agents Management', () => {
+  test('5.1 — Agents page shows list of agents', async ({ page }) => {
     await page.goto(`${BASE_URL}/roles`);
-    await expect(page.getByRole('heading', { name: /roles/i })).toBeVisible();
-    const count = await page.locator('[data-qa="role-card"]').count();
+    await expect(page.getByRole('heading', { name: /agents/i })).toBeVisible();
+    const count = await page.locator('[data-qa="agent-card"]').count();
     expect(count).toBeGreaterThanOrEqual(0);
   });
 
-  test('5.2 — Create a new role (global)', async ({ page, request }) => {
+  test('5.2 — Create a new agent (global)', async ({ page, request }) => {
     await page.goto(`${BASE_URL}/roles`);
-    await page.locator('[data-qa="new-role-btn"]').click();
+    await page.locator('[data-qa="new-agent-btn"]').click();
 
-    await expect(page.locator('[data-qa="role-name-input"]')).toBeVisible();
-    await page.locator('[data-qa="role-name-input"]').fill('Test Role QA');
+    await expect(page.locator('[data-qa="agent-name-input"]')).toBeVisible();
+    await page.locator('[data-qa="agent-name-input"]').fill('Test Agent QA');
 
     // Slug should auto-fill
-    const slugValue = await page.locator('[data-qa="role-slug-input"]').inputValue();
+    const slugValue = await page.locator('[data-qa="agent-slug-input"]').inputValue();
     expect(slugValue.length).toBeGreaterThan(0);
 
-    await page.locator('[data-qa="role-save-btn"]').click();
+    await page.locator('[data-qa="agent-save-btn"]').click();
 
     await expect(
-      page.locator('[data-qa="role-card"]').filter({ hasText: 'Test Role QA' }),
+      page.locator('[data-qa="agent-card"]').filter({ hasText: 'Test Agent QA' }),
     ).toBeVisible();
 
-    const finalSlug = slugValue || 'test-role-qa';
+    const finalSlug = slugValue || 'test-agent-qa';
     try {
-      await deleteRole(request, finalSlug);
+      await deleteAgent(request, finalSlug);
     } catch {
       // Best-effort cleanup
     }
   });
 
-  test('5.3 — Role name is required', async ({ page }) => {
+  test('5.3 — Agent name is required', async ({ page }) => {
     await page.goto(`${BASE_URL}/roles`);
-    await page.locator('[data-qa="new-role-btn"]').click();
+    await page.locator('[data-qa="new-agent-btn"]').click();
 
-    await expect(page.locator('[data-qa="role-name-input"]')).toBeVisible();
+    await expect(page.locator('[data-qa="agent-name-input"]')).toBeVisible();
     // Leave name empty — save button should be disabled
-    await expect(page.locator('[data-qa="role-save-btn"]')).toBeDisabled();
+    await expect(page.locator('[data-qa="agent-save-btn"]')).toBeDisabled();
 
     // Modal should stay open
-    await expect(page.locator('[data-qa="role-name-input"]')).toBeVisible();
+    await expect(page.locator('[data-qa="agent-name-input"]')).toBeVisible();
   });
 
-  test('5.4 — Cancel role creation', async ({ page }) => {
+  test('5.4 — Cancel agent creation', async ({ page }) => {
     await page.goto(`${BASE_URL}/roles`);
 
-    const cardsBefore = await page.locator('[data-qa="role-card"]').count();
+    const cardsBefore = await page.locator('[data-qa="agent-card"]').count();
 
-    await page.locator('[data-qa="new-role-btn"]').click();
-    await expect(page.locator('[data-qa="role-name-input"]')).toBeVisible();
+    await page.locator('[data-qa="new-agent-btn"]').click();
+    await expect(page.locator('[data-qa="agent-name-input"]')).toBeVisible();
 
-    await page.locator('[data-qa="role-name-input"]').fill('Temp');
-    await page.locator('[data-qa="role-cancel-btn"]').click();
+    await page.locator('[data-qa="agent-name-input"]').fill('Temp');
+    await page.locator('[data-qa="agent-cancel-btn"]').click();
 
     // Modal should be closed
-    await expect(page.locator('[data-qa="role-name-input"]')).not.toBeVisible();
+    await expect(page.locator('[data-qa="agent-name-input"]')).not.toBeVisible();
 
     // No new card with "Temp" should exist
     await expect(
-      page.locator('[data-qa="role-card"]').filter({ hasText: 'Temp' }),
+      page.locator('[data-qa="agent-card"]').filter({ hasText: 'Temp' }),
     ).toHaveCount(0);
 
     // Total card count unchanged
-    const cardsAfter = await page.locator('[data-qa="role-card"]').count();
+    const cardsAfter = await page.locator('[data-qa="agent-card"]').count();
     expect(cardsAfter).toBe(cardsBefore);
   });
 
-  test('5.5 — Edit an existing role', async ({ page, request }) => {
-    await createRole(request, 'qa-edit-role', 'QA Edit Role');
+  test('5.5 — Edit an existing agent', async ({ page, request }) => {
+    await createAgent(request, 'qa-edit-agent', 'QA Edit Agent');
 
     try {
       await page.goto(`${BASE_URL}/roles`);
 
-      const card = page.locator('[data-qa="role-card"]').filter({ hasText: 'QA Edit Role' });
+      const card = page.locator('[data-qa="agent-card"]').filter({ hasText: 'QA Edit Agent' });
       await expect(card).toBeVisible();
       await card.click();
 
       // Edit mode: delete button should be visible
-      await expect(page.locator('[data-qa="role-delete-btn"]')).toBeVisible();
+      await expect(page.locator('[data-qa="agent-delete-btn"]')).toBeVisible();
 
-      await page.locator('[data-qa="role-name-input"]').fill('QA Edit Role Updated');
-      await page.locator('[data-qa="role-save-btn"]').click();
+      await page.locator('[data-qa="agent-name-input"]').fill('QA Edit Agent Updated');
+      await page.locator('[data-qa="agent-save-btn"]').click();
 
       await expect(
-        page.locator('[data-qa="role-card"]').filter({ hasText: 'QA Edit Role Updated' }),
+        page.locator('[data-qa="agent-card"]').filter({ hasText: 'QA Edit Agent Updated' }),
       ).toBeVisible();
     } finally {
-      await deleteRole(request, 'qa-edit-role');
+      await deleteAgent(request, 'qa-edit-agent');
     }
   });
 
-  test('5.6 — Delete a role', async ({ page, request }) => {
-    await createRole(request, 'qa-delete-role', 'QA Delete Role');
+  test('5.6 — Delete an agent', async ({ page, request }) => {
+    await createAgent(request, 'qa-delete-agent', 'QA Delete Agent');
 
     await page.goto(`${BASE_URL}/roles`);
 
-    const card = page.locator('[data-qa="role-card"]').filter({ hasText: 'QA Delete Role' });
+    const card = page.locator('[data-qa="agent-card"]').filter({ hasText: 'QA Delete Agent' });
     await expect(card).toBeVisible();
     await card.click();
 
-    await expect(page.locator('[data-qa="role-delete-btn"]')).toBeVisible();
-    await page.locator('[data-qa="role-delete-btn"]').click();
+    await expect(page.locator('[data-qa="agent-delete-btn"]')).toBeVisible();
+    await page.locator('[data-qa="agent-delete-btn"]').click();
 
     // Modal should close
-    await expect(page.locator('[data-qa="role-name-input"]')).not.toBeVisible();
+    await expect(page.locator('[data-qa="agent-name-input"]')).not.toBeVisible();
 
     // Card should be gone
     await expect(
-      page.locator('[data-qa="role-card"]').filter({ hasText: 'QA Delete Role' }),
+      page.locator('[data-qa="agent-card"]').filter({ hasText: 'QA Delete Agent' }),
     ).toHaveCount(0);
   });
 
-  test('5.7 — Project-scoped roles page', async ({ page, request }) => {
-    const projectId = await createProject(request, 'Roles Scoped Project 5.7');
+  test('5.7 — Project-scoped agents page', async ({ page, request }) => {
+    const projectId = await createProject(request, 'Agents Scoped Project 5.7');
     try {
       await page.goto(`${BASE_URL}/projects/${projectId}/roles`);
-      await expect(page.getByRole('heading', { name: /roles/i })).toBeVisible();
+      await expect(page.getByRole('heading', { name: /agents/i })).toBeVisible();
     } finally {
       await deleteProject(request, projectId);
     }
@@ -160,7 +160,7 @@ test.describe('6. Features', () => {
     await page.locator('[data-qa="confirm-create-feature-btn"]').click();
 
     await expect(
-      page.locator('[data-qa="feature-list-item-btn"]').filter({ hasText: 'Feature Alpha' }),
+      page.locator('[data-qa="feature-card"]').filter({ hasText: 'Feature Alpha' }),
     ).toBeVisible();
   });
 
@@ -180,7 +180,7 @@ test.describe('6. Features', () => {
   test('6.4 — Cancel feature creation', async ({ page }) => {
     await page.goto(`${BASE_URL}/projects/${projectId}/features`);
 
-    const countBefore = await page.locator('[data-qa="feature-list-item-btn"]').count();
+    const countBefore = await page.locator('[data-qa="feature-card"]').count();
 
     await page.locator('[data-qa="add-feature-btn"]').click();
     await expect(page.locator('[data-qa="new-feature-name-input"]')).toBeVisible();
@@ -192,11 +192,11 @@ test.describe('6. Features', () => {
     await expect(page.locator('[data-qa="new-feature-name-input"]')).not.toBeVisible();
 
     // No new feature created
-    const countAfter = await page.locator('[data-qa="feature-list-item-btn"]').count();
+    const countAfter = await page.locator('[data-qa="feature-card"]').count();
     expect(countAfter).toBe(countBefore);
   });
 
-  test('6.5 — Click feature to open drawer', async ({ page }) => {
+  test('6.5 — Click feature card to see details', async ({ page }) => {
     await page.goto(`${BASE_URL}/projects/${projectId}/features`);
 
     // Create a feature via the UI
@@ -205,18 +205,17 @@ test.describe('6. Features', () => {
     await page.locator('[data-qa="new-feature-name-input"]').fill('Feature Beta');
     await page.locator('[data-qa="confirm-create-feature-btn"]').click();
 
-    const featureItem = page.locator('[data-qa="feature-list-item-btn"]').filter({ hasText: 'Feature Beta' });
-    await expect(featureItem).toBeVisible();
-    await featureItem.click();
+    const featureCard = page.locator('[data-qa="feature-card"]').filter({ hasText: 'Feature Beta' });
+    await expect(featureCard).toBeVisible();
 
-    // Drawer should open: close button or board link should be visible
-    const closeBtn = page.locator('[data-qa="close-feature-drawer-btn"]');
-    const boardLink = page.locator('[data-qa="open-feature-board-link"]');
+    // The card should have an edit button or board link
+    const editBtn = featureCard.locator('[data-qa="edit-feature-btn"]');
+    const boardLink = featureCard.locator('[data-qa="open-feature-board-link"]');
 
-    const hasClose = await closeBtn.isVisible().catch(() => false);
+    const hasEdit = await editBtn.isVisible().catch(() => false);
     const hasBoard = await boardLink.isVisible().catch(() => false);
 
-    expect(hasClose || hasBoard).toBe(true);
+    expect(hasEdit || hasBoard).toBe(true);
   });
 
   test('6.6 — Open feature board navigates to feature project', async ({ page, request }) => {
@@ -225,13 +224,10 @@ test.describe('6. Features', () => {
 
     await page.goto(`${BASE_URL}/projects/${projectId}/features`);
 
-    // Click feature to open drawer
-    const featureItem = page.locator('[data-qa="feature-list-item-btn"]').filter({ hasText: 'Feature Gamma' });
-    await expect(featureItem).toBeVisible();
-    await featureItem.click();
+    const featureCard = page.locator('[data-qa="feature-card"]').filter({ hasText: 'Feature Gamma' });
+    await expect(featureCard).toBeVisible();
 
-    await expect(page.locator('[data-qa="open-feature-board-link"]')).toBeVisible();
-    await page.locator('[data-qa="open-feature-board-link"]').click();
+    await featureCard.locator('[data-qa="open-feature-board-link"]').click();
 
     // URL should navigate to the feature's own project page
     await expect(page).toHaveURL(new RegExp(`/projects/${featureId}`));
@@ -246,14 +242,10 @@ test.describe('6. Features', () => {
     await page.locator('[data-qa="new-feature-name-input"]').fill('Feature Delta');
     await page.locator('[data-qa="confirm-create-feature-btn"]').click();
 
-    // Click feature to open drawer
-    const featureItem = page.locator('[data-qa="feature-list-item-btn"]').filter({ hasText: 'Feature Delta' });
-    await expect(featureItem).toBeVisible();
-    await featureItem.click();
-
-    // Open edit modal
-    await expect(page.locator('[data-qa="edit-feature-btn"]')).toBeVisible();
-    await page.locator('[data-qa="edit-feature-btn"]').click();
+    // Click edit on the feature card
+    const featureCard = page.locator('[data-qa="feature-card"]').filter({ hasText: 'Feature Delta' });
+    await expect(featureCard).toBeVisible();
+    await featureCard.locator('[data-qa="edit-feature-btn"]').click();
 
     await expect(page.locator('[data-qa="edit-feature-name-input"]')).toBeVisible();
     await page.locator('[data-qa="edit-feature-name-input"]').clear();
@@ -261,7 +253,7 @@ test.describe('6. Features', () => {
     await page.locator('[data-qa="confirm-edit-feature-btn"]').click();
 
     await expect(
-      page.locator('[data-qa="feature-list-item-btn"]').filter({ hasText: 'Feature Updated' }),
+      page.locator('[data-qa="feature-card"]').filter({ hasText: 'Feature Updated' }),
     ).toBeVisible();
   });
 
@@ -274,15 +266,17 @@ test.describe('6. Features', () => {
     await page.locator('[data-qa="new-feature-name-input"]').fill('Feature Epsilon');
     await page.locator('[data-qa="confirm-create-feature-btn"]').click();
 
-    const featureItem = page.locator('[data-qa="feature-list-item-btn"]').filter({ hasText: 'Feature Epsilon' });
-    await expect(featureItem).toBeVisible();
-    await featureItem.click();
+    const featureCard = page.locator('[data-qa="feature-card"]').filter({ hasText: 'Feature Epsilon' });
+    await expect(featureCard).toBeVisible();
+
+    // Open edit modal and delete from there
+    await featureCard.locator('[data-qa="edit-feature-btn"]').click();
 
     await expect(page.locator('[data-qa="delete-feature-btn"]')).toBeVisible();
     await page.locator('[data-qa="delete-feature-btn"]').click();
 
     await expect(
-      page.locator('[data-qa="feature-list-item-btn"]').filter({ hasText: 'Feature Epsilon' }),
+      page.locator('[data-qa="feature-card"]').filter({ hasText: 'Feature Epsilon' }),
     ).toHaveCount(0);
   });
 

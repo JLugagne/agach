@@ -13,8 +13,7 @@ import (
 )
 
 var (
-	uuidRe    = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
-	shortIDRe = regexp.MustCompile(`^[0-9a-f]{8}$`)
+	uuidRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 )
 
 // Controller provides standard HTTP response helpers
@@ -28,7 +27,7 @@ func NewController(logger *logrus.Logger) *Controller {
 	v := validator.New()
 	v.RegisterValidation("entity_id", func(fl validator.FieldLevel) bool {
 		s := fl.Field().String()
-		return uuidRe.MatchString(s) || shortIDRe.MatchString(s)
+		return uuidRe.MatchString(s)
 	})
 	v.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
 		s := fl.Field().String()

@@ -89,7 +89,7 @@ export default function SubProjectsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--bg-secondary)] flex items-center justify-center">
         <Loader2 className="animate-spin text-[var(--text-dim)]" size={24} />
       </div>
     );
@@ -97,8 +97,8 @@ export default function SubProjectsPage() {
 
   const rightDrawer = selectedProject ? (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[#1E1E1E]">
-        <h3 className="font-heading text-sm text-[#F0F0F0]">{selectedProject.name}</h3>
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-primary)]">
+        <h3 className="font-heading text-sm text-[var(--text-primary)]">{selectedProject.name}</h3>
         <button
           onClick={() => setSelectedProject(null)}
           className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
@@ -110,7 +110,7 @@ export default function SubProjectsPage() {
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-mono text-[var(--text-dim)] mb-1">Name</label>
-            <p className="text-sm text-[#F0F0F0]">{selectedProject.name}</p>
+            <p className="text-sm text-[var(--text-primary)]">{selectedProject.name}</p>
           </div>
           <div>
             <label className="block text-xs font-mono text-[var(--text-dim)] mb-1">Description</label>
@@ -125,7 +125,7 @@ export default function SubProjectsPage() {
                 <span className="text-[var(--text-muted)]">
                   {selectedProject.summary.todo_count} todo
                 </span>
-                <span className="text-[#00C896]">
+                <span className="text-[var(--primary)]">
                   {selectedProject.summary.in_progress_count} in progress
                 </span>
                 <span className="text-[var(--text-muted)]">
@@ -140,7 +140,7 @@ export default function SubProjectsPage() {
           <div className="pt-4 flex gap-3">
             <Link
               to={`/projects/${selectedProject.id}`}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00C896] text-[#0F0F0F] text-xs font-medium rounded-md hover:bg-[#00C896]/80 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--primary)] text-[var(--primary-text)] text-xs font-medium rounded-md hover:bg-[var(--primary-hover)]/80 transition-colors"
             >
               Open Board
               <ExternalLink size={11} />
@@ -160,10 +160,10 @@ export default function SubProjectsPage() {
   return (
     <SettingsLayout projectName={project?.name ?? 'Project'} rightDrawer={rightDrawer}>
       <div className="flex items-center justify-between mb-8">
-        <h1 className="font-heading text-2xl text-[#F0F0F0]">Sub-Projects</h1>
+        <h1 className="font-heading text-2xl text-[var(--text-primary)]">Sub-Projects</h1>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00C896] text-[#0F0F0F] text-xs font-medium rounded-md hover:bg-[#00C896]/80 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--primary)] text-[var(--primary-text)] text-xs font-medium rounded-md hover:bg-[var(--primary-hover)]/80 transition-colors"
         >
           <Plus size={13} />
           Add Sub-Project
@@ -175,7 +175,7 @@ export default function SubProjectsPage() {
           <p className="text-[var(--text-dim)] text-sm mb-4">No sub-projects yet.</p>
           <button
             onClick={() => setShowCreate(true)}
-            className="text-sm text-[#00C896] hover:text-[#00C896]/80 transition-colors"
+            className="text-sm text-[var(--primary)] hover:text-[var(--primary)]/80 transition-colors"
           >
             Create your first sub-project
           </button>
@@ -194,12 +194,12 @@ export default function SubProjectsPage() {
                 onClick={() => setSelectedProject(sub)}
                 className={`w-full text-left rounded-lg border p-4 flex items-center gap-3 transition-colors cursor-pointer ${
                   selectedProject?.id === sub.id
-                    ? 'bg-[#1A1A1A] border-[#00C896]/30'
-                    : 'bg-[#111111] border-[#1E1E1E] hover:border-[#252525]'
+                    ? 'bg-[var(--bg-secondary)] border-[var(--primary)]/30'
+                    : 'bg-[var(--bg-primary)] border-[var(--border-primary)] hover:border-[var(--border-secondary)]'
                 }`}
               >
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm text-[#F0F0F0] truncate">{sub.name}</h3>
+                  <h3 className="text-sm text-[var(--text-primary)] truncate">{sub.name}</h3>
                   {sub.description && (
                     <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">{sub.description}</p>
                   )}
@@ -218,8 +218,8 @@ export default function SubProjectsPage() {
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60" onClick={() => setShowCreate(false)} />
-          <div className="relative bg-[#111111] border border-[#1E1E1E] rounded-lg w-full max-w-md p-6">
-            <h2 className="font-heading text-lg text-[#F0F0F0] mb-4">New Sub-Project</h2>
+          <div className="relative bg-[var(--bg-primary)] border border-[var(--border-primary)] rounded-lg w-full max-w-md p-6">
+            <h2 className="font-heading text-lg text-[var(--text-primary)] mb-4">New Sub-Project</h2>
 
             <div className="mb-4">
               <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Name</label>
@@ -228,7 +228,7 @@ export default function SubProjectsPage() {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Sub-project name"
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
+                className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50"
                 autoFocus
                 onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
               />
@@ -241,7 +241,7 @@ export default function SubProjectsPage() {
                 onChange={(e) => setNewDesc(e.target.value)}
                 placeholder="Optional description"
                 rows={3}
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y"
+                className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50 resize-y"
               />
             </div>
 
@@ -255,7 +255,7 @@ export default function SubProjectsPage() {
               <button
                 onClick={handleCreate}
                 disabled={!newName.trim() || creating}
-                className="px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-text)] text-sm font-medium rounded-md hover:bg-[var(--primary-hover)]/80 disabled:opacity-50 transition-colors"
               >
                 {creating ? 'Creating...' : 'Create'}
               </button>

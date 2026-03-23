@@ -1,6 +1,6 @@
 import type {
   JSendResponse, ProjectResponse, ProjectWithSummary, ProjectSummaryResponse,
-  CreateProjectRequest, RoleResponse, CreateRoleRequest, UpdateRoleRequest, CloneRoleRequest,
+  CreateProjectRequest, AgentResponse, CreateAgentRequest, UpdateAgentRequest, CloneAgentRequest,
   TaskResponse, TaskWithDetailsResponse, CreateTaskRequest, UpdateTaskRequest,
   MoveTaskRequest, CompleteTaskRequest, BlockTaskRequest, RequestWontDoRequest,
   RejectWontDoRequest, CommentResponse, CreateCommentRequest, UpdateCommentRequest,
@@ -10,6 +10,7 @@ import type {
   AssignAgentToProjectRequest, RemoveAgentFromProjectRequest,
   BulkReassignTasksRequest, BulkReassignTasksResponse, TasksByAgentResponse,
   DockerfileResponse, CreateDockerfileRequest, UpdateDockerfileRequest, SetProjectDockerfileRequest,
+  ModelTokenStatResponse, ModelPricingResponse, FeatureStatsResponse,
 } from './types';
 
 export const authEvents = new EventTarget();
@@ -89,20 +90,20 @@ export const reorderTask = (projectId: string, taskId: string, position: number)
 export const moveTaskToProject = (projectId: string, taskId: string, targetProjectId: string) =>
   request<TaskResponse>('POST', `/api/projects/${projectId}/tasks/${taskId}/move-to-project`, { target_project_id: targetProjectId });
 
-// Roles (global)
-export const listRoles = () => request<RoleResponse[]>('GET', '/api/roles');
-export const getRole = (slug: string) => request<RoleResponse>('GET', `/api/roles/${slug}`);
-export const createRole = (data: CreateRoleRequest) => request<RoleResponse>('POST', '/api/roles', data);
-export const updateRole = (slug: string, data: UpdateRoleRequest) => request<RoleResponse>('PATCH', `/api/roles/${slug}`, data);
-export const deleteRole = (slug: string) => request<void>('DELETE', `/api/roles/${slug}`);
-export const cloneRole = (slug: string, data: CloneRoleRequest) =>
-  request<RoleResponse>('POST', `/api/roles/${slug}/clone`, data);
+// Agents (global)
+export const listAgents = () => request<AgentResponse[]>('GET', '/api/agents');
+export const getAgent = (slug: string) => request<AgentResponse>('GET', `/api/agents/${slug}`);
+export const createAgent = (data: CreateAgentRequest) => request<AgentResponse>('POST', '/api/agents', data);
+export const updateAgent = (slug: string, data: UpdateAgentRequest) => request<AgentResponse>('PATCH', `/api/agents/${slug}`, data);
+export const deleteAgent = (slug: string) => request<void>('DELETE', `/api/agents/${slug}`);
+export const cloneAgent = (slug: string, data: CloneAgentRequest) =>
+  request<AgentResponse>('POST', `/api/agents/${slug}/clone`, data);
 
-// Roles (per-project)
-export const listProjectRoles = (projectId: string) => request<RoleResponse[]>('GET', `/api/projects/${projectId}/roles`);
-export const createProjectRole = (projectId: string, data: CreateRoleRequest) => request<RoleResponse>('POST', `/api/projects/${projectId}/roles`, data);
-export const updateProjectRole = (projectId: string, slug: string, data: UpdateRoleRequest) => request<RoleResponse>('PATCH', `/api/projects/${projectId}/roles/${slug}`, data);
-export const deleteProjectRole = (projectId: string, slug: string) => request<void>('DELETE', `/api/projects/${projectId}/roles/${slug}`);
+// Agents (per-project)
+export const listProjectAgents = (projectId: string) => request<AgentResponse[]>('GET', `/api/projects/${projectId}/agents`);
+export const createProjectAgent = (projectId: string, data: CreateAgentRequest) => request<AgentResponse>('POST', `/api/projects/${projectId}/agents`, data);
+export const updateProjectAgent = (projectId: string, slug: string, data: UpdateAgentRequest) => request<AgentResponse>('PATCH', `/api/projects/${projectId}/agents/${slug}`, data);
+export const deleteProjectAgent = (projectId: string, slug: string) => request<void>('DELETE', `/api/projects/${projectId}/agents/${slug}`);
 
 // Comments
 export const listComments = (projectId: string, taskId: string) => request<CommentResponse[]>('GET', `/api/projects/${projectId}/tasks/${taskId}/comments`);
@@ -128,6 +129,11 @@ export const getTimeline = (projectId: string, days?: number) => {
   return request<TimelineEntryResponse[]>('GET', `/api/projects/${projectId}/stats/timeline${params}`);
 };
 
+// Model stats
+export const getModelTokenStats = (projectId: string) => request<ModelTokenStatResponse[]>('GET', `/api/projects/${projectId}/stats/model-tokens`);
+export const getModelPricing = () => request<ModelPricingResponse[]>('GET', '/api/model-pricing');
+export const getFeatureStats = (projectId: string) => request<FeatureStatsResponse>('GET', `/api/projects/${projectId}/stats/features`);
+
 // Skills (global)
 export const listSkills = () => request<SkillResponse[]>('GET', '/api/skills');
 export const getSkill = (slug: string) => request<SkillResponse>('GET', `/api/skills/${slug}`);
@@ -137,15 +143,13 @@ export const deleteSkill = (slug: string) => request<void>('DELETE', `/api/skill
 
 // Agent-skill assignments
 export const listAgentSkills = (agentSlug: string) =>
-  request<SkillResponse[]>('GET', `/api/roles/${agentSlug}/skills`);
+  request<SkillResponse[]>('GET', `/api/agents/${agentSlug}/skills`);
 export const addSkillToAgent = (agentSlug: string, data: AddSkillToAgentRequest) =>
-  request<void>('POST', `/api/roles/${agentSlug}/skills`, data);
+  request<void>('POST', `/api/agents/${agentSlug}/skills`, data);
 export const removeSkillFromAgent = (agentSlug: string, skillSlug: string) =>
-  request<void>('DELETE', `/api/roles/${agentSlug}/skills/${skillSlug}`);
+  request<void>('DELETE', `/api/agents/${agentSlug}/skills/${skillSlug}`);
 
 // Project agent management
-export const listProjectAgents = (projectId: string) =>
-  request<RoleResponse[]>('GET', `/api/projects/${projectId}/agents`);
 export const assignAgentToProject = (projectId: string, data: AssignAgentToProjectRequest) =>
   request<void>('POST', `/api/projects/${projectId}/agents`, data);
 export const removeAgentFromProject = (projectId: string, agentSlug: string, data: RemoveAgentFromProjectRequest) =>

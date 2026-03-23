@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Loader2, X } from 'lucide-react';
-import { cloneRole } from '../lib/api';
-import type { RoleResponse } from '../lib/types';
+import { cloneAgent } from '../lib/api';
+import type { AgentResponse } from '../lib/types';
 
 interface CloneAgentDialogProps {
-  sourceRole: RoleResponse;
+  sourceRole: AgentResponse;
   onClose: () => void;
-  onSuccess: (cloned: RoleResponse) => void;
+  onSuccess: (cloned: AgentResponse) => void;
 }
 
 export default function CloneAgentDialog({ sourceRole, onClose, onSuccess }: CloneAgentDialogProps) {
@@ -52,7 +52,7 @@ export default function CloneAgentDialog({ sourceRole, onClose, onSuccess }: Clo
     setLoading(true);
     setError(null);
     try {
-      const cloned = await cloneRole(sourceRole.slug, {
+      const cloned = await cloneAgent(sourceRole.slug, {
         new_slug: newSlug,
         new_name: newName || undefined,
       });
@@ -68,9 +68,9 @@ export default function CloneAgentDialog({ sourceRole, onClose, onSuccess }: Clo
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-[#111111] border border-[#1E1E1E] rounded-lg shadow-xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1E1E1E]">
-          <h2 className="text-base text-[#F0F0F0]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
+      <div className="relative w-full max-w-md bg-[var(--bg-primary)] border border-[var(--border-primary)] rounded-lg shadow-xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-primary)]">
+          <h2 className="text-base text-[var(--text-primary)]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
             Clone &ldquo;{sourceRole.name}&rdquo;
           </h2>
           <button
@@ -97,7 +97,7 @@ export default function CloneAgentDialog({ sourceRole, onClose, onSuccess }: Clo
               value={newSlug}
               onChange={(e) => handleSlugChange(e.target.value)}
               data-qa="clone-agent-slug-input"
-              className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm font-mono text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
+              className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm font-mono text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50"
               placeholder="new-agent-slug"
             />
             {slugError && (
@@ -114,7 +114,7 @@ export default function CloneAgentDialog({ sourceRole, onClose, onSuccess }: Clo
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               data-qa="clone-agent-name-input"
-              className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
+              className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50"
               placeholder="New Agent Name"
             />
           </div>
@@ -126,7 +126,7 @@ export default function CloneAgentDialog({ sourceRole, onClose, onSuccess }: Clo
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#1E1E1E]">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border-primary)]">
           <button
             onClick={onClose}
             disabled={loading}
@@ -139,7 +139,7 @@ export default function CloneAgentDialog({ sourceRole, onClose, onSuccess }: Clo
             onClick={handleSubmit}
             disabled={loading || !!slugError || !newSlug}
             data-qa="clone-agent-submit-btn"
-            className="flex items-center gap-2 px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-[var(--primary-text)] text-sm font-medium rounded-md hover:bg-[var(--primary-hover)]/80 disabled:opacity-50 transition-colors"
           >
             {loading && <Loader2 size={14} className="animate-spin" />}
             Clone Agent

@@ -26,7 +26,7 @@ function authorColor(authorRole: string): string {
   for (let i = 0; i < authorRole.length; i++) {
     hash = authorRole.charCodeAt(i) + ((hash << 5) - hash);
   }
-  const colors = ['#00C896', '#F09060', '#6B8AFF', '#F06060', '#FFD060', '#A78BFA', '#F472B6'];
+  const colors = ['#7C3AED', '#F09060', '#6B8AFF', '#F06060', '#FFD060', '#A78BFA', '#F472B6'];
   return colors[Math.abs(hash) % colors.length];
 }
 

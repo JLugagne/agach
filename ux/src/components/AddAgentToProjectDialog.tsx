@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { listRoles, assignAgentToProject } from '../lib/api';
-import type { RoleResponse } from '../lib/types';
+import { listAgents, assignAgentToProject } from '../lib/api';
+import type { AgentResponse } from '../lib/types';
 
 interface AddAgentToProjectDialogProps {
   projectId: string;
@@ -11,14 +11,14 @@ interface AddAgentToProjectDialogProps {
 }
 
 export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onClose, onSuccess }: AddAgentToProjectDialogProps) {
-  const [allRoles, setAllRoles] = useState<RoleResponse[]>([]);
+  const [allRoles, setAllRoles] = useState<AgentResponse[]>([]);
   const [selectedSlug, setSelectedSlug] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    listRoles().then(data => {
+    listAgents().then(data => {
       setAllRoles((data ?? []).filter(r => !assignedSlugs.has(r.slug)));
       setLoading(false);
     });
@@ -40,10 +40,10 @@ export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onCl
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="bg-[#1A1A1A] border border-[#252525] rounded-lg p-6 w-full max-w-sm shadow-xl"
+        className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-lg p-6 w-full max-w-sm shadow-xl"
         onClick={e => e.stopPropagation()}
       >
-        <h2 className="font-heading text-base text-[#F0F0F0] mb-4">Add Agent to Project</h2>
+        <h2 className="font-heading text-base text-[var(--text-primary)] mb-4">Add Agent to Project</h2>
 
         {loading ? (
           <div className="flex justify-center py-6">
@@ -60,7 +60,7 @@ export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onCl
               value={selectedSlug}
               onChange={e => setSelectedSlug(e.target.value)}
               data-qa="add-agent-select"
-              className="w-full bg-[#111] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] focus:outline-none focus:border-[#00C896]/50"
+              className="w-full bg-[var(--bg-primary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]/50"
             >
               <option value="">Select an agent...</option>
               {allRoles.map(r => (
@@ -78,7 +78,7 @@ export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onCl
           <button
             onClick={onClose}
             data-qa="add-agent-cancel-btn"
-            className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[#F0F0F0] transition-colors"
+            className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
           >
             Cancel
           </button>
@@ -87,7 +87,7 @@ export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onCl
               onClick={handleAdd}
               disabled={!selectedSlug || saving}
               data-qa="add-agent-confirm-btn"
-              className="px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-text)] text-sm font-medium rounded-md hover:bg-[var(--primary-hover)]/80 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Adding...' : 'Add Agent'}
             </button>

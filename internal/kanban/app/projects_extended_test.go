@@ -247,54 +247,6 @@ func TestApp_GetProjectInfo_ProjectNotFound_ReturnsError(t *testing.T) {
 	assert.ErrorIs(t, err, domain.ErrProjectNotFound)
 }
 
-// ListProjectsByWorkDir Tests
-
-func TestApp_ListProjectsByWorkDir_Success(t *testing.T) {
-	ctx := context.Background()
-	a, mockProjects, _, _, _, _, _ := setupTestApp()
-
-	projectID := domain.NewProjectID()
-	workDir := "/home/user/project"
-
-	mockProjects.ListByWorkDirFunc = func(ctx context.Context, wd string) ([]domain.Project, error) {
-		if wd == workDir {
-			return []domain.Project{
-				{ID: projectID, Name: "Project", WorkDir: workDir},
-			}, nil
-		}
-		return []domain.Project{}, nil
-	}
-
-	mockProjects.GetSummaryFunc = func(ctx context.Context, id domain.ProjectID) (*domain.ProjectSummary, error) {
-		return &domain.ProjectSummary{TodoCount: 2}, nil
-	}
-
-	mockProjects.CountChildrenFunc = func(ctx context.Context, id domain.ProjectID) (int, error) {
-		return 0, nil
-	}
-
-	result, err := a.ListProjectsByWorkDir(ctx, workDir)
-
-	require.NoError(t, err)
-	require.Len(t, result, 1)
-	assert.Equal(t, projectID, result[0].ID)
-	assert.Equal(t, 2, result[0].TaskSummary.TodoCount)
-}
-
-func TestApp_ListProjectsByWorkDir_NoResults(t *testing.T) {
-	ctx := context.Background()
-	a, mockProjects, _, _, _, _, _ := setupTestApp()
-
-	mockProjects.ListByWorkDirFunc = func(ctx context.Context, wd string) ([]domain.Project, error) {
-		return []domain.Project{}, nil
-	}
-
-	result, err := a.ListProjectsByWorkDir(ctx, "/nonexistent/dir")
-
-	require.NoError(t, err)
-	assert.Empty(t, result)
-}
-
 // MoveTaskToProject Tests
 
 func TestApp_MoveTaskToProject_Success(t *testing.T) {

@@ -92,8 +92,10 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, j
 	kanbanRouter := httpRouter.PathPrefix("").Subrouter()
 	kanbanRouter.Use(requireAuth)
 	if _, err := kanban.InitKanbanHTTP(kanban.Config{
-		Pool:   pool,
-		Logger: logger,
+		Pool:        pool,
+		Logger:      logger,
+		AuthQueries: identitySystem.AuthQueries,
+		WSRouter:    httpRouter,
 	}, kanbanRouter); err != nil {
 		logger.WithError(err).Fatal("Failed to initialize Kanban HTTP system")
 	}
@@ -109,7 +111,7 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, j
 	// Create HTTP server
 	httpSrv := &http.Server{
 		Addr:         httpHost + ":" + httpPort,
-		Handler:      httpRouter,
+		Handler:      middleware.RequestLogger(logger)(httpRouter),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,

@@ -18,17 +18,15 @@ import (
 )
 
 var (
-	// uuidRe validates UUID v4 format (used for project/task IDs).
+	// uuidRe validates UUID format (used for project/task IDs).
 	uuidRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
-	// shortIDRe validates short IDs (first 8 hex chars of a UUID).
-	shortIDRe = regexp.MustCompile(`^[0-9a-fA-F]{8}$`)
 	// slugRe validates agent role slugs.
 	slugRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 	// sessionIDRe validates Claude session IDs (hex strings).
 	sessionIDRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 )
 
-func isValidUUID(s string) bool   { return uuidRe.MatchString(s) || shortIDRe.MatchString(s) }
+func isValidUUID(s string) bool   { return uuidRe.MatchString(s) }
 func isValidSlug(s string) bool   { return s != "" && len(s) <= 128 && slugRe.MatchString(s) }
 func isValidSession(s string) bool { return s != "" && len(s) <= 256 && sessionIDRe.MatchString(s) }
 

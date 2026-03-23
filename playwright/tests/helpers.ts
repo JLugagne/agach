@@ -1,6 +1,5 @@
 import { APIRequestContext, Page } from '@playwright/test';
 import * as fs from 'fs';
-import * as path from 'path';
 
 export const BASE_URL = process.env.BASE_URL ?? 'http://localhost:8322';
 
@@ -16,7 +15,6 @@ interface ProjectResponse {
   parent_id: string | null;
   name: string;
   description: string;
-  work_dir: string;
   created_by_role: string;
   created_by_agent: string;
   default_role: string;
@@ -24,7 +22,7 @@ interface ProjectResponse {
   updated_at: string;
 }
 
-interface RoleResponse {
+interface AgentResponse {
   id: string;
   slug: string;
   name: string;
@@ -38,6 +36,22 @@ interface RoleResponse {
   skill_count: number;
   sort_order: number;
   created_at: string;
+}
+
+// Backward compatibility alias
+type RoleResponse = AgentResponse;
+
+interface DockerfileResponse {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  version: string;
+  content: string;
+  is_latest: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
 }
 
 interface SkillResponse {
@@ -233,9 +247,9 @@ export async function createTask(
   return task.id;
 }
 
-// Roles
+// Agents (formerly Roles)
 
-export async function createRole(
+export async function createAgent(
   request: APIRequestContext,
   slug: string,
   name: string,
@@ -245,19 +259,24 @@ export async function createRole(
     description?: string;
     tech_stack?: string[];
     prompt_hint?: string;
+    prompt_template?: string;
     sort_order?: number;
   },
-): Promise<RoleResponse> {
+): Promise<AgentResponse> {
   const body: Record<string, unknown> = { slug, name, ...opts };
-  return apiRequest<RoleResponse>(request, 'POST', '/api/roles', body);
+  return apiRequest<AgentResponse>(request, 'POST', '/api/agents', body);
 }
 
-export async function deleteRole(
+export async function deleteAgent(
   request: APIRequestContext,
   slug: string,
 ): Promise<void> {
-  await apiRequest<void>(request, 'DELETE', `/api/roles/${slug}`);
+  await apiRequest<void>(request, 'DELETE', `/api/agents/${slug}`);
 }
+
+// Backward compatibility aliases
+export const createRole = createAgent;
+export const deleteRole = deleteAgent;
 
 // Features
 
@@ -296,6 +315,31 @@ export async function deleteSkill(
   slug: string,
 ): Promise<void> {
   await apiRequest<void>(request, 'DELETE', `/api/skills/${slug}`);
+}
+
+// Dockerfiles
+
+export async function createDockerfile(
+  request: APIRequestContext,
+  slug: string,
+  name: string,
+  version: string,
+  opts?: {
+    description?: string;
+    content?: string;
+    is_latest?: boolean;
+    sort_order?: number;
+  },
+): Promise<DockerfileResponse> {
+  const body: Record<string, unknown> = { slug, name, version, ...opts };
+  return apiRequest<DockerfileResponse>(request, 'POST', '/api/dockerfiles', body);
+}
+
+export async function deleteDockerfile(
+  request: APIRequestContext,
+  id: string,
+): Promise<void> {
+  await apiRequest<void>(request, 'DELETE', `/api/dockerfiles/${id}`);
 }
 
 // Task operations

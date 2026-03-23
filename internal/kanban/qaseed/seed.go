@@ -27,12 +27,21 @@ type Result struct {
 	FrontendRoleID domain.RoleID
 	QARoleID       domain.RoleID
 
+	// Skills
+	GoSkillID         domain.SkillID
+	PlaywrightSkillID domain.SkillID
+
+	// Dockerfiles
+	DockerfileID domain.DockerfileID
+
 	// Tasks (main project)
 	TodoTaskID       domain.TaskID
 	InProgressTaskID domain.TaskID
 	BlockedTaskID    domain.TaskID
 	DoneTaskID       domain.TaskID
 	WontDoTaskID     domain.TaskID // in done column, wont_do_requested=1
+	BacklogTaskID    domain.TaskID
+	FeatureTaskID    domain.TaskID // task assigned to feature sub-project
 
 	// Task with dependency
 	DepParentTaskID domain.TaskID
@@ -49,7 +58,7 @@ func Run(ctx context.Context, pool *pgxpool.Pool, logger *logrus.Logger) (*Resul
 
 	svc := app.NewApp(app.Config{
 		Projects:     repos.Projects,
-		Roles:        repos.Roles,
+		Agents:        repos.Agents,
 		Tasks:        repos.Tasks,
 		Columns:      repos.Columns,
 		Comments:     repos.Comments,
@@ -70,19 +79,26 @@ func Run(ctx context.Context, pool *pgxpool.Pool, logger *logrus.Logger) (*Resul
 // wipe truncates all user-created data in dependency order.
 func wipe(ctx context.Context, pool *pgxpool.Pool) error {
 	tables := []string{
+		// Leaf tables first (no dependants)
 		"task_dependencies",
 		"comments",
+		"tool_usage",
+		"agent_skills",
+		// Tasks reference columns, projects, and features (projects)
 		"tasks",
 		"columns",
+		// Join tables referencing projects + roles
 		"project_roles",
 		"project_agents",
+		// Projects reference dockerfiles (FK SET NULL, but wipe anyway)
 		"projects",
+		// Top-level entities
 		"skills",
+		"dockerfiles",
 		"roles",
 	}
 	for _, t := range tables {
 		if _, err := pool.Exec(ctx, "DELETE FROM "+t); err != nil {
-			// Ignore "table does not exist" errors for optional tables.
 			return fmt.Errorf("truncating %s: %w", t, err)
 		}
 	}
@@ -93,7 +109,7 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 	res := &Result{}
 
 	// ------------------------------------------------------------------ Roles
-	backendRole, err := svc.CreateRole(ctx,
+	backendRole, err := svc.CreateAgent(ctx,
 		"backend", "Backend Engineer", "⚙️", "#3B82F6",
 		"Implements server-side logic, APIs, and database access.",
 		"Focus on correctness, performance, and test coverage.", "",
@@ -105,7 +121,7 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 	res.BackendRoleID = backendRole.ID
 	logger.WithField("id", backendRole.ID).Info("qa-seed: created backend role")
 
-	frontendRole, err := svc.CreateRole(ctx,
+	frontendRole, err := svc.CreateAgent(ctx,
 		"frontend", "Frontend Engineer", "🖥️", "#8B5CF6",
 		"Builds user interfaces and integrates with HTTP APIs.",
 		"Write accessible, responsive components.", "",
@@ -117,7 +133,7 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 	res.FrontendRoleID = frontendRole.ID
 	logger.WithField("id", frontendRole.ID).Info("qa-seed: created frontend role")
 
-	qaRole, err := svc.CreateRole(ctx,
+	qaRole, err := svc.CreateAgent(ctx,
 		"qa", "QA Engineer", "🧪", "#10B981",
 		"Writes automated and manual tests to ensure quality.",
 		"Prefer end-to-end coverage over unit tests.", "",
@@ -129,11 +145,58 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 	res.QARoleID = qaRole.ID
 	logger.WithField("id", qaRole.ID).Info("qa-seed: created qa role")
 
+	// ---------------------------------------------------------------- Skills
+	goSkill, err := svc.CreateSkill(ctx,
+		"go-development", "Go Development",
+		"Best practices for writing Go services.",
+		"Use table-driven tests. Prefer composition over inheritance.",
+		"🔧", "#00ADD8", 1,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create go skill: %w", err)
+	}
+	res.GoSkillID = goSkill.ID
+	logger.WithField("id", goSkill.ID).Info("qa-seed: created go skill")
+
+	playwrightSkill, err := svc.CreateSkill(ctx,
+		"playwright-testing", "Playwright Testing",
+		"End-to-end testing with Playwright.",
+		"Always use data-qa attributes for selectors.",
+		"🎭", "#2EAD33", 2,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create playwright skill: %w", err)
+	}
+	res.PlaywrightSkillID = playwrightSkill.ID
+	logger.WithField("id", playwrightSkill.ID).Info("qa-seed: created playwright skill")
+
+	// Assign skills to agents
+	if err := svc.AddSkillToAgent(ctx, "backend", "go-development"); err != nil {
+		return nil, fmt.Errorf("assign go skill to backend: %w", err)
+	}
+	if err := svc.AddSkillToAgent(ctx, "qa", "playwright-testing"); err != nil {
+		return nil, fmt.Errorf("assign playwright skill to qa: %w", err)
+	}
+
+	// ------------------------------------------------------------- Dockerfiles
+	dockerfile, err := svc.CreateDockerfile(ctx,
+		"go-service", "Go Service",
+		"Standard Go service with PostgreSQL",
+		"1.0.0",
+		"FROM golang:1.24\nWORKDIR /app\nCOPY . .\nRUN go build -o /bin/app ./cmd/server\nCMD [\"/bin/app\"]",
+		true, 1,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create dockerfile: %w", err)
+	}
+	res.DockerfileID = dockerfile.ID
+	logger.WithField("id", dockerfile.ID).Info("qa-seed: created dockerfile")
+
 	// --------------------------------------------------------------- Projects
 	mainProject, err := svc.CreateProject(ctx,
 		"QA Test Project",
 		"Seeded project for Playwright tests",
-		"/qa/main", "",
+		"",
 		"qa", "qa-seed",
 		nil,
 	)
@@ -146,7 +209,7 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 	featureProject, err := svc.CreateProject(ctx,
 		"QA Feature Branch",
 		"Sub-project used to test feature grouping",
-		"/qa/feature", "",
+		"",
 		"qa", "qa-seed",
 		&mainProject.ID,
 	)
@@ -162,6 +225,14 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 	}
 	if err := svc.AssignAgentToProject(ctx, mainProject.ID, "frontend"); err != nil {
 		return nil, fmt.Errorf("assign frontend to project: %w", err)
+	}
+	if err := svc.AssignAgentToProject(ctx, mainProject.ID, "qa"); err != nil {
+		return nil, fmt.Errorf("assign qa to project: %w", err)
+	}
+
+	// Assign dockerfile to main project
+	if err := svc.SetProjectDockerfile(ctx, mainProject.ID, dockerfile.ID); err != nil {
+		return nil, fmt.Errorf("assign dockerfile to project: %w", err)
 	}
 
 	// ----------------------------------------------------------------- Tasks
@@ -275,6 +346,40 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 		return nil, fmt.Errorf("approve wont-do: %w", err)
 	}
 	logger.WithField("id", wontDoTask.ID).Info("qa-seed: created wont-do task")
+
+	// ------------------------------------------------------- Backlog task
+	backlogTask, err := svc.CreateTask(ctx,
+		mainProject.ID,
+		"[QA] Backlog task",
+		"A task waiting in the backlog.",
+		"This task is parked in the backlog for future sprint planning.",
+		domain.PriorityLow,
+		"backend", "qa-seed", "backend",
+		[]string{}, []string{"qa", "backlog"}, "S",
+		true, nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create backlog task: %w", err)
+	}
+	res.BacklogTaskID = backlogTask.ID
+	logger.WithField("id", backlogTask.ID).Info("qa-seed: created backlog task")
+
+	// ----------------------------------------------- Feature task (sub-project)
+	featureTask, err := svc.CreateTask(ctx,
+		mainProject.ID,
+		"[QA] Feature task",
+		"A task assigned to a feature branch.",
+		"This task belongs to the QA Feature Branch sub-project.",
+		domain.PriorityMedium,
+		"frontend", "qa-seed", "frontend",
+		[]string{}, []string{"qa", "feature"}, "M",
+		false, &featureProject.ID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create feature task: %w", err)
+	}
+	res.FeatureTaskID = featureTask.ID
+	logger.WithField("id", featureTask.ID).Info("qa-seed: created feature task")
 
 	// ---------------------------------------------- Tasks with a dependency
 	depParent, err := svc.CreateTask(ctx,

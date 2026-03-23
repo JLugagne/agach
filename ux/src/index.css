@@ -1,91 +1,91 @@
 @import "tailwindcss";
 
 :root {
-  --bg-primary: #0A0A0A;
-  --bg-secondary: #0F0F0F;
-  --bg-tertiary: #141414;
-  --bg-elevated: #1C1C1C;
+  --bg-primary: #0D0F17;
+  --bg-secondary: #131520;
+  --bg-tertiary: #1A1D2E;
+  --bg-elevated: #1E2030;
 
-  --border-primary: #383838;
-  --border-secondary: #484848;
-  --border-subtle: #303030;
+  --border-primary: #1E2030;
+  --border-secondary: #2A2D3E;
+  --border-subtle: #1E2030;
 
-  --text-primary: #F5F5F5;
-  --text-secondary: #E8E8E8;
-  --text-muted: #CCCCCC;
-  --text-dim: #AAAAAA;
+  --text-primary: #FFFFFF;
+  --text-secondary: #C4C7D4;
+  --text-muted: #8B8FA3;
+  --text-dim: #6B7084;
 
-  --primary: #00D4A0;
-  --primary-hover: #00BC8E;
-  --primary-text: #0A0A0A;
+  --primary: #7C3AED;
+  --primary-hover: #8B5CF6;
+  --primary-text: #FFFFFF;
 
-  --nav-bg-active: #1C1C1C;
-  --nav-text-active: #00D4A0;
+  --nav-bg-active: #1E2030;
+  --nav-text-active: #8B5CF6;
 
-  --card-bg: #161616;
-  --card-border: #2A2A2A;
+  --card-bg: #131520;
+  --card-border: #1E2030;
 
-  --status-todo: #AAAAAA;
-  --status-todo-bg: #2A2A2A;
+  --status-todo: #8B8FA3;
+  --status-todo-bg: #1E2030;
   --status-progress: #F5976A;
   --status-progress-bg: #2E1A0C;
-  --status-done: #00D4A0;
+  --status-done: #00D4AA;
   --status-done-bg: #0C2E22;
-  --status-blocked: #F56565;
+  --status-blocked: #FF4D4D;
   --status-blocked-bg: #2E0C0C;
 
-  --priority-critical: #F56565;
+  --priority-critical: #FF4D4D;
   --priority-critical-bg: #2E0C0C;
   --priority-high: #F5976A;
   --priority-high-bg: #2E1A0C;
   --priority-medium: #F5D060;
   --priority-medium-bg: #2E2A0C;
-  --priority-low: #AAAAAA;
-  --priority-low-bg: #2A2A2A;
+  --priority-low: #8B8FA3;
+  --priority-low-bg: #1E2030;
 }
 
 [data-theme='light'] {
-  --bg-primary: #F8F8F8;
+  --bg-primary: #F5F7FA;
   --bg-secondary: #FFFFFF;
-  --bg-tertiary: #EFEFEF;
+  --bg-tertiary: #F9FAFB;
   --bg-elevated: #FFFFFF;
 
-  --border-primary: #DEDEDE;
-  --border-secondary: #EBEBEB;
-  --border-subtle: #E8E8E8;
+  --border-primary: #E5E7EB;
+  --border-secondary: #E5E7EB;
+  --border-subtle: #E5E7EB;
 
-  --text-primary: #111111;
-  --text-secondary: #666666;
-  --text-muted: #999999;
-  --text-dim: #C0C0C0;
+  --text-primary: #1A1D2E;
+  --text-secondary: #4B5563;
+  --text-muted: #6B7280;
+  --text-dim: #9CA3AF;
 
-  --primary: #0D6E6E;
-  --primary-hover: #0A5A5A;
+  --primary: #7C3AED;
+  --primary-hover: #8B5CF6;
   --primary-text: #FFFFFF;
 
-  --nav-bg-active: #0D6E6E;
-  --nav-text-active: #FFFFFF;
+  --nav-bg-active: #F5F3FF;
+  --nav-text-active: #7C3AED;
 
   --card-bg: #FFFFFF;
-  --card-border: #DEDEDE;
+  --card-border: #E5E7EB;
 
-  --status-todo: #777777;
-  --status-todo-bg: #EFEFEF;
-  --status-progress: #C96030;
-  --status-progress-bg: #FFF0E8;
-  --status-done: #0D6E6E;
-  --status-done-bg: #E0F0F0;
-  --status-blocked: #C43030;
-  --status-blocked-bg: #FFF0F0;
+  --status-todo: #6B7280;
+  --status-todo-bg: #F3F4F6;
+  --status-progress: #F59E0B;
+  --status-progress-bg: #FEF3C7;
+  --status-done: #00B894;
+  --status-done-bg: #F0FDF9;
+  --status-blocked: #EF4444;
+  --status-blocked-bg: #FEE2E2;
 
-  --priority-critical: #C43030;
-  --priority-critical-bg: #FFF0F0;
-  --priority-high: #C96030;
-  --priority-high-bg: #FFF0E8;
+  --priority-critical: #EF4444;
+  --priority-critical-bg: #FEE2E2;
+  --priority-high: #F59E0B;
+  --priority-high-bg: #FEF3C7;
   --priority-medium: #8A6500;
   --priority-medium-bg: #FFF8DC;
-  --priority-low: #777777;
-  --priority-low-bg: #EFEFEF;
+  --priority-low: #6B7280;
+  --priority-low-bg: #F3F4F6;
 }
 
 html, body, #root {

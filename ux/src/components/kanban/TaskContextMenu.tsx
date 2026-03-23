@@ -220,7 +220,7 @@ export default function TaskContextMenu({
   return (
     <div
       ref={menuRef}
-      className="fixed z-[60] min-w-[200px] rounded-lg bg-[#1A1A1A] border border-[#2A2A2A] shadow-2xl py-1 overflow-hidden"
+      className="fixed z-[60] min-w-[200px] rounded-lg bg-[var(--bg-secondary)] border border-[#2A2A2A] shadow-2xl py-1 overflow-hidden"
       style={{ left: position.x, top: position.y }}
     >
       {items.map((item, idx) => {
@@ -244,8 +244,8 @@ export default function TaskContextMenu({
               item.danger
                 ? 'text-[#F06060] hover:bg-[#F0606015]'
                 : isCurrent
-                  ? 'text-[var(--text-primary)] bg-[#252525]'
-                  : 'text-[#E0E0E0] hover:bg-[#252525]'
+                  ? 'text-[var(--text-primary)] bg-[var(--border-primary)]'
+                  : 'text-[#E0E0E0] hover:bg-[var(--border-primary)]'
             }`}
           >
             {item.icon}

@@ -223,17 +223,15 @@ func TestGREEN_EntityIDValidator_RejectsUpperCase(t *testing.T) {
 		ID string `json:"id" validate:"required,entity_id"`
 	}
 
-	// Lowercase IDs should still be valid.
-	require.NoError(t, c.Validate(entityIDInput{ID: "aaaa1234"}),
-		"GREEN: lowercase short ID must be valid")
+	// Lowercase UUID must be valid.
 	require.NoError(t, c.Validate(entityIDInput{ID: "550e8400-e29b-41d4-a716-446655440000"}),
 		"GREEN: lowercase UUID must be valid")
 
-	// Uppercase / mixed-case should be rejected to prevent case-confusion attacks.
-	assert.Error(t, c.Validate(entityIDInput{ID: "AAAA1234"}),
-		"GREEN: uppercase short ID must be rejected")
-	assert.Error(t, c.Validate(entityIDInput{ID: "AaAa1234"}),
-		"GREEN: mixed-case short ID must be rejected")
+	// Short IDs must be rejected (only full UUIDs accepted).
+	assert.Error(t, c.Validate(entityIDInput{ID: "aaaa1234"}),
+		"GREEN: short ID must be rejected")
+
+	// Uppercase / mixed-case UUIDs should be rejected to prevent case-confusion attacks.
 	assert.Error(t, c.Validate(entityIDInput{ID: "550E8400-e29b-41d4-a716-446655440000"}),
 		"GREEN: uppercase UUID must be rejected")
 }

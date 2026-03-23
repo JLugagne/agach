@@ -35,7 +35,7 @@ func (h *ProjectAgentQueriesHandler) ListProjectAgents(w http.ResponseWriter, r 
 		return
 	}
 
-	roles, err := h.queries.ListProjectRoles(r.Context(), projectID)
+	roles, err := h.queries.ListProjectAgents(r.Context(), projectID)
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)
@@ -45,5 +45,5 @@ func (h *ProjectAgentQueriesHandler) ListProjectAgents(w http.ResponseWriter, r 
 		return
 	}
 
-	h.controller.SendSuccess(w, r, converters.ToPublicRoles(roles))
+	h.controller.SendSuccess(w, r, converters.ToPublicAgents(roles))
 }

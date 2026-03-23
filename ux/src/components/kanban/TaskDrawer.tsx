@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 import { X, FileCode2, Tag, ArrowRight, ArrowLeft, Pencil, Check, XCircle, Paperclip, Loader2, Plus } from 'lucide-react';
-import type { TaskWithDetailsResponse, TaskResponse, ColumnWithTasksResponse, RoleResponse, FeatureResponse } from '../../lib/types';
-import { getTask, listDependencies, listDependents, updateTask, addDependency, removeDependency, listTasks, listProjectRoles } from '../../lib/api';
+import type { TaskWithDetailsResponse, TaskResponse, ColumnWithTasksResponse, AgentResponse, FeatureResponse } from '../../lib/types';
+import { getTask, listDependencies, listDependents, updateTask, addDependency, removeDependency, listTasks, listProjectAgents } from '../../lib/api';
 import BlockedBanner from './BlockedBanner';
 import CommentSection from './CommentSection';
 import MarkdownContent from '../ui/MarkdownContent';
@@ -71,7 +71,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
   const [commentRefreshKey] = useState(0);
   const [dependencies, setDependencies] = useState<TaskResponse[]>([]);
   const [dependents, setDependents] = useState<TaskResponse[]>([]);
-  const [roles, setRoles] = useState<RoleResponse[]>([]);
+  const [roles, setRoles] = useState<AgentResponse[]>([]);
 
   const columnSlugById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -168,7 +168,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
 
   const fetchRoles = async () => {
     try {
-      const data = await listProjectRoles(projectId);
+      const data = await listProjectAgents(projectId);
       setRoles(data ?? []);
     } catch {
       setRoles([]);
@@ -794,7 +794,7 @@ export default function TaskDrawer({ projectId, taskId, columns, features, onClo
                 {task.feature_id && (
                   <div className="mt-2">
                     <label className="block text-xs font-mono text-[var(--text-dim)] mb-1">Feature</label>
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#00C896]/10 border border-[#00C896]/20 rounded text-xs text-[#00C896]">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[var(--primary)]/10 border border-[var(--primary)]/20 rounded text-xs text-[var(--primary)]">
                       {features?.find((f) => f.id === task.feature_id)?.name ?? task.feature_id}
                     </span>
                   </div>

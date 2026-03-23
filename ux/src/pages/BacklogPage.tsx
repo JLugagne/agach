@@ -154,7 +154,7 @@ export default function BacklogPage() {
               onClick={handleMoveAllToTodo}
               disabled={movingAll}
               data-qa="move-all-to-todo-btn"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-md bg-[var(--primary)] text-white hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-md bg-[var(--primary)] text-[var(--primary-text)] hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
               style={{ fontFamily: 'Inter, sans-serif' }}
             >
               {movingAll ? (
@@ -248,7 +248,7 @@ export default function BacklogPage() {
                   onClick={() => handleMoveToTodo(task.id)}
                   disabled={movingTaskId === task.id}
                   data-qa="move-task-to-todo-btn"
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-md bg-[var(--primary)] text-white hover:opacity-90 transition-opacity disabled:opacity-50 opacity-0 group-hover:opacity-100 flex-shrink-0 cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-md bg-[var(--primary)] text-[var(--primary-text)] hover:opacity-90 transition-opacity disabled:opacity-50 opacity-0 group-hover:opacity-100 flex-shrink-0 cursor-pointer"
                   style={{ fontFamily: 'Inter, sans-serif' }}
                   title="Move to Todo"
                 >

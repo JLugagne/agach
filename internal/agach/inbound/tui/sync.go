@@ -116,7 +116,7 @@ func (m SyncRolesModel) applySync() tcellapp.Cmd {
 		for _, ag := range m.toAdd {
 			name := ag.Name
 			desc := ag.Description
-			_, err := m.app.kanban.CreateProjectRole(m.project.ID, pkgkanban.CreateRoleRequest{
+			_, err := m.app.kanban.CreateProjectAgent(m.project.ID, pkgkanban.CreateRoleRequest{
 				Slug:        ag.Slug,
 				Name:        name,
 				Description: desc,
@@ -127,7 +127,7 @@ func (m SyncRolesModel) applySync() tcellapp.Cmd {
 		}
 
 		for _, r := range m.toRemove {
-			err := m.app.kanban.DeleteProjectRole(m.project.ID, r.Slug)
+			err := m.app.kanban.DeleteProjectAgent(m.project.ID, r.Slug)
 			if err == nil {
 				removed++
 			}

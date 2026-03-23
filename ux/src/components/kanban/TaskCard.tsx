@@ -1,5 +1,5 @@
 import type { TaskWithDetailsResponse } from '../../lib/types';
-import { MessageSquare, GitBranch, GripVertical } from 'lucide-react';
+import { MessageSquare, GitBranch, GripVertical, Clock } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { formatDuration } from '../../lib/utils';
@@ -39,8 +39,13 @@ function getCardStyleVars(columnSlug: string): CardStyle {
     case 'blocked':
       return { bg: 'var(--status-blocked-bg)', border: 'var(--status-blocked-bg)', hoverBorder: 'var(--status-blocked)' };
     default:
-      return { bg: 'var(--bg-elevated)', border: 'var(--border-subtle)', hoverBorder: 'var(--text-muted)' };
+      return { bg: 'var(--bg-tertiary)', border: 'var(--border-primary)', hoverBorder: 'var(--border-secondary)' };
   }
+}
+
+function formatShortDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export default function TaskCard({ task, columnSlug, isNew, isHighlighted, selected, roleColor, onClick, onContextMenu, onSelect }: TaskCardProps) {
@@ -73,6 +78,9 @@ export default function TaskCard({ task, columnSlug, isNew, isHighlighted, selec
     }
   };
 
+  // Get initials for avatar
+  const avatarLabel = task.assigned_role ? task.assigned_role[0].toUpperCase() : '?';
+
   return (
     <div
       ref={setNodeRef}
@@ -85,7 +93,7 @@ export default function TaskCard({ task, columnSlug, isNew, isHighlighted, selec
           e.preventDefault();
           onContextMenu(e);
         }}
-        className={`group rounded-md p-[10px_12px] cursor-pointer transition-all duration-150 bg-[var(--card-bg)] border${isHighlighted ? ' animate-task-highlight' : ''}`}
+        className={`group rounded-xl p-4 cursor-pointer transition-all duration-150 border${isHighlighted ? ' animate-task-highlight' : ''}`}
         style={{
           backgroundColor: style.bg,
           borderColor: selected ? 'var(--primary)' : style.border,
@@ -105,41 +113,18 @@ export default function TaskCard({ task, columnSlug, isNew, isHighlighted, selec
       >
         {/* Project name (for sub-project tasks) */}
         {task.project_name && (
-          <div className="mb-1.5">
-            <span className="px-1.5 py-[1px] rounded bg-[var(--nav-bg-active)]/10 text-[var(--nav-text-active)] text-[9px] font-['JetBrains_Mono'] font-medium uppercase tracking-wider truncate inline-block max-w-full">
+          <div className="mb-2">
+            <span className="px-2 py-0.5 rounded-md bg-[var(--nav-bg-active)]/10 text-[var(--nav-text-active)] text-[9px] font-medium uppercase tracking-wider truncate inline-block max-w-full" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
               {task.project_name}
             </span>
           </div>
         )}
 
-        {/* Title row */}
-        <div className="flex items-start justify-between gap-2 mb-2">
-          {/* Drag handle */}
-          <div
-            {...attributes}
-            {...listeners}
-            data-qa="task-card-drag-handle"
-            className="flex-shrink-0 mt-0.5 text-[var(--text-dim)] opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <GripVertical size={12} />
-          </div>
-          <p className="text-[var(--text-primary)] text-[13px] font-['Newsreader'] font-medium leading-snug break-words flex-1">
-            {task.title}
-          </p>
-          {isNew && columnSlug === 'done' && (
-            <span className="flex-shrink-0 px-1.5 py-[1px] rounded bg-[var(--status-done)]/20 text-[var(--status-done)] text-[9px] font-['JetBrains_Mono'] font-bold uppercase tracking-wider">
-              New
-            </span>
-          )}
-        </div>
-
-        {/* Meta row */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {/* Priority pill */}
+        {/* Top row: priority/tag pills */}
+        <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
           <span
-            className="px-1.5 py-[1px] rounded text-[9px] font-['JetBrains_Mono'] font-bold uppercase tracking-wider"
-            style={{ color: prio.text, backgroundColor: prio.bg }}
+            className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider"
+            style={{ color: prio.text, backgroundColor: prio.bg, fontFamily: 'JetBrains Mono, monospace' }}
           >
             {task.priority}
           </span>
@@ -148,70 +133,121 @@ export default function TaskCard({ task, columnSlug, isNew, isHighlighted, selec
           {task.tags?.slice(0, 2).map((tag) => (
             <span
               key={tag}
-              className="px-1.5 py-[1px] rounded bg-[var(--bg-tertiary)] text-[var(--text-secondary)] text-[9px] font-['JetBrains_Mono'] truncate max-w-[80px]"
+              className="px-2 py-0.5 rounded-md bg-[var(--bg-tertiary)] text-[var(--text-secondary)] text-[10px] truncate max-w-[90px]"
+              style={{ fontFamily: 'JetBrains Mono, monospace' }}
             >
               {tag}
             </span>
           ))}
           {task.tags && task.tags.length > 2 && (
-            <span className="text-[var(--text-dim)] text-[9px] font-['JetBrains_Mono']">
+            <span className="text-[var(--text-dim)] text-[10px]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
               +{task.tags.length - 2}
             </span>
           )}
 
-          {/* Spacer */}
+          {/* New badge */}
+          {isNew && columnSlug === 'done' && (
+            <span className="px-2 py-0.5 rounded-md bg-[var(--status-done)]/20 text-[var(--status-done)] text-[9px] font-bold uppercase tracking-wider" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+              New
+            </span>
+          )}
+
+          {/* Drag handle - far right */}
           <div className="flex-1" />
-
-          {/* Assigned role */}
-          {task.assigned_role && (
-            <span
-              className="text-[10px] font-['JetBrains_Mono'] px-1.5 py-0.5 rounded font-medium truncate max-w-[70px]"
-              style={{
-                color: roleColor ?? '#9CA3AF',
-                backgroundColor: roleColor
-                  ? `color-mix(in srgb, ${roleColor} 15%, transparent)`
-                  : 'rgba(156, 163, 175, 0.15)',
-              }}
-            >
-              @{task.assigned_role}
-            </span>
-          )}
-
-          {/* Feature dot */}
-          {task.feature_id && (
-            <div
-              className="w-1.5 h-1.5 rounded-full bg-[#00C896]/60 shrink-0"
-              title={`Feature: ${task.feature_id}`}
-            />
-          )}
-
-          {/* Unresolved deps indicator */}
-          {task.has_unresolved_deps && (
-            <GitBranch size={10} className="text-[var(--status-progress)]" />
-          )}
-
-          {/* Comment count */}
-          {task.comment_count > 0 && (
-            <div className="flex items-center gap-0.5 text-[var(--text-dim)]">
-              <MessageSquare size={10} />
-              <span className="text-[9px] font-['JetBrains_Mono']">{task.comment_count}</span>
-            </div>
-          )}
-
-          {/* Duration badge for completed tasks */}
-          {columnSlug === 'done' && task.duration_seconds > 0 && (
-            <span className="text-[10px] font-['JetBrains_Mono'] text-[var(--text-dim)]">
-              {formatDuration(task.duration_seconds)}
-            </span>
-          )}
+          <div
+            {...attributes}
+            {...listeners}
+            data-qa="task-card-drag-handle"
+            className="flex-shrink-0 text-[var(--text-dim)] opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical size={14} />
+          </div>
         </div>
+
+        {/* Title */}
+        <p className="text-[var(--text-primary)] text-[14px] font-semibold leading-snug break-words mb-1.5" style={{ fontFamily: 'Inter, sans-serif' }}>
+          {task.title}
+        </p>
+
+        {/* Summary */}
+        {task.summary && (
+          <p className="text-[var(--text-secondary)] text-[12px] leading-relaxed line-clamp-2 mb-3" style={{ fontFamily: 'Inter, sans-serif' }}>
+            {task.summary}
+          </p>
+        )}
+
+        {/* Blocked reason */}
+        {task.is_blocked && task.blocked_reason && (
+          <div className="mb-3 px-2.5 py-1.5 rounded-lg bg-[var(--status-blocked)]/10 text-[var(--status-blocked)] text-[11px] flex items-start gap-1.5" style={{ fontFamily: 'Inter, sans-serif' }}>
+            <span className="shrink-0 mt-0.5">&#9888;</span>
+            <span className="line-clamp-2">{task.blocked_reason}</span>
+          </div>
+        )}
 
         {/* Won't-do requested badge */}
         {task.wont_do_requested && (
-          <div className="mt-2 px-1.5 py-0.5 rounded bg-[var(--status-progress)]/10 text-[var(--status-progress)] text-[9px] font-['JetBrains_Mono'] font-bold uppercase tracking-wider inline-block">
+          <div className="mb-3 px-2.5 py-1.5 rounded-lg bg-[var(--status-progress)]/10 text-[var(--status-progress)] text-[10px] font-bold uppercase tracking-wider inline-block" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
             Won't Do Requested
           </div>
         )}
+
+        {/* Bottom row: avatar + metadata + date */}
+        <div className="flex items-center gap-2">
+          {/* Avatar */}
+          {task.assigned_role && (
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
+              style={{
+                backgroundColor: roleColor ?? '#6B7280',
+                color: '#fff',
+                fontFamily: 'Inter, sans-serif',
+              }}
+              title={task.assigned_role}
+            >
+              {avatarLabel}
+            </div>
+          )}
+
+          {/* Meta indicators */}
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            {/* Feature dot */}
+            {task.feature_id && (
+              <div
+                className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]/60 shrink-0"
+                title={`Feature: ${task.feature_id}`}
+              />
+            )}
+
+            {/* Unresolved deps indicator */}
+            {task.has_unresolved_deps && (
+              <GitBranch size={12} className="text-[var(--status-progress)] shrink-0" />
+            )}
+
+            {/* Comment count */}
+            {task.comment_count > 0 && (
+              <div className="flex items-center gap-0.5 text-[var(--text-dim)]">
+                <MessageSquare size={11} />
+                <span className="text-[10px]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{task.comment_count}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Duration badge for completed tasks */}
+          {columnSlug === 'done' && task.duration_seconds > 0 && (
+            <div className="flex items-center gap-1 text-[var(--status-done)]">
+              <Clock size={11} />
+              <span className="text-[11px]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                {formatDuration(task.duration_seconds)}
+              </span>
+            </div>
+          )}
+
+          {/* Date */}
+          <span className="text-[11px] text-[var(--text-dim)] shrink-0" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+            {formatShortDate(task.updated_at)}
+          </span>
+        </div>
       </div>
     </div>
   );

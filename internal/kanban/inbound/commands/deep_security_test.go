@@ -70,7 +70,7 @@ func newDeepSecurityRouter(t *testing.T, app commands.App) *mux.Router {
 	sseHub := sse.NewHub()
 
 	router := mux.NewRouter()
-	commands.RegisterAllRoutes(router, app, ctrl, hub, sseHub)
+	commands.NewRouter(router, app, ctrl, hub, sseHub)
 	return router
 }
 
@@ -727,7 +727,7 @@ func TestSecurity_SEC07_InternalErrorLeaksRawMessage_RED(t *testing.T) {
 	internalMessage := "pq: duplicate key value violates unique constraint \"projects_pkey\""
 
 	cmds := &servicetest.MockCommands{
-		CreateProjectFunc: func(ctx context.Context, name, description, workDir, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
+		CreateProjectFunc: func(ctx context.Context, name, description, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
 			// Return a plain error (not *apierror.Error and not a domain error).
 			// This simulates a database driver error escaping the service layer.
 			return domain.Project{}, errors.New(internalMessage)
@@ -793,7 +793,7 @@ func TestSecurity_SEC07_InternalErrorLeaksRawMessage_RED(t *testing.T) {
 // receives only the controlled Code and Message fields.
 func TestSecurity_SEC07_DomainErrorMessageIsSafe_GREEN(t *testing.T) {
 	cmds := &servicetest.MockCommands{
-		CreateProjectFunc: func(ctx context.Context, name, description, workDir, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
+		CreateProjectFunc: func(ctx context.Context, name, description, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
 			// *domain.Error is routed through SendFail with controlled code/message.
 			return domain.Project{}, domain.ErrProjectAlreadyExists
 		},

@@ -1,11 +1,11 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { LayoutGrid, Users, Settings, Plus, AlertTriangle, Sun, Moon, BarChart3, Inbox, BookOpen, Container, Key, LogOut, UserCircle, ChevronUp } from 'lucide-react';
-import { listFeaturesActiveOnly, getProject, getProjectSummary } from '../lib/api';
+import { LayoutGrid, Users, Settings, Plus, AlertTriangle, Sun, Moon, BarChart3, BookOpen, Container, Key, LogOut, UserCircle, ChevronUp, Menu, X } from 'lucide-react';
+import { listFeaturesActiveOnly, getProject } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useTheme } from './ThemeContext';
 import { useAuth } from './AuthContext';
-import type { ProjectWithSummary, ProjectResponse, ProjectSummaryResponse } from '../lib/types';
+import type { ProjectWithSummary, ProjectResponse } from '../lib/types';
 
 interface LayoutProps {
   children: ReactNode;
@@ -18,11 +18,11 @@ export function Layout({ children }: LayoutProps) {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [parentProject, setParentProject] = useState<ProjectResponse | null>(null);
   const [activeFeatures, setActiveFeatures] = useState<ProjectWithSummary[]>([]);
-  const [projectSummary, setProjectSummary] = useState<ProjectSummaryResponse | null>(null);
   // Track which features had updates since the user last visited them
   const [updatedFeatures, setUpdatedFeatures] = useState<Set<string>>(new Set());
   // The parent project ID to use for fetching features
@@ -34,7 +34,6 @@ export function Layout({ children }: LayoutProps) {
       setParentProject(null);
       setActiveFeatures([]);
       setParentId(null);
-      setProjectSummary(null);
       return;
     }
 
@@ -43,7 +42,7 @@ export function Layout({ children }: LayoutProps) {
       // Always fetch active features from the ROOT project
       const rootId = proj.parent_id || projectId;
       setParentId(proj.parent_id ?? null);
-      listFeaturesActiveOnly(rootId).then(setActiveFeatures).catch(() => setActiveFeatures([]));
+      listFeaturesActiveOnly(rootId).then((f) => setActiveFeatures(f ?? [])).catch(() => setActiveFeatures([]));
       // Fetch parent project for breadcrumb title
       if (proj.parent_id) {
         getProject(proj.parent_id).then(setParentProject).catch(() => setParentProject(null));
@@ -51,7 +50,6 @@ export function Layout({ children }: LayoutProps) {
         setParentProject(null);
       }
     }).catch(() => {});
-    getProjectSummary(projectId).then(setProjectSummary).catch(() => setProjectSummary(null));
   }, [projectId]);
 
   // Update document title based on breadcrumb
@@ -87,9 +85,7 @@ export function Layout({ children }: LayoutProps) {
         if (!eventProjectId) return;
         const type = event.type || '';
         if (!type.startsWith('task_') && !type.startsWith('comment_')) return;
-        // Refresh summary if event is for the current project (backlog count may change)
         if (eventProjectId === projectId) {
-          getProjectSummary(projectId).then(setProjectSummary).catch(() => {});
           return;
         }
         setActiveFeatures((features) => {
@@ -102,7 +98,7 @@ export function Layout({ children }: LayoutProps) {
             });
             const rootId = parentId || projectId;
             if (rootId) {
-              listFeaturesActiveOnly(rootId).then(setActiveFeatures).catch(() => {});
+              listFeaturesActiveOnly(rootId).then((f) => setActiveFeatures(f ?? [])).catch(() => {});
             }
           }
           return features;
@@ -129,16 +125,39 @@ export function Layout({ children }: LayoutProps) {
   // Determine the "root" project ID for nav links (parent if we're in a feature)
   const navProjectId = parentId || projectId;
 
+  // Close sidebar when navigating on mobile
+  const navigate_ = (path: string) => { navigate(path); setSidebarOpen(false); };
+
   return (
     <div className="flex h-screen overflow-hidden">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-[220px] flex-shrink-0 bg-[var(--bg-secondary)] border-r border-[var(--border-primary)] flex flex-col">
+      <aside className={`
+        fixed inset-y-0 left-0 z-50 w-[240px] flex-shrink-0 relative
+        bg-[var(--bg-secondary)] border-r border-[var(--border-primary)] flex flex-col
+        transform transition-transform duration-200 ease-in-out
+        md:relative md:translate-x-0
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
         {/* Logo */}
-        <Link to="/" data-qa="logo-home-link" className="flex items-center gap-2.5 h-[60px] px-4 border-b border-[var(--border-primary)] hover:opacity-80 transition-opacity flex-shrink-0">
+        <Link to="/" data-qa="logo-home-link" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 h-[60px] px-5 hover:opacity-80 transition-opacity flex-shrink-0">
+          <button
+            onClick={(e) => { e.preventDefault(); setSidebarOpen(false); }}
+            className="md:hidden absolute right-3 top-3.5 p-1.5 rounded-md text-[var(--text-secondary)] hover:bg-[var(--nav-bg-active)]/50"
+          >
+            <X size={18} />
+          </button>
           <div className="w-8 h-8 flex items-center justify-center">
             <img src={theme === 'dark' ? "/logo-dark.svg" : "/logo-light.svg"} alt="Agach" className="w-full h-auto" />
           </div>
-          <span className="font-heading text-[17px] font-medium text-[var(--text-primary)]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
+          <span className="text-base font-semibold text-[var(--text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
             Agach
           </span>
         </Link>
@@ -146,85 +165,66 @@ export function Layout({ children }: LayoutProps) {
         {/* Scrollable middle section */}
         <div className="flex-1 overflow-y-auto">
         {/* Nav */}
-        <nav className="flex flex-col gap-0.5 p-[12px_10px]">
+        <nav className="flex flex-col gap-1 p-[16px_20px]">
           {projectId ? (
             <>
               <NavItem
-                icon={<LayoutGrid size={15} />}
+                icon={<LayoutGrid size={18} />}
                 label="Kanban"
                 active={isActive(`/projects/${projectId}`) || isActive(`/projects/${projectId}/board`)}
-                onClick={() => navigate(`/projects/${projectId}`)}
+                onClick={() => navigate_(`/projects/${projectId}`)}
                 data-qa="nav-kanban-btn"
               />
               <NavItem
-                icon={<Inbox size={15} />}
-                label="Backlog"
-                active={isActive(`/projects/${projectId}/backlog`)}
-                onClick={() => navigate(`/projects/${projectId}/backlog`)}
-                data-qa="nav-backlog-btn"
-                badge={(() => {
-                  const own = projectSummary?.backlog_count ?? 0;
-                  // When at root project (no parentId), add features' backlog counts
-                  const childrenCount = !parentId
-                    ? activeFeatures.reduce(
-                        (sum, f) => sum + ((f.task_summary ?? f.summary)?.backlog_count ?? 0),
-                        0
-                      )
-                    : 0;
-                  const total = own + childrenCount;
-                  return total > 0 ? total : undefined;
-                })()}
+                icon={<BookOpen size={18} />}
+                label="Features"
+                active={isActive(`/projects/${projectId}/features`)}
+                onClick={() => navigate_(`/projects/${projectId}/features`)}
+                data-qa="nav-features-btn"
               />
               <NavItem
-                icon={<Users size={15} />}
-                label="Roles"
-                active={isActive(`/projects/${projectId}/roles`)}
-                onClick={() => navigate(`/projects/${projectId}/roles`)}
-                data-qa="nav-roles-btn"
-              />
-              <NavItem
-                icon={<BarChart3 size={15} />}
+                icon={<BarChart3 size={18} />}
                 label="Statistics"
                 active={isActive(`/projects/${projectId}/statistics`)}
-                onClick={() => navigate(`/projects/${projectId}/statistics`)}
+                onClick={() => navigate_(`/projects/${projectId}/statistics`)}
                 data-qa="nav-statistics-btn"
               />
               <NavItem
-                icon={<Settings size={15} />}
+                icon={<Settings size={18} />}
                 label="Settings"
                 active={isActivePrefix(`/projects/${projectId}/settings`)}
-                onClick={() => navigate(`/projects/${projectId}/settings`)}
+                onClick={() => navigate_(`/projects/${projectId}/settings`)}
                 data-qa="nav-settings-btn"
               />
             </>
           ) : (
             <>
               <NavItem
-                icon={<LayoutGrid size={15} />}
+                icon={<LayoutGrid size={18} />}
                 label="Projects"
                 active={isActive('/')}
-                onClick={() => navigate('/')}
+                onClick={() => navigate_('/')}
                 data-qa="nav-projects-btn"
               />
               <NavItem
-                icon={<Users size={15} />}
-                label="Roles"
+                icon={<Users size={18} />}
+                label="Agents"
                 active={isActive('/roles')}
-                onClick={() => navigate('/roles')}
+                onClick={() => navigate_('/roles')}
                 data-qa="nav-roles-btn"
               />
               <NavItem
-                icon={<BookOpen size={15} />}
+                icon={<BookOpen size={18} />}
                 label="Skills"
                 active={isActive('/skills')}
-                onClick={() => navigate('/skills')}
+                onClick={() => navigate_('/skills')}
                 data-qa="nav-skills-btn"
               />
               <NavItem
-                icon={<Container size={15} />}
+                icon={<Container size={18} />}
                 label="Dockerfiles"
                 active={isActive('/dockerfiles')}
-                onClick={() => navigate('/dockerfiles')}
+                onClick={() => navigate_('/dockerfiles')}
                 data-qa="nav-dockerfiles-btn"
               />
             </>
@@ -264,7 +264,7 @@ export function Layout({ children }: LayoutProps) {
                 return (
                   <button
                     key={feat.id}
-                    onClick={() => navigate(`/projects/${feat.id}`)}
+                    onClick={() => navigate_(`/projects/${feat.id}`)}
                     data-qa="nav-feature-btn"
                     className={`flex items-center gap-2.5 h-10 px-2.5 rounded-md w-full text-left transition-colors cursor-pointer ${
                       isCurrentFeature
@@ -304,7 +304,7 @@ export function Layout({ children }: LayoutProps) {
               })}
               <button
                 className="flex items-center gap-2 h-9 px-2.5 rounded-md w-full text-left hover:bg-[var(--nav-bg-active)]/50 transition-colors cursor-pointer group"
-                onClick={() => navigate(`/projects/${navProjectId}/features`)}
+                onClick={() => navigate_(`/projects/${navProjectId}/features`)}
                 data-qa="nav-add-feature-btn"
               >
                 <Plus
@@ -325,7 +325,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
 
         {/* User Menu */}
-        <div ref={userMenuRef} className="p-[12px_10px] border-t border-[var(--border-primary)] relative">
+        <div ref={userMenuRef} className="p-[16px_20px] relative">
           {/* Popup menu */}
           {userMenuOpen && (
             <div className="absolute bottom-full left-2 right-2 mb-1 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-lg overflow-hidden z-50">
@@ -350,7 +350,7 @@ export function Layout({ children }: LayoutProps) {
               </button>
               {/* Account */}
               <button
-                onClick={() => { navigate('/account'); setUserMenuOpen(false); }}
+                onClick={() => { navigate_('/account'); setUserMenuOpen(false); }}
                 data-qa="user-menu-account-btn"
                 className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-[var(--text-secondary)] hover:bg-[var(--nav-bg-active)]/50 hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                 style={{ fontFamily: 'Inter, sans-serif' }}
@@ -360,7 +360,7 @@ export function Layout({ children }: LayoutProps) {
               </button>
               {/* API Keys */}
               <button
-                onClick={() => { navigate('/account/api-keys'); setUserMenuOpen(false); }}
+                onClick={() => { navigate_('/account/api-keys'); setUserMenuOpen(false); }}
                 data-qa="user-menu-api-keys-btn"
                 className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-[var(--text-secondary)] hover:bg-[var(--nav-bg-active)]/50 hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                 style={{ fontFamily: 'Inter, sans-serif' }}
@@ -387,23 +387,39 @@ export function Layout({ children }: LayoutProps) {
           <button
             onClick={() => setUserMenuOpen(v => !v)}
             data-qa="user-menu-btn"
-            className="flex items-center gap-2.5 h-9 px-2.5 rounded-md w-full text-left hover:bg-[var(--nav-bg-active)]/50 transition-colors cursor-pointer text-[var(--text-secondary)]"
+            className="flex items-center gap-2.5 h-10 px-0 rounded-lg w-full text-left hover:opacity-80 transition-colors cursor-pointer text-[var(--text-primary)]"
           >
-            <div className="w-6 h-6 rounded-full bg-[var(--primary)] flex items-center justify-center flex-shrink-0">
-              <span className="text-[11px] font-bold text-white" style={{ fontFamily: 'Inter, sans-serif' }}>
+            <div className="w-8 h-8 rounded-full bg-[var(--primary)] flex items-center justify-center flex-shrink-0">
+              <span className="text-sm font-semibold" style={{ fontFamily: 'Inter, sans-serif', color: 'var(--primary-text)' }}>
                 {(user?.display_name || user?.email || '?')[0].toUpperCase()}
               </span>
             </div>
-            <span className="text-[13px] font-medium flex-1 truncate" style={{ fontFamily: 'Inter, sans-serif' }}>
+            <span className="text-sm font-medium flex-1 truncate" style={{ fontFamily: 'Inter, sans-serif' }}>
               {user?.display_name || user?.email}
             </span>
-            <ChevronUp size={13} className={`flex-shrink-0 transition-transform ${userMenuOpen ? '' : 'rotate-180'}`} />
+            <ChevronUp size={16} className={`flex-shrink-0 transition-transform text-[var(--text-muted)] ${userMenuOpen ? '' : 'rotate-180'}`} />
           </button>
         </div>
       </aside>
 
       {/* Main area */}
-      <main className="flex-1 bg-[var(--bg-primary)] overflow-hidden flex flex-col">
+      <main className="flex-1 bg-[var(--bg-primary)] overflow-hidden flex flex-col min-w-0">
+        {/* Mobile top bar */}
+        <div className="md:hidden flex items-center h-[52px] px-4 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] flex-shrink-0">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            data-qa="mobile-menu-btn"
+            className="p-1.5 rounded-md text-[var(--text-secondary)] hover:bg-[var(--nav-bg-active)]/50 transition-colors"
+          >
+            <Menu size={20} />
+          </button>
+          <Link to="/" className="ml-3 flex items-center gap-2">
+            <img src={theme === 'dark' ? "/logo-dark.svg" : "/logo-light.svg"} alt="Agach" className="w-6 h-6" />
+            <span className="font-semibold text-base text-[var(--text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+              Agach
+            </span>
+          </Link>
+        </div>
         {children}
       </main>
     </div>
@@ -415,12 +431,12 @@ function NavItem({ icon, label, active, onClick, badge, 'data-qa': dataQa }: { i
     <button
       onClick={onClick}
       data-qa={dataQa}
-      className={`flex items-center gap-2.5 h-9 px-2.5 rounded-md w-full text-left transition-colors cursor-pointer ${
-        active ? 'bg-[var(--nav-bg-active)] text-[var(--nav-text-active)]' : 'text-[var(--text-secondary)] hover:bg-[var(--nav-bg-active)]/50 hover:text-[var(--text-primary)]'
+      className={`flex items-center gap-3 py-2.5 px-3 rounded-lg w-full text-left transition-colors cursor-pointer ${
+        active ? 'bg-[var(--nav-bg-active)] text-[var(--nav-text-active)]' : 'text-[var(--text-muted)] hover:bg-[var(--nav-bg-active)]/50 hover:text-[var(--text-primary)]'
       }`}
     >
-      <span className={active ? 'text-[var(--nav-text-active)]' : 'text-[var(--text-secondary)]'}>{icon}</span>
-      <span className="text-[13px] font-medium flex-1" style={{ fontFamily: 'Inter, sans-serif' }}>
+      <span className={active ? 'text-[var(--nav-text-active)]' : 'text-[var(--text-muted)]'}>{icon}</span>
+      <span className="text-sm font-medium flex-1" style={{ fontFamily: 'Inter, sans-serif' }}>
         {label}
       </span>
       {badge !== undefined && (

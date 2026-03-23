@@ -178,15 +178,15 @@ func (c *Client) CreateProject(req pkgkanban.CreateProjectRequest) (*pkgkanban.P
 // Per-project roles
 
 func (c *Client) ListProjectRoles(projectID string) ([]pkgkanban.RoleResponse, error) {
-	resp, err := c.do(http.MethodGet, "/api/projects/"+url.PathEscape(projectID)+"/roles", nil)
+	resp, err := c.do(http.MethodGet, "/api/projects/"+url.PathEscape(projectID)+"/agents", nil)
 	if err != nil {
 		return nil, err
 	}
 	return decodeResponse[[]pkgkanban.RoleResponse](resp)
 }
 
-func (c *Client) CreateProjectRole(projectID string, req pkgkanban.CreateRoleRequest) (*pkgkanban.RoleResponse, error) {
-	resp, err := c.do(http.MethodPost, "/api/projects/"+url.PathEscape(projectID)+"/roles", req)
+func (c *Client) CreateProjectAgent(projectID string, req pkgkanban.CreateRoleRequest) (*pkgkanban.RoleResponse, error) {
+	resp, err := c.do(http.MethodPost, "/api/projects/"+url.PathEscape(projectID)+"/agents", req)
 	if err != nil {
 		return nil, err
 	}
@@ -197,8 +197,8 @@ func (c *Client) CreateProjectRole(projectID string, req pkgkanban.CreateRoleReq
 	return &result, nil
 }
 
-func (c *Client) UpdateProjectRole(projectID, slug string, req pkgkanban.UpdateRoleRequest) error {
-	resp, err := c.do(http.MethodPatch, "/api/projects/"+url.PathEscape(projectID)+"/roles/"+url.PathEscape(slug), req)
+func (c *Client) UpdateProjectAgent(projectID, slug string, req pkgkanban.UpdateRoleRequest) error {
+	resp, err := c.do(http.MethodPatch, "/api/projects/"+url.PathEscape(projectID)+"/agents/"+url.PathEscape(slug), req)
 	if err != nil {
 		return err
 	}
@@ -206,8 +206,8 @@ func (c *Client) UpdateProjectRole(projectID, slug string, req pkgkanban.UpdateR
 	return err
 }
 
-func (c *Client) DeleteProjectRole(projectID, slug string) error {
-	resp, err := c.do(http.MethodDelete, "/api/projects/"+url.PathEscape(projectID)+"/roles/"+url.PathEscape(slug), nil)
+func (c *Client) DeleteProjectAgent(projectID, slug string) error {
+	resp, err := c.do(http.MethodDelete, "/api/projects/"+url.PathEscape(projectID)+"/agents/"+url.PathEscape(slug), nil)
 	if err != nil {
 		return err
 	}

@@ -70,7 +70,7 @@ export default function BulkActionsBar({
   });
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1A1A1A] border border-[#2A2A2A] shadow-2xl">
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[#2A2A2A] shadow-2xl">
       {/* Count badge */}
       <span className="px-2 py-0.5 rounded bg-[var(--primary)]/20 text-[var(--primary)] text-[11px] font-['JetBrains_Mono'] font-bold uppercase tracking-wider">
         {count} selected

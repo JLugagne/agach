@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { getTasksByAgent, removeAgentFromProject } from '../lib/api';
-import type { RoleResponse, TasksByAgentResponse } from '../lib/types';
+import type { AgentResponse, TasksByAgentResponse } from '../lib/types';
 
 interface RemoveAgentDialogProps {
   projectId: string;
-  agent: RoleResponse;
-  projectAgents: RoleResponse[];
+  agent: AgentResponse;
+  projectAgents: AgentResponse[];
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -58,10 +58,10 @@ export default function RemoveAgentDialog({ projectId, agent, projectAgents, onC
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="bg-[#1A1A1A] border border-[#252525] rounded-lg p-6 w-full max-w-md shadow-xl"
+        className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-lg p-6 w-full max-w-md shadow-xl"
         onClick={e => e.stopPropagation()}
       >
-        <h2 className="font-heading text-base text-[#F0F0F0] mb-3">
+        <h2 className="font-heading text-base text-[var(--text-primary)] mb-3">
           Remove &ldquo;{agent.name}&rdquo; from project?
         </h2>
 
@@ -74,7 +74,7 @@ export default function RemoveAgentDialog({ projectId, agent, projectAgents, onC
             {(taskData?.task_count ?? 0) > 0 ? (
               <div className="mb-4">
                 <p className="text-sm text-[var(--text-muted)] mb-3">
-                  This agent has <span className="text-[#F0F0F0] font-medium">{taskData!.task_count}</span> task{taskData!.task_count !== 1 ? 's' : ''} assigned in this project.
+                  This agent has <span className="text-[var(--text-primary)] font-medium">{taskData!.task_count}</span> task{taskData!.task_count !== 1 ? 's' : ''} assigned in this project.
                   What would you like to do with those tasks?
                 </p>
                 <div className="space-y-2">
@@ -86,7 +86,7 @@ export default function RemoveAgentDialog({ projectId, agent, projectAgents, onC
                       checked={action === 'reassign'}
                       onChange={() => setAction('reassign')}
                       data-qa="remove-agent-reassign-radio"
-                      className="accent-[#00C896]"
+                      className="accent-[var(--primary)]"
                     />
                     <span className="text-sm text-[var(--text-muted)]">Reassign to:</span>
                     <select
@@ -94,7 +94,7 @@ export default function RemoveAgentDialog({ projectId, agent, projectAgents, onC
                       onChange={e => setReassignTarget(e.target.value)}
                       disabled={action !== 'reassign'}
                       data-qa="remove-agent-reassign-select"
-                      className="ml-1 text-sm rounded border border-border bg-[#111] text-[#F0F0F0] px-2 py-0.5 disabled:opacity-40"
+                      className="ml-1 text-sm rounded border border-border bg-[var(--bg-primary)] text-[var(--text-primary)] px-2 py-0.5 disabled:opacity-40"
                     >
                       <option value="">Select agent...</option>
                       {projectAgents.filter(r => r.slug !== agent.slug).map(r => (
@@ -110,7 +110,7 @@ export default function RemoveAgentDialog({ projectId, agent, projectAgents, onC
                       checked={action === 'clear'}
                       onChange={() => setAction('clear')}
                       data-qa="remove-agent-clear-radio"
-                      className="accent-[#00C896]"
+                      className="accent-[var(--primary)]"
                     />
                     <span className="text-sm text-[var(--text-muted)]">Clear assignment (tasks become unassigned)</span>
                   </label>
@@ -130,7 +130,7 @@ export default function RemoveAgentDialog({ projectId, agent, projectAgents, onC
               <button
                 onClick={onClose}
                 data-qa="remove-agent-cancel-btn"
-                className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[#F0F0F0] transition-colors"
+                className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
               >
                 Cancel
               </button>

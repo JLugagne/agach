@@ -99,7 +99,7 @@ export default function ApiKeysPage() {
           <button
             onClick={() => { setShowForm(v => !v); setCreateError(null); }}
             data-qa="create-api-key-btn"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium bg-[var(--primary)] text-[var(--primary-text)] hover:bg-[var(--primary-hover)] transition-colors"
             style={{ fontFamily: 'Inter, sans-serif' }}
           >
             <Plus size={14} />
@@ -201,7 +201,7 @@ export default function ApiKeysPage() {
                 type="submit"
                 disabled={creating || !name.trim()}
                 data-qa="create-api-key-submit-btn"
-                className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
+                className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-[var(--primary)] text-[var(--primary-text)] hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
                 style={{ fontFamily: 'Inter, sans-serif' }}
               >
                 {creating ? 'Creating…' : 'Create'}

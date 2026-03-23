@@ -3,8 +3,8 @@ import {
   createProject,
   deleteProject,
   createTask,
-  createRole,
-  deleteRole,
+  createAgent,
+  deleteAgent,
   BASE_URL,
 } from './helpers';
 
@@ -166,7 +166,7 @@ test.describe('8. Settings', () => {
   });
 
   test('8.6 — Add agent to project', async ({ page, request }) => {
-    await createRole(request, 'qa-agent-settings', 'QA Agent Settings');
+    await createAgent(request, 'qa-agent-settings', 'QA Agent Settings');
 
     try {
       await page.goto(`${BASE_URL}/projects/${projectId}/settings`);
@@ -182,7 +182,7 @@ test.describe('8. Settings', () => {
       // Agent should now appear in the list
       await expect(page.getByText(/qa-agent-settings/i)).toBeVisible();
     } finally {
-      await deleteRole(request, 'qa-agent-settings');
+      await deleteAgent(request, 'qa-agent-settings');
     }
   });
 
@@ -197,5 +197,25 @@ test.describe('8. Settings', () => {
 
     // Assert save was accepted: button becomes re-enabled or no error visible
     await expect(page.locator('[data-qa="save-project-settings-btn"]')).toBeEnabled();
+  });
+
+  test('8.8 — Git URL can be set and persisted', async ({ page }) => {
+    await page.goto(`${BASE_URL}/projects/${projectId}/settings`);
+
+    const gitUrlInput = page.locator('[data-qa="project-git-url-input"]');
+    await expect(gitUrlInput).toBeVisible();
+    await gitUrlInput.clear();
+    await gitUrlInput.fill('https://github.com/test-org/test-repo.git');
+
+    await page.locator('[data-qa="save-project-settings-btn"]').click();
+
+    // Wait for save to complete
+    await expect(page.locator('[data-qa="save-project-settings-btn"]')).toBeEnabled();
+
+    // Reload and confirm persistence
+    await page.reload();
+    await expect(page.locator('[data-qa="project-git-url-input"]')).toHaveValue(
+      'https://github.com/test-org/test-repo.git',
+    );
   });
 });

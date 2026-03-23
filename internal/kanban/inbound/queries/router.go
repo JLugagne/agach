@@ -7,16 +7,19 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// RegisterAllRoutes wires all query handlers onto the given router.
-func RegisterAllRoutes(router *mux.Router, app service.Queries, ctrl *controller.Controller, sseHub *sse.Hub) {
+// NewRouter wires all query handlers onto the given router.
+func NewRouter(router *mux.Router, app service.Queries, ctrl *controller.Controller, sseHub *sse.Hub) {
 	NewProjectQueriesHandler(app, ctrl).RegisterRoutes(router)
-	NewRoleQueriesHandler(app, ctrl).RegisterRoutes(router)
+	NewAgentQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewTaskQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewCommentQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewDependencyQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewToolUsageQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewTimelineQueriesHandler(app, ctrl).RegisterRoutes(router)
-	NewProjectRoleQueriesHandler(app, ctrl).RegisterRoutes(router)
+	NewProjectAgentQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewColdStartStatsQueriesHandler(app, ctrl).RegisterRoutes(router)
+	NewModelStatsQueriesHandler(app, ctrl).RegisterRoutes(router)
+	NewSkillQueriesHandler(app, ctrl).RegisterRoutes(router)
+	NewDockerfileQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewSSEHandler(sseHub).RegisterRoutes(router)
 }

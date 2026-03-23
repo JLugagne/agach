@@ -9,20 +9,24 @@ import {
   Check,
   Star,
   Copy,
+  Info,
+  ChevronDown,
+  ChevronUp,
+  Bot,
 } from 'lucide-react';
 import {
-  listRoles, createRole, updateRole, deleteRole,
-  listProjectRoles, createProjectRole, updateProjectRole, deleteProjectRole,
+  listAgents, createAgent, updateAgent, deleteAgent,
+  listProjectAgents, createProjectAgent, updateProjectAgent, deleteProjectAgent,
   getProject, updateProject,
 } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
-import type { RoleResponse, CreateRoleRequest, UpdateRoleRequest } from '../lib/types';
+import type { AgentResponse, CreateAgentRequest, UpdateAgentRequest } from '../lib/types';
 import MarkdownContent from '../components/ui/MarkdownContent';
 import CloneAgentDialog from '../components/CloneAgentDialog';
 import AgentSkillsPanel from '../components/AgentSkillsPanel';
 
 const PRESET_COLORS = [
-  '#00C896',
+  '#7C3AED',
   '#F09060',
   '#6C63FF',
   '#FF6B9D',
@@ -31,18 +35,26 @@ const PRESET_COLORS = [
   '#FF3B30',
 ];
 
+const PRESET_ICONS = [
+  '\u{1F680}', '\u{1F4BB}', '\u{1F527}', '\u{2699}\uFE0F', '\u{1F50D}', '\u{1F3AF}',
+  '\u{1F4E6}', '\u{1F9EA}', '\u{1F41B}', '\u{1F6E0}\uFE0F', '\u{1F4CA}', '\u{1F512}',
+  '\u{1F310}', '\u{2B50}', '\u{26A1}', '\u{1F4DD}', '\u{1F916}', '\u{1F9D1}\u200D\u{1F4BB}',
+  '\u{1F3D7}\uFE0F', '\u{1F4D0}', '\u{1F4A1}', '\u{1F4AC}', '\u{1F50C}', '\u{1F4C1}',
+  '\u{1F3A8}', '\u{1F9F9}', '\u{1F50E}', '\u{1F4E1}', '\u{1F9E9}', '\u{2B22}',
+];
+
 export default function RolesPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const [roles, setRoles] = useState<RoleResponse[]>([]);
+  const [roles, setRoles] = useState<AgentResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingRole, setEditingRole] = useState<RoleResponse | null>(null);
+  const [editingRole, setEditingRole] = useState<AgentResponse | null>(null);
   const [defaultRole, setDefaultRole] = useState<string>('');
-  const [cloningRole, setCloningRole] = useState<RoleResponse | null>(null);
+  const [cloningRole, setCloningRole] = useState<AgentResponse | null>(null);
 
   const fetchRoles = useCallback(async () => {
     try {
-      const data = projectId ? await listProjectRoles(projectId) : await listRoles();
+      const data = projectId ? await listProjectAgents(projectId) : await listAgents();
       setRoles(data ?? []);
     } catch {
       // ignore
@@ -81,9 +93,9 @@ export default function RolesPage() {
     useCallback(
       (event) => {
         if (
-          event.type === 'role_created' ||
-          event.type === 'role_updated' ||
-          event.type === 'role_deleted' ||
+          event.type === 'agent_created' ||
+          event.type === 'agent_updated' ||
+          event.type === 'agent_deleted' ||
           event.type === 'agent_cloned'
         ) {
           fetchRoles();
@@ -98,7 +110,7 @@ export default function RolesPage() {
     setModalOpen(true);
   };
 
-  const openEdit = (role: RoleResponse) => {
+  const openEdit = (role: AgentResponse) => {
     setEditingRole(role);
     setModalOpen(true);
   };
@@ -121,36 +133,47 @@ export default function RolesPage() {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-5xl mx-auto px-8 py-12">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-[28px] text-[#F0F0F0] mb-1" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>Roles</h1>
-            <p className="text-sm text-[var(--text-dim)]">
-              {roles.length} role{roles.length !== 1 ? 's' : ''} defined
-            </p>
-          </div>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-[28px] font-semibold text-[var(--text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+            Agents
+          </h1>
           <button
             onClick={openCreate}
-            data-qa="new-role-btn"
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 transition-colors"
+            data-qa="new-agent-btn"
+            className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-[13px] font-medium bg-[var(--primary)] text-[var(--primary-text)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
+            style={{ fontFamily: 'Inter, sans-serif' }}
           >
-            <Plus size={15} />
-            New Role
+            <Plus size={14} />
+            New Agent
           </button>
         </div>
+        <p className="text-sm text-[var(--text-muted)] mb-10" style={{ fontFamily: 'Inter, sans-serif' }}>
+          {roles.length} agent{roles.length !== 1 ? 's' : ''} defined
+        </p>
 
         {loading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 className="animate-spin text-[var(--text-dim)]" size={24} />
           </div>
         ) : roles.length === 0 ? (
-          <div className="text-center py-24">
-            <p className="text-[var(--text-dim)] text-sm mb-4">No roles defined yet.</p>
+          <div className="flex flex-col items-center justify-center py-24 gap-5">
+            <div className="w-20 h-20 rounded-2xl bg-[var(--bg-tertiary)] flex items-center justify-center">
+              <Bot size={36} className="text-[var(--text-muted)]" />
+            </div>
+            <p className="text-lg font-medium text-[var(--text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+              No agents yet.
+            </p>
+            <p className="text-sm text-[var(--text-muted)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+              Get started by creating your first agent
+            </p>
             <button
               onClick={openCreate}
-              data-qa="roles-create-first-role-btn"
-              className="text-sm text-[#00C896] hover:text-[#00C896]/80 transition-colors"
+              data-qa="agents-create-first-agent-btn"
+              className="flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium bg-[var(--primary)] text-[var(--primary-text)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
+              style={{ fontFamily: 'Inter, sans-serif' }}
             >
-              Create your first role
+              <Plus size={16} />
+              Create your first agent
             </button>
           </div>
         ) : (
@@ -202,7 +225,7 @@ function RoleCard({
   onClick,
   onClone,
 }: {
-  role: RoleResponse;
+  role: AgentResponse;
   isDefault: boolean;
   onSetDefault?: () => void;
   onClick: () => void;
@@ -210,18 +233,18 @@ function RoleCard({
 }) {
   return (
     <div
-      data-qa="role-card"
-      className={`rounded-lg bg-[#111111] border p-5 text-left transition-colors w-full ${
-        isDefault ? 'border-[#00C896]/40' : 'border-[#1E1E1E] hover:border-[#252525]'
+      data-qa="agent-card"
+      className={`rounded-lg bg-[var(--bg-primary)] border p-5 text-left transition-colors w-full ${
+        isDefault ? 'border-[var(--primary)]/40' : 'border-[var(--border-primary)] hover:border-[var(--border-secondary)]'
       }`}
     >
       <div className="flex items-start gap-3 mb-3">
-        <button onClick={onClick} data-qa="role-card-icon-btn" className="text-xl cursor-pointer">{role.icon || '\u2B22'}</button>
+        <button onClick={onClick} data-qa="agent-card-icon-btn" className="text-xl cursor-pointer">{role.icon || '\u2B22'}</button>
         <div className="flex-1 min-w-0 cursor-pointer" onClick={onClick}>
           <div className="flex items-center gap-2">
-            <h3 className="font-heading text-[15px] text-[#F0F0F0] truncate">{role.name}</h3>
+            <h3 className="font-heading text-[15px] text-[var(--text-primary)] truncate">{role.name}</h3>
             {isDefault && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-[#00C896]/10 text-[#00C896] border border-[#00C896]/20 shrink-0">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 shrink-0">
                 <Star size={9} />
                 default
               </span>
@@ -233,12 +256,12 @@ function RoleCard({
           {onSetDefault && (
             <button
               onClick={(e) => { e.stopPropagation(); onSetDefault(); }}
-              data-qa="role-card-set-default-btn"
+              data-qa="agent-card-set-default-btn"
               title={isDefault ? 'Unset default' : 'Set as default'}
               className={`transition-colors ${
                 isDefault
-                  ? 'text-[#00C896] hover:text-[#00C896]/60'
-                  : 'text-[var(--text-dim)] hover:text-[#00C896]'
+                  ? 'text-[var(--primary)] hover:text-[var(--primary)]/60'
+                  : 'text-[var(--text-dim)] hover:text-[var(--primary)]'
               }`}
             >
               <Star size={14} fill={isDefault ? 'currentColor' : 'none'} />
@@ -246,7 +269,7 @@ function RoleCard({
           )}
           <button
             onClick={(e) => { e.stopPropagation(); onClone(); }}
-            data-qa="role-card-clone-btn"
+            data-qa="agent-card-clone-btn"
             title="Clone agent"
             className="p-1.5 rounded text-muted-foreground hover:text-blue-400 hover:bg-blue-400/10 transition-colors"
           >
@@ -264,22 +287,10 @@ function RoleCard({
           <p className="text-xs text-[var(--text-muted)] mb-3 line-clamp-2">{role.description}</p>
         )}
 
-        {role.tech_stack && role.tech_stack.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {role.tech_stack.slice(0, 4).map((tech) => (
-              <span
-                key={tech}
-                className="px-2 py-0.5 bg-[#1A1A1A] border border-[#252525] rounded text-[10px] font-mono text-[var(--text-muted)]"
-              >
-                {tech}
-              </span>
-            ))}
-            {role.tech_stack.length > 4 && (
-              <span className="px-2 py-0.5 text-[10px] text-[var(--text-dim)]">
-                +{role.tech_stack.length - 4}
-              </span>
-            )}
-          </div>
+        {role.prompt_template && (
+          <span className="px-2 py-0.5 bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded text-[10px] font-mono text-[var(--text-muted)]">
+            has template
+          </span>
         )}
       </div>
     </div>
@@ -374,7 +385,7 @@ function InlineEditField({ label, value, placeholder, monoFont, onSave }: Inline
               onClick={handleSave}
               disabled={saving}
               data-qa="inline-edit-field-save-btn"
-              className="flex items-center gap-1 text-xs text-[#00C896] hover:text-[#00C896]/80 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 text-xs text-[var(--primary)] hover:text-[var(--primary)]/80 transition-colors disabled:opacity-50"
             >
               <Check size={12} />
               {saving ? 'Saving...' : 'Save'}
@@ -391,7 +402,7 @@ function InlineEditField({ label, value, placeholder, monoFont, onSave }: Inline
           placeholder={placeholder}
           rows={6}
           data-qa="inline-edit-field-textarea"
-          className={`w-full bg-[#1A1A1A] border border-[#00C896]/40 rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/60 resize-none overflow-hidden ${monoFont ? 'font-mono text-xs' : ''}`}
+          className={`w-full bg-[var(--bg-secondary)] border border-[var(--primary)]/40 rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/60 resize-none overflow-hidden ${monoFont ? 'font-mono text-xs' : ''}`}
         />
       ) : value ? (
         <div className="rounded-md bg-[#0D0D0D] border border-[#1A1A1A] px-3 py-2.5 min-h-[2.5rem]">
@@ -400,7 +411,7 @@ function InlineEditField({ label, value, placeholder, monoFont, onSave }: Inline
       ) : (
         <button
           onClick={handleEdit}
-          className="w-full text-left px-3 py-2.5 rounded-md border border-dashed border-[#252525] text-xs text-[var(--text-dim)] hover:text-[var(--text-dim)] hover:border-[#333333] transition-colors"
+          className="w-full text-left px-3 py-2.5 rounded-md border border-dashed border-[var(--border-primary)] text-xs text-[var(--text-dim)] hover:text-[var(--text-dim)] hover:border-[#333333] transition-colors"
         >
           {placeholder ?? `Add ${label.toLowerCase()}...`}
         </button>
@@ -409,8 +420,83 @@ function InlineEditField({ label, value, placeholder, monoFont, onSave }: Inline
   );
 }
 
+const TEMPLATE_VARIABLES = [
+  { category: 'Task', vars: [
+    { name: 'task.title', desc: 'Task title' },
+    { name: 'task.summary', desc: 'Brief description' },
+    { name: 'task.description', desc: 'Full description' },
+    { name: 'task.priority', desc: 'Priority level (critical, high, medium, low)' },
+    { name: 'task.assigned_role', desc: 'Assigned role slug' },
+    { name: 'task.estimated_effort', desc: 'Effort estimate (XS, S, M, L, XL)' },
+    { name: 'task.tags', desc: 'Array of tags (use {{join .task.tags ", "}})' },
+    { name: 'task.test_command', desc: 'Inferred test command from role tech stack' },
+    { name: 'task.test_file', desc: 'Test file extracted from red dependency' },
+    { name: 'task.test_name', desc: 'Test function name from red dependency' },
+  ]},
+  { category: 'Project', vars: [
+    { name: 'project.name', desc: 'Project name' },
+  ]},
+  { category: 'Dependencies', vars: [
+    { name: 'dependencies.all', desc: 'All dependency summaries combined' },
+    { name: 'dependencies.red', desc: 'Red dependency completion summary' },
+    { name: 'dependencies.green', desc: 'Green dependency completion summary' },
+  ]},
+  { category: 'Dependency (by role)', vars: [
+    { name: 'dependency.{role}.title', desc: 'Dependency task title' },
+    { name: 'dependency.{role}.completion_summary', desc: 'Completion summary' },
+    { name: 'dependency.{role}.task_id', desc: 'Task ID' },
+    { name: 'dependency.{role}.files_modified', desc: 'Modified files (comma-separated)' },
+    { name: 'dependency.{role}.failure_output', desc: 'Failure output (red only)' },
+  ]},
+  { category: 'Context Files', vars: [
+    { name: 'context_files', desc: 'Combined contents of task context files' },
+    { name: 'context_files_signatures', desc: 'Go function/type signatures from context files' },
+  ]},
+];
+
+function TemplateVariablesPanel() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)]">
+      <button
+        onClick={() => setOpen(!open)}
+        data-qa="template-variables-toggle"
+        className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+      >
+        <Info size={13} className="text-[var(--primary)] shrink-0" />
+        <span className="font-mono">Template Variables Reference</span>
+        <span className="ml-auto">
+          {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+        </span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3 space-y-3 border-t border-[var(--border-primary)] pt-3">
+          <p className="text-[11px] text-[var(--text-dim)]">
+            Use <code className="px-1 py-0.5 bg-[var(--bg-primary)] rounded text-[var(--text-muted)]">{'{{variable.name}}'}</code> syntax.
+            Available function: <code className="px-1 py-0.5 bg-[var(--bg-primary)] rounded text-[var(--text-muted)]">{'{{join .array ", "}}'}</code>
+          </p>
+          {TEMPLATE_VARIABLES.map((group) => (
+            <div key={group.category}>
+              <h4 className="text-[11px] font-mono font-medium text-[var(--text-muted)] mb-1.5">{group.category}</h4>
+              <div className="space-y-0.5">
+                {group.vars.map((v) => (
+                  <div key={v.name} className="flex items-baseline gap-3 text-[11px]">
+                    <code className="font-mono text-[var(--primary)] shrink-0">{`{{${v.name}}}`}</code>
+                    <span className="text-[var(--text-dim)]">{v.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface RoleModalProps {
-  role: RoleResponse | null;
+  role: AgentResponse | null;
   projectId?: string;
   onClose: () => void;
   onSaved: () => void;
@@ -420,25 +506,25 @@ interface RoleModalProps {
 function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalProps) {
   const isEdit = !!role;
   // Local role state for optimistic updates of description/prompt_hint
-  const [localRole, setLocalRole] = useState<RoleResponse | null>(role);
+  const [localRole, setLocalRole] = useState<AgentResponse | null>(role);
   const [name, setName] = useState(role?.name ?? '');
   const [slug, setSlug] = useState(role?.slug ?? '');
   const [icon, setIcon] = useState(role?.icon ?? '');
   const [color, setColor] = useState(role?.color ?? PRESET_COLORS[0]);
   const [description, setDescription] = useState(role?.description ?? '');
-  const [techStack, setTechStack] = useState<string[]>(role?.tech_stack ?? []);
-  const [techInput, setTechInput] = useState('');
+  const [promptTemplate, setPromptTemplate] = useState(role?.prompt_template ?? '');
   const [promptHint, setPromptHint] = useState(role?.prompt_hint ?? '');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [autoSlug, setAutoSlug] = useState(!isEdit);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
 
-  const apiUpdate = (slug: string, data: UpdateRoleRequest) =>
-    projectId ? updateProjectRole(projectId, slug, data) : updateRole(slug, data);
-  const apiCreate = (data: CreateRoleRequest) =>
-    projectId ? createProjectRole(projectId, data) : createRole(data);
+  const apiUpdate = (slug: string, data: UpdateAgentRequest) =>
+    projectId ? updateProjectAgent(projectId, slug, data) : updateAgent(slug, data);
+  const apiCreate = (data: CreateAgentRequest) =>
+    projectId ? createProjectAgent(projectId, data) : createAgent(data);
   const apiDelete = (slug: string) =>
-    projectId ? deleteProjectRole(projectId, slug) : deleteRole(slug);
+    projectId ? deleteProjectAgent(projectId, slug) : deleteAgent(slug);
 
   // Inline save handlers for description and prompt_hint (edit mode only)
   const handleSaveDescription = async (newValue: string) => {
@@ -446,6 +532,13 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
     const updated = await apiUpdate(localRole.slug, { description: newValue });
     setLocalRole(updated);
     setDescription(newValue);
+  };
+
+  const handleSavePromptTemplate = async (newValue: string) => {
+    if (!localRole) return;
+    const updated = await apiUpdate(localRole.slug, { prompt_template: newValue });
+    setLocalRole(updated);
+    setPromptTemplate(newValue);
   };
 
   const handleSavePromptHint = async (newValue: string) => {
@@ -473,40 +566,28 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
     setSlug(val.toLowerCase().replace(/[^a-z0-9]/g, ''));
   };
 
-  const addTech = () => {
-    const val = techInput.trim();
-    if (val && !techStack.includes(val)) {
-      setTechStack([...techStack, val]);
-    }
-    setTechInput('');
-  };
-
-  const removeTech = (tech: string) => {
-    setTechStack(techStack.filter((t) => t !== tech));
-  };
-
   const handleSave = async () => {
     if (!name.trim() || !slug.trim()) return;
     setSaving(true);
     try {
       if (isEdit) {
-        const data: UpdateRoleRequest = {
+        const data: UpdateAgentRequest = {
           name: name.trim(),
           icon: icon.trim(),
           color,
           description: description.trim(),
-          tech_stack: techStack,
+          prompt_template: promptTemplate.trim(),
           prompt_hint: promptHint.trim(),
         };
         await apiUpdate(role.slug, data);
       } else {
-        const data: CreateRoleRequest = {
+        const data: CreateAgentRequest = {
           slug: slug.trim(),
           name: name.trim(),
           icon: icon.trim(),
           color,
           description: description.trim(),
-          tech_stack: techStack,
+          prompt_template: promptTemplate.trim(),
           prompt_hint: promptHint.trim(),
         };
         await apiCreate(data);
@@ -536,16 +617,16 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
     <div className="fixed inset-0 z-50 flex">
       <div className="flex-1 bg-black/50" onClick={onClose} />
       <div
-        className="w-[1040px] h-full bg-[#111111] border-l border-[#1E1E1E] flex flex-col animate-[slide-in-right_0.2s_ease-out]"
+        className="w-[1040px] h-full bg-[var(--bg-primary)] border-l border-[var(--border-primary)] flex flex-col animate-[slide-in-right_0.2s_ease-out]"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-[#1E1E1E]">
-          <h2 className="text-lg text-[#F0F0F0]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
-            {isEdit ? 'Edit Role' : 'New Role'}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--border-primary)]">
+          <h2 className="text-lg text-[var(--text-primary)]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
+            {isEdit ? 'Edit Agent' : 'New Agent'}
           </h2>
           <button
             onClick={onClose}
-            data-qa="role-modal-close-btn"
+            data-qa="agent-modal-close-btn"
             className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
           >
             <X size={18} />
@@ -563,8 +644,8 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="e.g. Backend Developer"
-                data-qa="role-name-input"
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
+                data-qa="agent-name-input"
+                className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50"
                 autoFocus
               />
             </div>
@@ -576,34 +657,53 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
                 onChange={(e) => handleSlugChange(e.target.value)}
                 placeholder="backenddev"
                 disabled={isEdit}
-                data-qa="role-slug-input"
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 disabled:opacity-50 font-mono"
+                data-qa="agent-slug-input"
+                className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50 disabled:opacity-50 font-mono"
               />
             </div>
           </div>
 
           {/* Icon & Color row */}
-          <div className="flex items-end gap-6">
-            <div>
-              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Icon (emoji)</label>
-              <input
-                type="text"
-                value={icon}
-                onChange={(e) => setIcon(e.target.value)}
-                placeholder="e.g. \uD83D\uDE80"
-                maxLength={10}
-                data-qa="role-modal-icon-input"
-                className="w-24 bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-center text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
-              />
+          <div className="flex items-start gap-6">
+            <div className="relative">
+              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Icon</label>
+              <button
+                type="button"
+                onClick={() => setIconPickerOpen(!iconPickerOpen)}
+                data-qa="agent-modal-icon-toggle"
+                className="w-10 h-10 rounded-md text-xl flex items-center justify-center bg-[var(--bg-secondary)] border border-[var(--border-primary)] hover:border-[var(--primary)]/50 transition-all"
+              >
+                {icon || '?'}
+              </button>
+              {iconPickerOpen && (
+                <div className="absolute top-full left-0 mt-1 z-10 p-2 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-primary)] shadow-lg">
+                  <div className="grid grid-cols-10 gap-1">
+                    {PRESET_ICONS.map((ic) => (
+                      <button
+                        key={ic}
+                        onClick={() => { setIcon(ic); setIconPickerOpen(false); }}
+                        data-qa="agent-modal-icon-btn"
+                        className={`w-8 h-8 rounded-md text-base flex items-center justify-center transition-all ${
+                          icon === ic
+                            ? 'bg-[var(--primary)]/20 border border-[var(--primary)]/50 scale-110'
+                            : 'bg-[var(--bg-secondary)] border border-transparent hover:border-[var(--border-secondary)] hover:bg-[var(--bg-tertiary)]'
+                        }`}
+                      >
+                        {ic}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Color</label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 h-10">
                 {PRESET_COLORS.map((c) => (
                   <button
                     key={c}
                     onClick={() => setColor(c)}
-                    data-qa="role-modal-color-btn"
+                    data-qa="agent-modal-color-btn"
                     className={`w-7 h-7 rounded-full border-2 transition-all ${
                       color === c ? 'border-white scale-110' : 'border-transparent'
                     }`}
@@ -619,7 +719,7 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
             <InlineEditField
               label="Description"
               value={localRole?.description ?? description}
-              placeholder="Describe this role..."
+              placeholder="Describe this agent..."
               onSave={handleSaveDescription}
             />
           ) : (
@@ -628,56 +728,46 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe this role..."
+                placeholder="Describe this agent..."
                 rows={4}
-                data-qa="role-modal-description-textarea"
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y"
+                data-qa="agent-modal-description-textarea"
+                className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50 resize-y"
               />
             </div>
           )}
 
-          {/* Tech Stack */}
-          <div>
-            <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Tech Stack</label>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {techStack.map((tech) => (
-                <span
-                  key={tech}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#1A1A1A] border border-[#252525] rounded text-xs font-mono text-[var(--text-muted)]"
-                >
-                  {tech}
-                  <button
-                    onClick={() => removeTech(tech)}
-                    data-qa="role-modal-remove-tech-btn"
-                    className="text-[var(--text-dim)] hover:text-[#F06060] transition-colors"
-                  >
-                    <X size={10} />
-                  </button>
-                </span>
-              ))}
-            </div>
-            <input
-              type="text"
-              value={techInput}
-              onChange={(e) => setTechInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  addTech();
-                }
-              }}
-              placeholder="Type and press Enter"
-              data-qa="role-modal-tech-input"
-              className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50"
+          {/* Prompt Template */}
+          {isEdit ? (
+            <InlineEditField
+              label="Prompt Template"
+              value={localRole?.prompt_template ?? promptTemplate}
+              placeholder="Go template for rendering agent prompts..."
+              monoFont
+              onSave={handleSavePromptTemplate}
             />
-          </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Prompt Template</label>
+              <textarea
+                value={promptTemplate}
+                onChange={(e) => setPromptTemplate(e.target.value)}
+                placeholder="Go template for rendering agent prompts..."
+                rows={6}
+                data-qa="agent-modal-prompt-template-textarea"
+                className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50 resize-y font-mono text-xs"
+              />
+            </div>
+          )}
+
+          {/* Template Variables Info */}
+          <TemplateVariablesPanel />
 
           {/* Prompt Hint */}
           {isEdit ? (
             <InlineEditField
               label="Prompt Hint"
               value={localRole?.prompt_hint ?? promptHint}
-              placeholder="System prompt context for this role..."
+              placeholder="System prompt context for this agent..."
               monoFont
               onSave={handleSavePromptHint}
             />
@@ -687,10 +777,10 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
               <textarea
                 value={promptHint}
                 onChange={(e) => setPromptHint(e.target.value)}
-                placeholder="System prompt context for this role..."
+                placeholder="System prompt context for this agent..."
                 rows={6}
-                data-qa="role-modal-prompt-hint-textarea"
-                className="w-full bg-[#1A1A1A] border border-[#252525] rounded-md px-3 py-2 text-sm text-[#F0F0F0] placeholder-[var(--text-dim)] focus:outline-none focus:border-[#00C896]/50 resize-y font-mono text-xs"
+                data-qa="agent-modal-prompt-hint-textarea"
+                className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50 resize-y font-mono text-xs"
               />
             </div>
           )}
@@ -705,24 +795,24 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-[#1E1E1E]">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--border-primary)]">
           <div>
             {isEdit && (
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                data-qa="role-delete-btn"
+                data-qa="agent-delete-btn"
                 className="flex items-center gap-1.5 text-sm text-[#F06060] hover:text-[#FF3B30] transition-colors disabled:opacity-50"
               >
                 <Trash2 size={14} />
-                {deleting ? 'Deleting...' : 'Delete Role'}
+                {deleting ? 'Deleting...' : 'Delete Agent'}
               </button>
             )}
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              data-qa="role-cancel-btn"
+              data-qa="agent-cancel-btn"
               className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[#E0E0E0] transition-colors"
             >
               Cancel
@@ -730,10 +820,10 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
             <button
               onClick={handleSave}
               disabled={!name.trim() || !slug.trim() || saving}
-              data-qa="role-save-btn"
-              className="px-4 py-2 bg-[#00C896] text-[#0F0F0F] text-sm font-medium rounded-md hover:bg-[#00C896]/80 disabled:opacity-50 transition-colors"
+              data-qa="agent-save-btn"
+              className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-text)] text-sm font-medium rounded-md hover:bg-[var(--primary-hover)]/80 disabled:opacity-50 transition-colors"
             >
-              {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Role'}
+              {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Agent'}
             </button>
           </div>
         </div>

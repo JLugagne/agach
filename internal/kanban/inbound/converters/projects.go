@@ -33,7 +33,6 @@ func ToPublicProject(project domain.Project) pkgkanban.ProjectResponse {
 		ParentID:       parentID,
 		Name:           project.Name,
 		Description:    project.Description,
-		WorkDir:        project.WorkDir,
 		GitURL:         project.GitURL,
 		CreatedByRole:  project.CreatedByRole,
 		CreatedByAgent: project.CreatedByAgent,
