@@ -16,7 +16,7 @@ services:
     networks:
       - playwright-net
 
-  kanban:
+  server:
     build:
       context: .
       dockerfile: Dockerfile
@@ -44,7 +44,7 @@ services:
     environment:
       - DATABASE_URL=postgres://agach:agach@postgres:5432/agach
     depends_on:
-      kanban:
+      server:
         condition: service_healthy
     networks:
       - playwright-net
@@ -55,10 +55,10 @@ services:
     volumes:
       - ./playwright:/app
     environment:
-      - BASE_URL=http://kanban:8322
+      - BASE_URL=http://server:8322
     command: sh -c "npm install && npx playwright test"
     depends_on:
-      kanban:
+      server:
         condition: service_healthy
       qa-seed:
         condition: service_completed_successfully

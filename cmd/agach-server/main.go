@@ -19,7 +19,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/svrconfig"
 	"github.com/JLugagne/agach-mcp/pkg/controller"
 	"github.com/JLugagne/agach-mcp/pkg/middleware"
-	"github.com/JLugagne/agach-mcp/ux"
+	"github.com/JLugagne/agach-mcp/internal/server/ux"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -63,7 +63,7 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, j
 	httpHost := getEnv("AGACH_HOST", "127.0.0.1")
 	httpPort := getEnv("AGACH_PORT", "8322")
 
-	logger.WithField("httpAddr", httpHost+":"+httpPort).Info("Starting Kanban Server")
+	logger.WithField("httpAddr", httpHost+":"+httpPort).Info("Starting server")
 
 	// Shared controller and router
 	ctrl := controller.NewController(logger)
@@ -89,7 +89,7 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, j
 	// Auth middleware for protected routes
 	requireAuth := middleware.NewRequireAuth(&authValidatorAdapter{q: identitySystem.AuthQueries})
 
-	// Initialize Kanban HTTP system under auth middleware
+	// Initialize server HTTP system under auth middleware
 	serverRouter := httpRouter.PathPrefix("").Subrouter()
 	serverRouter.Use(requireAuth)
 	if _, err := server.InitHTTP(server.Config{
@@ -98,7 +98,7 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, j
 		AuthQueries: identitySystem.AuthQueries,
 		WSRouter:    httpRouter,
 	}, serverRouter); err != nil {
-		logger.WithError(err).Fatal("Failed to initialize Kanban HTTP system")
+		logger.WithError(err).Fatal("Failed to initialize HTTP server")
 	}
 
 	// Serve embedded frontend SPA

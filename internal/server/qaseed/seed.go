@@ -302,7 +302,7 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 		"All acceptance criteria were met.",
 		domain.PriorityLow,
 		"frontend", "qa-seed", "frontend",
-		[]string{"ux/src/pages/HomePage.tsx"}, []string{"qa", "done"}, "XS",
+		[]string{"internal/server/ux/src/pages/HomePage.tsx"}, []string{"qa", "done"}, "XS",
 		false, nil,
 	)
 	if err != nil {
@@ -314,7 +314,7 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 	}
 	if err := svc.CompleteTask(ctx, mainProject.ID, doneTask.ID,
 		"Implemented homepage redesign per spec.",
-		[]string{"ux/src/pages/HomePage.tsx"},
+		[]string{"internal/server/ux/src/pages/HomePage.tsx"},
 		"qa-seed", nil,
 	); err != nil {
 		return nil, fmt.Errorf("complete done task: %w", err)

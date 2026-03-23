@@ -5,16 +5,16 @@ user-invocable: true
 disable-model-invocation: false
 ---
 
-# Agach Frontend (`ux/`)
+# Agach Frontend (`internal/server/ux/`)
 
 ## Structure
 ```
-ux/src/
+internal/server/ux/src/
   App.tsx                   - Root app with routing
   lib/
     api.ts                  - HTTP client for all backend endpoints
     auth.ts                 - Auth helpers (JWT tokens)
-    types.ts                - TypeScript types mirroring pkg/kanban/types.go
+    types.ts                - TypeScript types mirroring pkg/server/types.go
     ws.ts                   - WebSocket client
     utils.ts                - Utility functions
   pages/

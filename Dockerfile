@@ -1,9 +1,9 @@
 # Stage 1: Build frontend
 FROM node:22-alpine AS frontend
-WORKDIR /app/ux
-COPY ux/package.json ux/package-lock.json ./
+WORKDIR /app/internal/server/ux
+COPY internal/server/ux/package.json internal/server/ux/package-lock.json ./
 RUN npm ci
-COPY ux/ ./
+COPY internal/server/ux/ ./
 RUN npm run build
 
 # Stage 2: Build Go backend
@@ -14,8 +14,7 @@ RUN go mod download
 COPY internal/ internal/
 COPY pkg/ pkg/
 COPY cmd/ cmd/
-COPY ux/embed.go ux/embed.go
-COPY --from=frontend /app/ux/dist ux/dist/
+COPY --from=frontend /app/internal/server/ux/dist internal/server/ux/dist/
 RUN go build -ldflags="-extldflags '-static'" -o /agach-server ./cmd/agach-server
 
 # Stage 3: Final image

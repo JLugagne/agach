@@ -18,7 +18,7 @@ cmd/qa-seed/main.go         - Seeds database with test data for QA
 
 Each bounded context follows: `domain/` → `app/` → `inbound/` + `outbound/`
 
-### `internal/kanban/` — Core Kanban bounded context
+### `internal/server/` — Core server bounded context
 ```
 domain/
   types.go                  - Task, Column, Comment, Project, Role, Feature domain types
@@ -133,9 +133,9 @@ inbound/tui/
 
 ### Shared Packages (`pkg/`)
 ```
-pkg/kanban/
+pkg/server/
   types.go                  - Shared API types (request/response structs)
-  client/client.go          - Go client for the kanban HTTP API
+  client/client.go          - Go client for the server HTTP API
 pkg/middleware/
   middleware.go             - HTTP middleware (auth via JWT/API key, CORS, logging)
 pkg/controller/

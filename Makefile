@@ -3,7 +3,7 @@
 GO_TAGS := sqlite_fts5
 
 generate:
-	cd ux && npm run build
+	cd internal/server/ux && npm run build
 
 build: build-server build-cli
 
@@ -24,7 +24,7 @@ test:
 
 clean:
 	rm -f agach-server agach
-	rm -rf ux/dist
+	rm -rf internal/server/ux/dist
 
 docker:
 	docker build -t agach-mcp .
