@@ -1,25 +1,25 @@
 package tui
 
 import (
-	pkgkanban "github.com/JLugagne/agach-mcp/pkg/kanban"
+	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
 )
 
 // projectSelectedMsg is sent when the user picks a project on the welcome screen
 type projectSelectedMsg struct {
-	project pkgkanban.ProjectResponse
+	project pkgserver.ProjectResponse
 }
 
 // rolesLoadedMsg carries the per-project roles
 type rolesLoadedMsg struct {
-	roles []pkgkanban.RoleResponse
+	roles []pkgserver.RoleResponse
 	err   error
 }
 
 // configInitDoneMsg carries both init results
 type configInitDoneMsg struct {
-	roles    []pkgkanban.RoleResponse
+	roles    []pkgserver.RoleResponse
 	rolesErr error
-	subs     []pkgkanban.ProjectResponse
+	subs     []pkgserver.ProjectResponse
 	subsErr  error
 }
 

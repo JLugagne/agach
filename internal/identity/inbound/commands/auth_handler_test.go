@@ -413,7 +413,7 @@ func TestAuthHandler_Logout_ClearsCookie(t *testing.T) {
 func TestAuthHandler_ListAPIKeys_Success(t *testing.T) {
 	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
 	keys := []domain.APIKey{
-		{ID: domain.NewAPIKeyID(), Name: "Key 1", Scopes: []string{"kanban:read"}},
+		{ID: domain.NewAPIKeyID(), Name: "Key 1", Scopes: []string{"server:read"}},
 	}
 
 	cmds := &mockAuthCommands{}
@@ -484,7 +484,7 @@ func TestAuthHandler_ListAPIKeys_WithAPIKey_Success(t *testing.T) {
 
 func TestAuthHandler_CreateAPIKey_Success(t *testing.T) {
 	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-	key := domain.APIKey{ID: domain.NewAPIKeyID(), Name: "My Key", Scopes: []string{"kanban:read"}}
+	key := domain.APIKey{ID: domain.NewAPIKeyID(), Name: "My Key", Scopes: []string{"server:read"}}
 
 	cmds := &mockAuthCommands{
 		createAPIKeyFunc: func(_ context.Context, _ domain.Actor, name string, scopes []string, _ *time.Time) (domain.APIKey, string, error) {
@@ -499,7 +499,7 @@ func TestAuthHandler_CreateAPIKey_Success(t *testing.T) {
 
 	_, router := newTestHandler(cmds, qrs)
 
-	req := httptest.NewRequest("POST", "/api/auth/apikeys", bytes.NewReader([]byte(`{"name":"My Key","scopes":["kanban:read"]}`)))
+	req := httptest.NewRequest("POST", "/api/auth/apikeys", bytes.NewReader([]byte(`{"name":"My Key","scopes":["server:read"]}`)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer valid-token")
 	rr := httptest.NewRecorder()

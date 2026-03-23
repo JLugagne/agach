@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	pkgkanban "github.com/JLugagne/agach-mcp/pkg/kanban"
+	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
 )
 
 const maxCopyBytes = 512 * 1024 // 512 KB cap for agent/skill .md files
@@ -98,14 +98,14 @@ func (a *App) SetupProject(projectID, workDir string, opts SetupOptions) SetupRe
 				continue
 			}
 			// Try to create; if already exists, update
-			_, err := a.client.CreateProjectAgent(projectID, pkgkanban.CreateRoleRequest{
+			_, err := a.client.CreateProjectAgent(projectID, pkgserver.CreateRoleRequest{
 				Slug:        ag.Slug,
 				Name:        ag.Name,
 				Description: ag.Description,
 			})
 			if err != nil {
 				// May already exist — try update
-				_ = a.client.UpdateProjectAgent(projectID, ag.Slug, pkgkanban.UpdateRoleRequest{
+				_ = a.client.UpdateProjectAgent(projectID, ag.Slug, pkgserver.UpdateRoleRequest{
 					Name:        &ag.Name,
 					Description: &ag.Description,
 				})

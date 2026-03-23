@@ -443,13 +443,13 @@ func TestAuthService_CreateAPIKey_Success(t *testing.T) {
 
 	svc := newTestAuthCommands(&userstest.MockUserRepository{}, mockAPIKeys)
 
-	key, rawKey, err := svc.CreateAPIKey(ctx, actor, "My Key", []string{"kanban:read"}, nil)
+	key, rawKey, err := svc.CreateAPIKey(ctx, actor, "My Key", []string{"server:read"}, nil)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, key.ID)
 	assert.Equal(t, actor.UserID, key.UserID)
 	assert.Equal(t, "My Key", key.Name)
-	assert.Equal(t, []string{"kanban:read"}, key.Scopes)
+	assert.Equal(t, []string{"server:read"}, key.Scopes)
 	assert.NotEmpty(t, rawKey)
 	assert.True(t, len(rawKey) > 6, "raw key should have prefix + content")
 	assert.Equal(t, key.ID, storedKey.ID)
@@ -557,7 +557,7 @@ func TestAuthService_ValidateAPIKey_Success(t *testing.T) {
 		CreateFunc: func(_ context.Context, key domain.APIKey) error { return nil },
 	}
 	cmdSvc := newTestAuthCommands(&userstest.MockUserRepository{}, mockAPIKeys)
-	key, rawKey, err := cmdSvc.CreateAPIKey(ctx, actor, "Test Key", []string{"kanban:read"}, nil)
+	key, rawKey, err := cmdSvc.CreateAPIKey(ctx, actor, "Test Key", []string{"server:read"}, nil)
 	require.NoError(t, err)
 
 	targetUser := domain.User{

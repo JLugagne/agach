@@ -14,8 +14,8 @@ import (
 	appagach "github.com/JLugagne/agach-mcp/internal/agach/app"
 	"github.com/JLugagne/agach-mcp/internal/agach/domain"
 	"github.com/JLugagne/agach-mcp/internal/agach/inbound/tui/tcellapp"
-	pkgkanban "github.com/JLugagne/agach-mcp/pkg/kanban"
-	"github.com/JLugagne/agach-mcp/pkg/kanban/client"
+	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
+	"github.com/JLugagne/agach-mcp/pkg/server/client"
 )
 
 // workerUpdateMsg wraps a WorkerUpdate for the TUI
@@ -42,7 +42,7 @@ type terminalResultMsg struct {
 // It starts idle until the user presses [r] to start.
 type MonitorModel struct {
 	app     *tuiApp
-	project pkgkanban.ProjectResponse
+	project pkgserver.ProjectResponse
 	config  domain.RunConfig
 	workers []domain.WorkerState
 	started time.Time
@@ -79,8 +79,8 @@ type MonitorModel struct {
 
 	// settings popup
 	showSettings  bool
-	roles         []pkgkanban.RoleResponse
-	subProjects   []pkgkanban.ProjectResponse
+	roles         []pkgserver.RoleResponse
+	subProjects   []pkgserver.ProjectResponse
 	maxWorkers    int
 	roleCursor    int // -1 = all roles
 	scopeChoice   int // 0=main, 1=all, 2=specific
@@ -93,7 +93,7 @@ type MonitorModel struct {
 	sync     SyncRolesModel
 }
 
-func newMonitorModel(app *tuiApp, project pkgkanban.ProjectResponse) *MonitorModel {
+func newMonitorModel(app *tuiApp, project pkgserver.ProjectResponse) *MonitorModel {
 	return &MonitorModel{
 		app:        app,
 		project:    project,
@@ -113,9 +113,9 @@ type configLoadedMsg struct {
 func (m *MonitorModel) Init() tcellapp.Cmd {
 	// Load roles, sub-projects, columns, then auto-start the run
 	return func() tcellapp.Msg {
-		roles, rolesErr := m.app.kanban.ListProjectRoles(m.project.ID)
-		all, subsErr := m.app.kanban.ListProjects()
-		var subs []pkgkanban.ProjectResponse
+		roles, rolesErr := m.app.server.ListProjectRoles(m.project.ID)
+		all, subsErr := m.app.server.ListProjects()
+		var subs []pkgserver.ProjectResponse
 		if subsErr == nil {
 			for _, p := range all {
 				if p.ParentID != nil && *p.ParentID == m.project.ID {
@@ -208,7 +208,7 @@ func (m *MonitorModel) buildRunConfig() domain.RunConfig {
 
 func (m *MonitorModel) refreshColumnCounts() tcellapp.Cmd {
 	return func() tcellapp.Msg {
-		counts, err := m.app.kanban.GetColumnCounts(m.config.ProjectID)
+		counts, err := m.app.server.GetColumnCounts(m.config.ProjectID)
 		if err != nil {
 			return nil
 		}
@@ -224,7 +224,7 @@ func (m *MonitorModel) HandleMsg(msg tcellapp.Msg) (tcellapp.Screen, tcellapp.Cm
 		case backToConfigMsg:
 			m.showSync = false
 			return m, func() tcellapp.Msg {
-				roles, _ := m.app.kanban.ListProjectRoles(m.project.ID)
+				roles, _ := m.app.server.ListProjectRoles(m.project.ID)
 				return rolesLoadedMsg{roles: roles}
 			}
 		}

@@ -36,7 +36,7 @@ const minimumRecommendedJWTSecretLen = 64
 // TestSecurity_SEC_SRV_01_RED_JWTSecretEntropyFloorIsTooLow documents that the
 // current code only requires 32 characters, half the recommended minimum.
 func TestSecurity_SEC_SRV_01_RED_JWTSecretEntropyFloorIsTooLow(t *testing.T) {
-	// The current enforcement threshold in internal/kanban/init.go line 33.
+	// The current enforcement threshold in internal/server/init.go line 33.
 	currentEnforcedMinimum := 32
 
 	assert.Less(t, currentEnforcedMinimum, minimumRecommendedJWTSecretLen,

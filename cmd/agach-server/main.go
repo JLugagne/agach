@@ -15,7 +15,7 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/identity"
 	service "github.com/JLugagne/agach-mcp/internal/identity/domain/service"
-	"github.com/JLugagne/agach-mcp/internal/kanban"
+	"github.com/JLugagne/agach-mcp/internal/server"
 	"github.com/JLugagne/agach-mcp/internal/svrconfig"
 	"github.com/JLugagne/agach-mcp/pkg/controller"
 	"github.com/JLugagne/agach-mcp/pkg/middleware"
@@ -90,14 +90,14 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, j
 	requireAuth := middleware.NewRequireAuth(&authValidatorAdapter{q: identitySystem.AuthQueries})
 
 	// Initialize Kanban HTTP system under auth middleware
-	kanbanRouter := httpRouter.PathPrefix("").Subrouter()
-	kanbanRouter.Use(requireAuth)
-	if _, err := kanban.InitKanbanHTTP(kanban.Config{
+	serverRouter := httpRouter.PathPrefix("").Subrouter()
+	serverRouter.Use(requireAuth)
+	if _, err := server.InitHTTP(server.Config{
 		Pool:        pool,
 		Logger:      logger,
 		AuthQueries: identitySystem.AuthQueries,
 		WSRouter:    httpRouter,
-	}, kanbanRouter); err != nil {
+	}, serverRouter); err != nil {
 		logger.WithError(err).Fatal("Failed to initialize Kanban HTTP system")
 	}
 

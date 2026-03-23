@@ -7,7 +7,7 @@ import (
 
 	appagach "github.com/JLugagne/agach-mcp/internal/agach/app"
 	"github.com/JLugagne/agach-mcp/internal/agach/inbound/tui/tcellapp"
-	pkgkanban "github.com/JLugagne/agach-mcp/pkg/kanban"
+	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
 )
 
 // setupDoneMsg signals setup is complete (skip or applied)
@@ -15,13 +15,13 @@ type setupDoneMsg struct{}
 
 // syncRolesRequestMsg triggers the sync roles screen from config
 type syncRolesRequestMsg struct {
-	project pkgkanban.ProjectResponse
+	project pkgserver.ProjectResponse
 }
 
 // syncPreviewMsg carries the diff before applying
 type syncPreviewMsg struct {
 	toAdd    []appagach.AgentDef
-	toRemove []pkgkanban.RoleResponse
+	toRemove []pkgserver.RoleResponse
 	err      error
 }
 
@@ -38,12 +38,12 @@ type backToConfigMsg struct{}
 // SyncRolesModel shows a diff of roles to add/remove and asks for confirmation
 type SyncRolesModel struct {
 	app     *tuiApp
-	project pkgkanban.ProjectResponse
+	project pkgserver.ProjectResponse
 	workDir string
 
 	loading  bool
 	toAdd    []appagach.AgentDef
-	toRemove []pkgkanban.RoleResponse
+	toRemove []pkgserver.RoleResponse
 	err      string
 
 	// confirmation state
@@ -52,7 +52,7 @@ type SyncRolesModel struct {
 	result    *syncAppliedMsg
 }
 
-func newSyncRolesModel(app *tuiApp, project pkgkanban.ProjectResponse, workDir string) SyncRolesModel {
+func newSyncRolesModel(app *tuiApp, project pkgserver.ProjectResponse, workDir string) SyncRolesModel {
 	return SyncRolesModel{
 		app:     app,
 		project: project,
@@ -68,7 +68,7 @@ func (m SyncRolesModel) Init() tcellapp.Cmd {
 func (m SyncRolesModel) loadPreview() tcellapp.Cmd {
 	return func() tcellapp.Msg {
 		// Get current project roles
-		current, err := m.app.kanban.ListProjectRoles(m.project.ID)
+		current, err := m.app.server.ListProjectRoles(m.project.ID)
 		if err != nil {
 			return syncPreviewMsg{err: err}
 		}
@@ -97,7 +97,7 @@ func (m SyncRolesModel) loadPreview() tcellapp.Cmd {
 		}
 
 		// toRemove: project roles with no matching agent
-		var toRemove []pkgkanban.RoleResponse
+		var toRemove []pkgserver.RoleResponse
 		for _, r := range current {
 			if !availableSlugs[r.Slug] {
 				toRemove = append(toRemove, r)
@@ -116,7 +116,7 @@ func (m SyncRolesModel) applySync() tcellapp.Cmd {
 		for _, ag := range m.toAdd {
 			name := ag.Name
 			desc := ag.Description
-			_, err := m.app.kanban.CreateProjectAgent(m.project.ID, pkgkanban.CreateRoleRequest{
+			_, err := m.app.server.CreateProjectAgent(m.project.ID, pkgserver.CreateRoleRequest{
 				Slug:        ag.Slug,
 				Name:        name,
 				Description: desc,
@@ -127,7 +127,7 @@ func (m SyncRolesModel) applySync() tcellapp.Cmd {
 		}
 
 		for _, r := range m.toRemove {
-			err := m.app.kanban.DeleteProjectAgent(m.project.ID, r.Slug)
+			err := m.app.server.DeleteProjectAgent(m.project.ID, r.Slug)
 			if err == nil {
 				removed++
 			}

@@ -7,18 +7,18 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/JLugagne/agach-mcp/internal/agach/inbound/tui/tcellapp"
-	pkgkanban "github.com/JLugagne/agach-mcp/pkg/kanban"
+	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
 )
 
 // projectsLoadedMsg carries the loaded projects list
 type projectsLoadedMsg struct {
-	projects []pkgkanban.ProjectResponse
+	projects []pkgserver.ProjectResponse
 	err      error
 }
 
 // projectCreatedMsg carries the created project
 type projectCreatedMsg struct {
-	project *pkgkanban.ProjectResponse
+	project *pkgserver.ProjectResponse
 	err     error
 }
 
@@ -32,7 +32,7 @@ const (
 
 // projectItem is a flat list entry for navigation
 type projectItem struct {
-	project pkgkanban.ProjectResponse
+	project pkgserver.ProjectResponse
 }
 
 // WelcomeModel is the welcome screen showing the project list
@@ -56,7 +56,7 @@ type WelcomeModel struct {
 	setupField      int // 0=copyAgents, 1=copySkills, 2=syncRoles, 3=confirm
 
 	// pending project after creation (waiting for setup)
-	pendingProject *pkgkanban.ProjectResponse
+	pendingProject *pkgserver.ProjectResponse
 
 	// scroll offset for long lists
 	scrollOffset int
@@ -78,14 +78,14 @@ func (m *WelcomeModel) Init() tcellapp.Cmd {
 
 func (m *WelcomeModel) loadProjects() tcellapp.Cmd {
 	return func() tcellapp.Msg {
-		projects, err := m.app.kanban.ListProjects()
+		projects, err := m.app.server.ListProjects()
 		return projectsLoadedMsg{projects: projects, err: err}
 	}
 }
 
-func buildItems(projects []pkgkanban.ProjectResponse) []projectItem {
+func buildItems(projects []pkgserver.ProjectResponse) []projectItem {
 	// Sort projects by name
-	sorted := make([]pkgkanban.ProjectResponse, len(projects))
+	sorted := make([]pkgserver.ProjectResponse, len(projects))
 	copy(sorted, projects)
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].Name < sorted[j].Name
@@ -197,7 +197,7 @@ func (m *WelcomeModel) updateCreateForm(msg tcellapp.KeyMsg) (tcellapp.Screen, t
 		name := m.newProjectName
 		desc := m.newProjectDesc
 		return m, func() tcellapp.Msg {
-			project, err := m.app.kanban.CreateProject(pkgkanban.CreateProjectRequest{
+			project, err := m.app.server.CreateProject(pkgserver.CreateProjectRequest{
 				Name:        name,
 				Description: desc,
 			})

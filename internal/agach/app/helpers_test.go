@@ -2,7 +2,7 @@ package app
 
 import (
 	"github.com/JLugagne/agach-mcp/internal/agach/domain"
-	"github.com/JLugagne/agach-mcp/pkg/kanban/client"
+	"github.com/JLugagne/agach-mcp/pkg/server/client"
 )
 
 var validUUID = "550e8400-e29b-41d4-a716-446655440000"

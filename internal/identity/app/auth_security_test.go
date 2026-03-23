@@ -298,7 +298,7 @@ func TestSecurity_CreateAPIKey_UnknownScope_IsRejected_RED(t *testing.T) {
 		{"admin:*"},          // wildcard admin escalation
 		{"billing:write"},    // non-existent scope
 		{""},                 // empty scope string
-		{"kanban:read", ";"}, // injection attempt
+		{"server:read", ";"}, // injection attempt
 	}
 
 	for _, scopes := range invalidScopes {
@@ -319,7 +319,7 @@ func TestSecurity_CreateAPIKey_ValidScope_IsAccepted_GREEN(t *testing.T) {
 	}
 	svc := app.NewAuthService(&userstest.MockUserRepository{}, mockAPIKeys, testJWTSecret, nil)
 
-	validScopes := []string{"kanban:read", "kanban:write"}
+	validScopes := []string{"server:read", "server:write"}
 	key, rawKey, err := svc.CreateAPIKey(ctx, actor, "Valid Key", validScopes, nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, rawKey)

@@ -5,6 +5,7 @@ import { listFeatures, getProject } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useTheme } from './ThemeContext';
 import { useAuth } from './AuthContext';
+import { NotificationBell } from './NotificationBell';
 import type { FeatureWithSummaryResponse, ProjectResponse } from '../lib/types';
 
 interface LayoutProps {
@@ -383,22 +384,25 @@ export function Layout({ children }: LayoutProps) {
             </div>
           )}
 
-          {/* Trigger button */}
-          <button
-            onClick={() => setUserMenuOpen(v => !v)}
-            data-qa="user-menu-btn"
-            className="flex items-center gap-2.5 h-10 px-0 rounded-lg w-full text-left hover:opacity-80 transition-colors cursor-pointer text-[var(--text-primary)]"
-          >
-            <div className="w-8 h-8 rounded-full bg-[var(--primary)] flex items-center justify-center flex-shrink-0">
-              <span className="text-sm font-semibold" style={{ fontFamily: 'Inter, sans-serif', color: 'var(--primary-text)' }}>
-                {(user?.display_name || user?.email || '?')[0].toUpperCase()}
+          {/* User row */}
+          <div className="flex items-center gap-2.5 h-10">
+            <button
+              onClick={() => setUserMenuOpen(v => !v)}
+              data-qa="user-menu-btn"
+              className="flex items-center gap-2.5 flex-1 min-w-0 rounded-lg text-left hover:opacity-80 transition-colors cursor-pointer text-[var(--text-primary)]"
+            >
+              <div className="w-8 h-8 rounded-full bg-[var(--primary)] flex items-center justify-center flex-shrink-0">
+                <span className="text-sm font-semibold" style={{ fontFamily: 'Inter, sans-serif', color: 'var(--primary-text)' }}>
+                  {(user?.display_name || user?.email || '?')[0].toUpperCase()}
+                </span>
+              </div>
+              <span className="text-sm font-medium flex-1 truncate" style={{ fontFamily: 'Inter, sans-serif' }}>
+                {user?.display_name || user?.email}
               </span>
-            </div>
-            <span className="text-sm font-medium flex-1 truncate" style={{ fontFamily: 'Inter, sans-serif' }}>
-              {user?.display_name || user?.email}
-            </span>
-            <ChevronUp size={16} className={`flex-shrink-0 transition-transform text-[var(--text-muted)] ${userMenuOpen ? '' : 'rotate-180'}`} />
-          </button>
+              <ChevronUp size={16} className={`flex-shrink-0 transition-transform text-[var(--text-muted)] ${userMenuOpen ? '' : 'rotate-180'}`} />
+            </button>
+            <NotificationBell />
+          </div>
         </div>
       </aside>
 

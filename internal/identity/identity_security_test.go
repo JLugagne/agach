@@ -20,7 +20,7 @@ import (
 // ─────────────────────────────────────────────────────────────────────────────
 
 // TestSecurity_SEC_ID_04_RED_JWTSecretPanicsOnShortValue documents that
-// jwtSecret() in internal/kanban/init.go calls panic() when JWT_SECRET < 32
+// jwtSecret() in internal/server/init.go calls panic() when JWT_SECRET < 32
 // chars, crashing the entire process instead of returning a proper error.
 func TestSecurity_SEC_ID_04_RED_JWTSecretPanicsOnShortValue(t *testing.T) {
 	// We simulate the logic of jwtSecret() here (cannot call it directly because

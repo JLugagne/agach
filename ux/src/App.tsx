@@ -18,6 +18,7 @@ import SkillsPage from './pages/SkillsPage';
 import DockerfilesPage from './pages/DockerfilesPage';
 import AccountPage from './pages/AccountPage';
 import ApiKeysPage from './pages/ApiKeysPage';
+import NotificationsPage from './pages/NotificationsPage';
 
 function ProtectedRoute() {
   const { isAuthenticated } = useAuth();
@@ -63,6 +64,7 @@ function App() {
                 <Route path="/roles" element={<RolesPage />} />
                 <Route path="/skills" element={<SkillsPage />} />
                 <Route path="/dockerfiles" element={<DockerfilesPage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/account" element={<AccountPage />} />
                 <Route path="/account/api-keys" element={<ApiKeysPage />} />
               </Route>

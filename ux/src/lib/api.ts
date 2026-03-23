@@ -12,9 +12,13 @@ import type {
   DockerfileResponse, CreateDockerfileRequest, UpdateDockerfileRequest, SetProjectDockerfileRequest,
   ModelTokenStatResponse, ModelPricingResponse, FeatureStatsResponse,
   FeatureResponse, FeatureWithSummaryResponse, CreateFeatureRequest, UpdateFeatureRequest, UpdateFeatureStatusRequest,
+  NotificationResponse, UnreadCountResponse,
 } from './types';
+import { refreshAccessToken, setToken } from './auth';
 
 export const authEvents = new EventTarget();
+
+let refreshPromise: Promise<string | null> | null = null;
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const token = localStorage.getItem('agach_access_token');
@@ -24,7 +28,35 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(path, opts);
   if (!res.ok) {
-    if (res.status === 401) authEvents.dispatchEvent(new Event('unauthorized'));
+    if (res.status === 401 && token) {
+      // Deduplicate concurrent refresh attempts.
+      if (!refreshPromise) {
+        refreshPromise = refreshAccessToken().finally(() => { refreshPromise = null; });
+      }
+      const newToken = await refreshPromise;
+      if (newToken) {
+        setToken(newToken);
+        // Retry the original request with the new token.
+        const retryHeaders: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${newToken}` };
+        const retryOpts: RequestInit = { method, headers: retryHeaders };
+        if (body !== undefined) retryOpts.body = JSON.stringify(body);
+        const retryRes = await fetch(path, retryOpts);
+        if (!retryRes.ok) {
+          if (retryRes.status === 401) authEvents.dispatchEvent(new Event('unauthorized'));
+          const err: JSendResponse<unknown> = await retryRes.json().catch(() => ({
+            status: 'error' as const, error: { code: 'UNKNOWN', message: retryRes.statusText },
+          }));
+          throw new Error(err.error?.message || retryRes.statusText);
+        }
+        if (retryRes.status === 204 || retryRes.headers.get('content-length') === '0') return undefined as T;
+        const json: JSendResponse<T> = await retryRes.json();
+        if (json.status !== 'success') throw new Error(json.error?.message || 'Request failed');
+        return json.data as T;
+      }
+      authEvents.dispatchEvent(new Event('unauthorized'));
+    } else if (res.status === 401) {
+      authEvents.dispatchEvent(new Event('unauthorized'));
+    }
     const err: JSendResponse<unknown> = await res.json().catch(() => ({
       status: 'error' as const, error: { code: 'UNKNOWN', message: res.statusText },
     }));
@@ -190,3 +222,36 @@ export const revokeAPIKey = (id: string) => request<void>('DELETE', `/api/auth/a
 export const getProjectDockerfile = (projectId: string) => request<DockerfileResponse | null>('GET', `/api/projects/${projectId}/dockerfile`);
 export const setProjectDockerfile = (projectId: string, data: SetProjectDockerfileRequest) => request<void>('PUT', `/api/projects/${projectId}/dockerfile`, data);
 export const clearProjectDockerfile = (projectId: string) => request<void>('DELETE', `/api/projects/${projectId}/dockerfile`);
+
+// Notifications
+export const listNotifications = (params?: { scope?: string; agent_slug?: string; unread?: boolean; limit?: number; offset?: number }) => {
+  const qs = new URLSearchParams();
+  if (params?.scope) qs.set('scope', params.scope);
+  if (params?.agent_slug) qs.set('agent_slug', params.agent_slug);
+  if (params?.unread) qs.set('unread', 'true');
+  if (params?.limit) qs.set('limit', String(params.limit));
+  if (params?.offset) qs.set('offset', String(params.offset));
+  const q = qs.toString() ? `?${qs.toString()}` : '';
+  return request<NotificationResponse[]>('GET', `/api/notifications${q}`);
+};
+export const listProjectNotifications = (projectId: string, params?: { scope?: string; agent_slug?: string; unread?: boolean; limit?: number; offset?: number }) => {
+  const qs = new URLSearchParams();
+  if (params?.scope) qs.set('scope', params.scope);
+  if (params?.agent_slug) qs.set('agent_slug', params.agent_slug);
+  if (params?.unread) qs.set('unread', 'true');
+  if (params?.limit) qs.set('limit', String(params.limit));
+  if (params?.offset) qs.set('offset', String(params.offset));
+  const q = qs.toString() ? `?${qs.toString()}` : '';
+  return request<NotificationResponse[]>('GET', `/api/projects/${projectId}/notifications${q}`);
+};
+export const getNotificationUnreadCount = (params?: { scope?: string; agent_slug?: string }) => {
+  const qs = new URLSearchParams();
+  if (params?.scope) qs.set('scope', params.scope);
+  if (params?.agent_slug) qs.set('agent_slug', params.agent_slug);
+  const q = qs.toString() ? `?${qs.toString()}` : '';
+  return request<UnreadCountResponse>('GET', `/api/notifications/unread-count${q}`);
+};
+export const markNotificationRead = (id: string) => request<void>('PUT', `/api/notifications/${id}/read`);
+export const markAllNotificationsRead = () => request<void>('PUT', `/api/notifications/read-all`);
+export const markAllProjectNotificationsRead = (projectId: string) => request<void>('PUT', `/api/projects/${projectId}/notifications/read-all`);
+export const deleteNotification = (id: string) => request<void>('DELETE', `/api/notifications/${id}`);

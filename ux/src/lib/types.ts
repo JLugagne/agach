@@ -440,6 +440,29 @@ export interface SetProjectDockerfileRequest {
   dockerfile_id: string;
 }
 
+// Notifications
+export type NotificationScope = 'project' | 'agent' | 'global';
+export type NotificationSeverity = 'info' | 'success' | 'warning' | 'error';
+
+export interface NotificationResponse {
+  id: string;
+  project_id: string | null;
+  scope: NotificationScope;
+  agent_slug: string;
+  severity: NotificationSeverity;
+  title: string;
+  text: string;
+  link_url: string;
+  link_text: string;
+  link_style: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface UnreadCountResponse {
+  unread_count: number;
+}
+
 // WebSocket
 export interface WSEvent {
   type: string;

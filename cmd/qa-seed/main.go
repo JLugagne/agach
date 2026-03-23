@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/JLugagne/agach-mcp/internal/kanban/qaseed"
+	"github.com/JLugagne/agach-mcp/internal/server/qaseed"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )

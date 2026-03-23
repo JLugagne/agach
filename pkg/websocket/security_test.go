@@ -22,7 +22,7 @@ import (
 	"github.com/JLugagne/agach-mcp/pkg/websocket"
 )
 
-// newProductionUpgrader mirrors the upgrader defined in internal/kanban/init.go.
+// newProductionUpgrader mirrors the upgrader defined in internal/server/init.go.
 // It rejects cross-origin connections by comparing the Origin header host
 // against the request host.
 func newProductionUpgrader() gorillaws.Upgrader {
@@ -63,7 +63,7 @@ func newProductionWSTestServer(t *testing.T, hub *websocket.Hub) *httptest.Serve
 // TestSecurity_WebSocketCrossOriginRejected verifies that a WebSocket upgrade
 // request from an untrusted origin is rejected with HTTP 403.
 //
-// RED: internal/kanban/init.go registers the /ws route with an upgrader whose
+// RED: internal/server/init.go registers the /ws route with an upgrader whose
 // CheckOrigin always returns true.  Any web page — including attacker-controlled
 // pages at http://evil.com — can open a WebSocket to this server and receive
 // all real-time kanban events (task moves, comments, completions, etc.) for
@@ -94,7 +94,7 @@ func TestSecurity_WebSocketCrossOriginRejected(t *testing.T) {
 				"the upgrader must reject untrusted origins with 403",
 			resp.StatusCode)
 		t.Fatalf("RED: cross-origin WebSocket connection was accepted; " +
-			"fix: implement an origin allow-list in the CheckOrigin function in internal/kanban/init.go")
+			"fix: implement an origin allow-list in the CheckOrigin function in internal/server/init.go")
 	}
 
 	// When the fix is in place the dial returns an error and resp carries 403.

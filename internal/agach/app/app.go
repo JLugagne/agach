@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/agach/domain"
-	"github.com/JLugagne/agach-mcp/pkg/kanban/client"
-	pkgkanban "github.com/JLugagne/agach-mcp/pkg/kanban"
+	"github.com/JLugagne/agach-mcp/pkg/server/client"
+	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
 )
 
 var (
@@ -274,7 +274,7 @@ func (a *App) runWorker(ctx context.Context, id int, prefetch <-chan client.Next
 			cacheReadTokens := run.CacheReadInputTokens
 			cacheWriteTokens := run.CacheCreationInputTokens
 			model := run.Model
-			_ = a.client.UpdateTask(run.ProjectID, run.TaskID, pkgkanban.UpdateTaskRequest{
+			_ = a.client.UpdateTask(run.ProjectID, run.TaskID, pkgserver.UpdateTaskRequest{
 				InputTokens:      &inputTokens,
 				OutputTokens:     &outputTokens,
 				CacheReadTokens:  &cacheReadTokens,
@@ -402,7 +402,7 @@ func (a *App) executeTask(
 				projectID := run.ProjectID
 				taskID := run.TaskID
 				go func() {
-					_ = a.client.UpdateTask(projectID, taskID, pkgkanban.UpdateTaskRequest{
+					_ = a.client.UpdateTask(projectID, taskID, pkgserver.UpdateTaskRequest{
 						ColdStartInputTokens:      &coldStartInput,
 						ColdStartOutputTokens:     &coldStartOutput,
 						ColdStartCacheReadTokens:  &coldStartCacheRead,

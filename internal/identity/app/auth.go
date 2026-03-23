@@ -37,8 +37,8 @@ const (
 )
 
 var allowedScopes = map[string]bool{
-	"kanban:read":  true,
-	"kanban:write": true,
+	"server:read":  true,
+	"server:write": true,
 }
 
 var tokenBlocklist sync.Map

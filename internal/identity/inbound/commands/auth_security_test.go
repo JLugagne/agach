@@ -218,8 +218,8 @@ func TestSecurity_GREEN_ExcessiveDataExposure_RevokedKeysFiltered(t *testing.T) 
 	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
 	revokedAt := time.Now().Add(-24 * time.Hour)
 	mixedKeys := []domain.APIKey{
-		{ID: domain.NewAPIKeyID(), Name: "old-key", Scopes: []string{"kanban:read"}, RevokedAt: &revokedAt},
-		{ID: domain.NewAPIKeyID(), Name: "active-key", Scopes: []string{"kanban:write"}},
+		{ID: domain.NewAPIKeyID(), Name: "old-key", Scopes: []string{"server:read"}, RevokedAt: &revokedAt},
+		{ID: domain.NewAPIKeyID(), Name: "active-key", Scopes: []string{"server:write"}},
 	}
 
 	cmds := &mockAuthCommands{}

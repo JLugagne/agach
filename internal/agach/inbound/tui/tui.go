@@ -9,7 +9,7 @@ import (
 
 	appagach "github.com/JLugagne/agach-mcp/internal/agach/app"
 	"github.com/JLugagne/agach-mcp/internal/agach/inbound/tui/tcellapp"
-	"github.com/JLugagne/agach-mcp/pkg/kanban/client"
+	"github.com/JLugagne/agach-mcp/pkg/server/client"
 )
 
 type screen int
@@ -22,7 +22,7 @@ const (
 
 // tuiApp holds shared application state across all screens
 type tuiApp struct {
-	kanban     *client.Client
+	server     *client.Client
 	agach      *appagach.App
 	serverURL  string
 	workDir    string // current working directory
@@ -130,7 +130,7 @@ func setTerminalTitle(title string) {
 func Run(serverURL string) error {
 	workDir, _ := os.Getwd()
 	app := &tuiApp{
-		kanban:    client.New(serverURL),
+		server:    client.New(serverURL),
 		agach:     appagach.New(serverURL),
 		serverURL: serverURL,
 		workDir:   workDir,
