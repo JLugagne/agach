@@ -36,22 +36,6 @@ var (
 		Code:    "USER_NOT_FOUND",
 		Message: "user not found",
 	}
-	ErrAPIKeyNotFound = &Error{
-		Code:    "API_KEY_NOT_FOUND",
-		Message: "api key not found",
-	}
-	ErrAPIKeyInvalid = &Error{
-		Code:    "API_KEY_INVALID",
-		Message: "invalid api key",
-	}
-	ErrAPIKeyExpired = &Error{
-		Code:    "API_KEY_EXPIRED",
-		Message: "api key expired",
-	}
-	ErrAPIKeyRevoked = &Error{
-		Code:    "API_KEY_REVOKED",
-		Message: "api key revoked",
-	}
 	ErrInvalidCredentials = &Error{
 		Code:    "INVALID_CREDENTIALS",
 		Message: "invalid email or password",

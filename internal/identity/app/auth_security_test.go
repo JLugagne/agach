@@ -17,7 +17,6 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/identity/app"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
-	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/apikeys/apikeystest"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/users/userstest"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +44,7 @@ func TestSecurity_Register_InvalidEmail_IsRejected_RED(t *testing.T) {
 			return nil
 		},
 	}
-	svc := app.NewAuthService(mockUsers, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
+	svc := app.NewAuthService(mockUsers, testJWTSecret, nil)
 
 	invalidEmails := []string{
 		"notanemail",
@@ -76,7 +75,7 @@ func TestSecurity_Register_ValidEmail_IsAccepted_GREEN(t *testing.T) {
 		},
 		CreateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
-	svc := app.NewAuthService(mockUsers, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
+	svc := app.NewAuthService(mockUsers, testJWTSecret, nil)
 
 	_, err := svc.Register(ctx, "valid@example.com", "validpassword123", "Test User")
 	require.NoError(t, err)
@@ -101,7 +100,7 @@ func TestSecurity_NewAuthService_ShortSecret_IsRejected_RED(t *testing.T) {
 		},
 		CreateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
-	svc := app.NewAuthService(mockUsers, &apikeystest.MockAPIKeyRepository{}, shortSecret, nil)
+	svc := app.NewAuthService(mockUsers, shortSecret, nil)
 
 	// The vulnerability is detectable during Login (token issuance):
 	registeredUser, err := svc.Register(ctx, "weak@example.com", "password123", "Weak")
@@ -113,7 +112,7 @@ func TestSecurity_NewAuthService_ShortSecret_IsRejected_RED(t *testing.T) {
 		},
 		UpdateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
-	loginSvc := app.NewAuthService(loginUsers, &apikeystest.MockAPIKeyRepository{}, shortSecret, nil)
+	loginSvc := app.NewAuthService(loginUsers, shortSecret, nil)
 
 	// A token issued with a 1-byte secret is insecure.
 	// RED: the service should error when the secret is too short, but currently it does not.
@@ -134,7 +133,7 @@ func TestSecurity_NewAuthService_AdequateSecret_Works_GREEN(t *testing.T) {
 		},
 		CreateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
-	svc := app.NewAuthService(mockUsers, &apikeystest.MockAPIKeyRepository{}, adequateSecret, nil)
+	svc := app.NewAuthService(mockUsers, adequateSecret, nil)
 
 	user, err := svc.Register(ctx, "adequate@example.com", "password123", "User")
 	require.NoError(t, err)
@@ -145,7 +144,7 @@ func TestSecurity_NewAuthService_AdequateSecret_Works_GREEN(t *testing.T) {
 		},
 		UpdateFunc: func(_ context.Context, _ domain.User) error { return nil },
 	}
-	loginSvc := app.NewAuthService(loginUsers, &apikeystest.MockAPIKeyRepository{}, adequateSecret, nil)
+	loginSvc := app.NewAuthService(loginUsers, adequateSecret, nil)
 
 	access, refresh, err := loginSvc.Login(ctx, "adequate@example.com", "password123", false)
 	require.NoError(t, err)
@@ -162,7 +161,7 @@ func TestSecurity_NewAuthService_AdequateSecret_Works_GREEN(t *testing.T) {
 func TestSecurity_ValidateJWT_NoneAlgorithm_Rejected_GREEN(t *testing.T) {
 	ctx := context.Background()
 
-	svc := app.NewAuthQueriesService(&userstest.MockUserRepository{}, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
+	svc := app.NewAuthQueriesService(&userstest.MockUserRepository{}, testJWTSecret, nil)
 
 	// Craft a JWT that uses alg=none (unsigned).
 	// golang-jwt/jwt v5 rejects alg:none by default, but we verify the app-layer guard too.
@@ -199,7 +198,7 @@ func TestSecurity_ValidateJWT_WrongKey_Rejected_GREEN(t *testing.T) {
 	tokenStr, err := token.SignedString(wrongSecret)
 	require.NoError(t, err)
 
-	svc := app.NewAuthQueriesService(&userstest.MockUserRepository{}, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
+	svc := app.NewAuthQueriesService(&userstest.MockUserRepository{}, testJWTSecret, nil)
 	_, err = svc.ValidateJWT(ctx, tokenStr)
 	assert.ErrorIs(t, err, domain.ErrUnauthorized, "JWT signed with wrong key must be rejected")
 }
@@ -221,7 +220,7 @@ func TestSecurity_Logout_TokenIsInvalidated_RED(t *testing.T) {
 		},
 		CreateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
-	regSvc := app.NewAuthService(mockUsersReg, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
+	regSvc := app.NewAuthService(mockUsersReg, testJWTSecret, nil)
 	registeredUser, err := regSvc.Register(ctx, "logout@example.com", "password123", "Logout User")
 	require.NoError(t, err)
 
@@ -231,7 +230,7 @@ func TestSecurity_Logout_TokenIsInvalidated_RED(t *testing.T) {
 		},
 		UpdateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
-	loginSvc := app.NewAuthService(mockUsersLogin, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
+	loginSvc := app.NewAuthService(mockUsersLogin, testJWTSecret, nil)
 	accessToken, _, err := loginSvc.Login(ctx, "logout@example.com", "password123", false)
 	require.NoError(t, err)
 	require.NotEmpty(t, accessToken)
@@ -246,7 +245,7 @@ func TestSecurity_Logout_TokenIsInvalidated_RED(t *testing.T) {
 			return registeredUser, nil
 		},
 	}
-	validateSvc := app.NewAuthQueriesService(validateUsers, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
+	validateSvc := app.NewAuthQueriesService(validateUsers, testJWTSecret, nil)
 	_, err = validateSvc.ValidateJWT(ctx, accessToken)
 	assert.Error(t, err, "Token must be invalidated after Logout — currently Logout is a no-op (RED)")
 }
@@ -261,7 +260,7 @@ func TestSecurity_Register_NewEmail_Succeeds_GREEN(t *testing.T) {
 		},
 		CreateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
-	svc := app.NewAuthService(mockUsers, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
+	svc := app.NewAuthService(mockUsers, testJWTSecret, nil)
 
 	_, err := svc.Register(ctx, "brand-new@example.com", "password123", "New User")
 	require.NoError(t, err)
@@ -275,56 +274,6 @@ func TestSecurity_Register_NewEmail_Succeeds_GREEN(t *testing.T) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // No app-layer unit test possible here (logic lives in HTTP handler); documented above.
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VULN-7: API key scopes are not validated against an allowlist
-// ─────────────────────────────────────────────────────────────────────────────
-
-// RED: CreateAPIKey must reject unrecognised scope strings.
-// Currently any arbitrary string is stored as a scope, enabling privilege escalation
-// via crafted scope values like "admin:*" or "billing:write".
-// This test FAILS until scope validation is implemented.
-func TestSecurity_CreateAPIKey_UnknownScope_IsRejected_RED(t *testing.T) {
-	ctx := context.Background()
-
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-
-	mockAPIKeys := &apikeystest.MockAPIKeyRepository{
-		CreateFunc: func(_ context.Context, key domain.APIKey) error { return nil },
-	}
-	svc := app.NewAuthService(&userstest.MockUserRepository{}, mockAPIKeys, testJWTSecret, nil)
-
-	invalidScopes := [][]string{
-		{"admin:*"},          // wildcard admin escalation
-		{"billing:write"},    // non-existent scope
-		{""},                 // empty scope string
-		{"server:read", ";"}, // injection attempt
-	}
-
-	for _, scopes := range invalidScopes {
-		scopes := scopes
-		_, _, err := svc.CreateAPIKey(ctx, actor, "Bad Key", scopes, nil)
-		assert.Error(t, err,
-			"CreateAPIKey must reject unknown/invalid scope values %v — currently it does not (RED)", scopes)
-	}
-}
-
-// GREEN: CreateAPIKey accepts recognised, well-formed scopes.
-func TestSecurity_CreateAPIKey_ValidScope_IsAccepted_GREEN(t *testing.T) {
-	ctx := context.Background()
-
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-	mockAPIKeys := &apikeystest.MockAPIKeyRepository{
-		CreateFunc: func(_ context.Context, key domain.APIKey) error { return nil },
-	}
-	svc := app.NewAuthService(&userstest.MockUserRepository{}, mockAPIKeys, testJWTSecret, nil)
-
-	validScopes := []string{"server:read", "server:write"}
-	key, rawKey, err := svc.CreateAPIKey(ctx, actor, "Valid Key", validScopes, nil)
-	require.NoError(t, err)
-	assert.NotEmpty(t, rawKey)
-	assert.Equal(t, validScopes, key.Scopes)
-}
 
 // GREEN: Admin operations on teams correctly enforce admin authorization.
 func TestSecurity_TeamService_MutatingOps_RequireAdmin_GREEN(t *testing.T) {
@@ -407,7 +356,7 @@ func TestSecurity_Register_WhitespaceOnlyPassword_IsRejected_RED(t *testing.T) {
 		},
 		CreateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
-	svc := app.NewAuthService(mockUsers, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
+	svc := app.NewAuthService(mockUsers, testJWTSecret, nil)
 
 	// A password that is 8+ chars but is purely whitespace.
 	whitespacePassword := strings.Repeat(" ", 10)
@@ -421,7 +370,7 @@ func TestSecurity_Register_WhitespaceOnlyPassword_IsRejected_RED(t *testing.T) {
 func TestSecurity_Register_ShortPassword_IsRejected_GREEN(t *testing.T) {
 	ctx := context.Background()
 
-	svc := app.NewAuthService(&userstest.MockUserRepository{}, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
+	svc := app.NewAuthService(&userstest.MockUserRepository{}, testJWTSecret, nil)
 
 	_, err := svc.Register(ctx, "short@example.com", "abc", "User")
 	require.Error(t, err)
@@ -453,7 +402,7 @@ func TestSecurity_ValidateJWT_RoleTakenFromDB_NotFromToken_GREEN(t *testing.T) {
 		},
 		UpdateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
-	loginSvc := app.NewAuthService(mockUsersIssue, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
+	loginSvc := app.NewAuthService(mockUsersIssue, testJWTSecret, nil)
 	accessToken, _, err := loginSvc.Login(ctx, adminUser.Email, "irrelevant", false)
 	// Login calls bcrypt.CompareHashAndPassword which will fail for placeholder hash,
 	// so we need to create a real user first.
@@ -468,7 +417,7 @@ func TestSecurity_ValidateJWT_RoleTakenFromDB_NotFromToken_GREEN(t *testing.T) {
 		},
 		CreateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
-	regSvc := app.NewAuthService(mockUsersReg, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
+	regSvc := app.NewAuthService(mockUsersReg, testJWTSecret, nil)
 	registeredAdminUser, err := regSvc.Register(ctx, "wasadmin2@example.com", "password123", "WasAdmin")
 	require.NoError(t, err)
 
@@ -481,7 +430,7 @@ func TestSecurity_ValidateJWT_RoleTakenFromDB_NotFromToken_GREEN(t *testing.T) {
 		},
 		UpdateFunc: func(_ context.Context, user domain.User) error { return nil },
 	}
-	loginSvc2 := app.NewAuthService(mockUsersLogin, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
+	loginSvc2 := app.NewAuthService(mockUsersLogin, testJWTSecret, nil)
 	adminToken, _, err := loginSvc2.Login(ctx, "wasadmin2@example.com", "password123", false)
 	require.NoError(t, err)
 
@@ -494,7 +443,7 @@ func TestSecurity_ValidateJWT_RoleTakenFromDB_NotFromToken_GREEN(t *testing.T) {
 			return demotedUser, nil // returns the demoted version
 		},
 	}
-	validateSvc := app.NewAuthQueriesService(validateUsers, &apikeystest.MockAPIKeyRepository{}, testJWTSecret, nil)
+	validateSvc := app.NewAuthQueriesService(validateUsers, testJWTSecret, nil)
 
 	actor, err := validateSvc.ValidateJWT(ctx, adminToken)
 	require.NoError(t, err)

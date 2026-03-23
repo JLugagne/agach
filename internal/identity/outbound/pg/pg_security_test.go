@@ -12,18 +12,13 @@ package pg
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/JLugagne/agach-mcp/internal/identity/domain"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,49 +47,6 @@ func TestSecurity_VULN01_QueryTimeoutEnforced_Green(t *testing.T) {
 // ---------------------------------------------------------------------------
 // VULN-02: API key stored as bare SHA-256 (fast hash, brute-forceable)
 // ---------------------------------------------------------------------------
-
-// RED: confirms that the current key_hash column stores a raw hex-encoded
-// SHA-256 digest. SHA-256 can be computed at billions of operations per second
-// on commodity hardware. A leaked api_keys table allows offline brute-force.
-func TestSecurity_VULN02_APIKeyHashIsSHA256_Red(t *testing.T) {
-	// Simulate what hashKey() does in auth.go to prove the algorithm in use.
-	rawKey := "agach_test_key_value_for_security_analysis"
-	h := sha256.Sum256([]byte(rawKey))
-	hexHash := hex.EncodeToString(h[:])
-
-	// A SHA-256 hex string is exactly 64 characters long.
-	assert.Len(t, hexHash, 64,
-		"VULN-02 RED: the api key hash is a 64-char hex SHA-256 digest — "+
-			"a fast hash with no work-factor, making offline brute-force trivial after DB breach.")
-
-	// Confirm it is NOT an Argon2/bcrypt output (which start with recognizable prefixes).
-	assert.False(t, strings.HasPrefix(hexHash, "$argon2"),
-		"API key hash is not Argon2 — fast hash confirmed.")
-	assert.False(t, strings.HasPrefix(hexHash, "$2"),
-		"API key hash is not bcrypt — fast hash confirmed.")
-}
-
-// GREEN: documents what the secure implementation should look like.
-// An API key hash should use a keyed HMAC or slow KDF, or at minimum
-// HMAC-SHA256 with a server-side secret so that DB exposure alone
-// does not allow key recovery.
-func TestSecurity_VULN02_APIKeyHashUsesHMAC_Green(t *testing.T) {
-	src, err := os.ReadFile("pg.go")
-	require.NoError(t, err)
-
-	// We check the auth layer via the embedded migration or companion file.
-	// The fix would add an hmac import and use it in hashKey().
-	authSrc, err := os.ReadFile("../../app/auth.go")
-	require.NoError(t, err)
-
-	usesHMAC := strings.Contains(string(authSrc), "hmac.New") ||
-		strings.Contains(string(authSrc), "hmac.Sum") ||
-		strings.Contains(string(src), "hmac")
-
-	assert.True(t, usesHMAC,
-		"VULN-02 GREEN (currently failing): API key hashing should use HMAC-SHA256 "+
-			"with a server-side secret key so that a DB breach alone does not expose key material.")
-}
 
 // ---------------------------------------------------------------------------
 // VULN-05: pgcrypto extension loaded but never used
@@ -191,8 +143,8 @@ func TestSecurity_VULN06_ListAllOmitsPasswordHash_Green(t *testing.T) {
 // VULN-07: Sensitive columns stored as plaintext TEXT (no column encryption)
 // ---------------------------------------------------------------------------
 
-// GREEN: sensitive columns should use pgcrypto-backed column encryption or
-// the application should encrypt values before storing them.
+// GREEN: sensitive columns (password_hash, sso_subject) should use pgcrypto-backed
+// column encryption or the application should encrypt values before storing them.
 func TestSecurity_VULN07_SensitiveColumnsEncrypted_Green(t *testing.T) {
 	migSrc, err := os.ReadFile("migrations/001_identity.sql")
 	require.NoError(t, err)
@@ -235,52 +187,6 @@ func TestSecurity_VULN08_UpdatedAtTriggerExists_Green(t *testing.T) {
 	assert.True(t, hasTrigger,
 		"VULN-08 GREEN (currently failing): migration should define a trigger that "+
 			"auto-sets updated_at = NOW() on every UPDATE so audit timestamps are always accurate.")
-}
-
-// ---------------------------------------------------------------------------
-// VULN-09: Inconsistent time sources (app time vs DB time)
-// ---------------------------------------------------------------------------
-
-// GREEN: all timestamp writes in the repository should use either consistently
-// DB-side NOW() or consistently application-provided values — not a mix.
-func TestSecurity_VULN09_ConsistentTimeSources_Green(t *testing.T) {
-	src, err := os.ReadFile("pg.go")
-	require.NoError(t, err)
-
-	content := string(src)
-
-	// One consistent approach: use DB NOW() for all audit timestamps.
-	revokeUsesDBNow := strings.Contains(content, "revoked_at = NOW()")
-	updateLastUsedUsesDBNow := strings.Contains(content, "last_used_at = NOW()")
-
-	consistent := (revokeUsesDBNow && updateLastUsedUsesDBNow) ||
-		(!revokeUsesDBNow && !updateLastUsedUsesDBNow)
-
-	assert.True(t, consistent,
-		"VULN-09 GREEN (currently failing): all audit timestamp writes should use the same "+
-			"time source. Either consistently use DB NOW() (safest) or consistently use "+
-			"application-provided values — never both in the same package.")
-}
-
-// ---------------------------------------------------------------------------
-// VULN-10: API key hashed without salt
-// ---------------------------------------------------------------------------
-
-// GREEN: hashKey should use HMAC-SHA256 with a server-side secret
-// so that the DB hash alone cannot be brute-forced without the secret.
-func TestSecurity_VULN10_APIKeyHashUsesHMACWithSecret_Green(t *testing.T) {
-	authSrc, err := os.ReadFile("../../app/auth.go")
-	require.NoError(t, err)
-
-	content := string(authSrc)
-
-	usesHMAC := strings.Contains(content, "hmac.New") ||
-		strings.Contains(content, "hmac.Sum")
-
-	assert.True(t, usesHMAC,
-		"VULN-10 GREEN (currently failing): hashKey should use HMAC-SHA256 keyed with "+
-			"a server-side secret (the same JWT secret or a dedicated HMAC key) so that "+
-			"leaking the api_keys table does not allow offline key recovery.")
 }
 
 // ---------------------------------------------------------------------------
@@ -385,40 +291,6 @@ func TestSecurity_MigrationHasNoUnsafeDROP_Green(t *testing.T) {
 // Helper: compile-time check that domain types are used correctly
 // ---------------------------------------------------------------------------
 
-// Verify that domain.APIKey.KeyHash (the field that gets persisted) is a
-// plain string — documenting that no encryption wrapper type is used.
-// This is a RED documentation test.
-func TestSecurity_VULN07_APIKeyHashFieldIsPlainString_Red(t *testing.T) {
-	k := domain.APIKey{
-		ID:        domain.APIKeyID(uuid.New()),
-		UserID:    domain.UserID(uuid.New()),
-		Name:      "test",
-		KeyHash:   "some_hash_value", // plain string, not encrypted
-		CreatedAt: time.Now(),
-	}
-
-	assert.IsType(t, "", k.KeyHash,
-		"VULN-07 RED: domain.APIKey.KeyHash is a plain string type. "+
-			"There is no encryption wrapper, meaning the hash is stored and retrieved "+
-			"as cleartext in the database column without any at-rest protection.")
-
-	// Also verify User.PasswordHash is a plain string.
-	u := domain.User{
-		ID:           domain.UserID(uuid.New()),
-		Email:        "test@example.com",
-		PasswordHash: "$2a$14$somebcrypthash",
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
-	}
-	assert.IsType(t, "", u.PasswordHash,
-		"VULN-07 RED: domain.User.PasswordHash is a plain string — "+
-			"no at-rest encryption type wrapping it.")
-
-	// Suppress unused variable warnings.
-	_ = k
-	_ = u
-}
-
 // GREEN: sensitive fields should use an encrypted value type that enforces
 // encryption on marshal and decryption on unmarshal.
 func TestSecurity_VULN07_SensitiveFieldsUseEncryptedType_Green(t *testing.T) {
@@ -438,58 +310,6 @@ func TestSecurity_VULN07_SensitiveFieldsUseEncryptedType_Green(t *testing.T) {
 		"VULN-07 GREEN (currently failing): sensitive domain fields (PasswordHash, SSOSubject, KeyHash) "+
 			"should use a dedicated encrypted value type that enforces at-rest encryption. "+
 			"Currently they are plain string fields with no protection.")
-}
-
-// ---------------------------------------------------------------------------
-// Additional: Revoke does not check ownership before revoking
-// (the repository layer — app layer does check, but repo has no guard)
-// ---------------------------------------------------------------------------
-
-// GREEN (passing — this is the current correct behavior at the repo level):
-// The repository's Revoke method takes only an APIKeyID, with no user context.
-// This means the app layer MUST enforce ownership before calling Revoke.
-// This test documents the trust boundary.
-func TestSecurity_RevokeHasNoOwnershipCheck_DocumentedTrustBoundary(t *testing.T) {
-	src, err := os.ReadFile("pg.go")
-	require.NoError(t, err)
-
-	content := string(src)
-
-	// The Revoke SQL operates only on id — no user_id check.
-	revokeSQL := extractFunctionSQL(content, "Revoke")
-	hasUserIDCheck := strings.Contains(revokeSQL, "user_id")
-
-	assert.False(t, hasUserIDCheck,
-		"Trust boundary documented: apiKeyRepository.Revoke has no user_id ownership check in SQL. "+
-			"The app layer (auth.go:RevokeAPIKey) MUST verify ownership before calling this method. "+
-			"If the app layer check is ever bypassed, any key can be revoked by anyone.")
-}
-
-// extractFunctionSQL is a test helper that naively extracts SQL-looking strings
-// from within a named function's region of a Go source file.
-func extractFunctionSQL(src, funcName string) string {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "", src, 0)
-	if err != nil {
-		return ""
-	}
-
-	var result strings.Builder
-	ast.Inspect(f, func(n ast.Node) bool {
-		fn, ok := n.(*ast.FuncDecl)
-		if !ok || fn.Name.Name != funcName {
-			return true
-		}
-		ast.Inspect(fn.Body, func(inner ast.Node) bool {
-			lit, ok := inner.(*ast.BasicLit)
-			if ok && lit.Kind == token.STRING {
-				result.WriteString(lit.Value)
-			}
-			return true
-		})
-		return false
-	})
-	return result.String()
 }
 
 // Ensure the context package is used (suppress import if needed).

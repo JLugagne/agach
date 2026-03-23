@@ -3,12 +3,10 @@ package pg
 import (
 	"context"
 	_ "embed"
-	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
-	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/apikeys"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/teams"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/users"
 	"github.com/google/uuid"
@@ -23,9 +21,8 @@ const queryTimeout = 30 * time.Second
 
 // Repositories holds all identity PostgreSQL repository implementations.
 type Repositories struct {
-	Users   users.UserRepository
-	APIKeys apikeys.APIKeyRepository
-	Teams   teams.TeamRepository
+	Users users.UserRepository
+	Teams teams.TeamRepository
 }
 
 // NewRepositories creates identity repositories backed by a pgxpool.Pool and runs migrations.
@@ -38,9 +35,8 @@ func NewRepositories(ctx context.Context, pool *pgxpool.Pool, encKey string) (*R
 	}
 	base := &baseRepository{pool: pool, encKey: encKey}
 	return &Repositories{
-		Users:   &userRepository{base},
-		APIKeys: &apiKeyRepository{base},
-		Teams:   &teamRepository{base},
+		Users: &userRepository{base},
+		Teams: &teamRepository{base},
 	}, nil
 }
 
@@ -55,9 +51,8 @@ func (b *baseRepository) ctx(parent context.Context) (context.Context, context.C
 
 // compile-time interface checks
 var (
-	_ users.UserRepository     = (*userRepository)(nil)
-	_ apikeys.APIKeyRepository = (*apiKeyRepository)(nil)
-	_ teams.TeamRepository     = (*teamRepository)(nil)
+	_ users.UserRepository = (*userRepository)(nil)
+	_ teams.TeamRepository = (*teamRepository)(nil)
 )
 
 // userRepository
@@ -291,141 +286,8 @@ func scanUserWithoutHash(row pgx.Row) (domain.User, error) {
 	return u, nil
 }
 
-// apiKeyRepository
-
-type apiKeyRepository struct{ *baseRepository }
-
-func (r *apiKeyRepository) Create(ctx context.Context, k domain.APIKey) error {
-	qCtx, cancel := r.ctx(ctx)
-	defer cancel()
-
-	scopesJSON, err := json.Marshal(k.Scopes)
-	if err != nil {
-		return err
-	}
-
-	_, err = r.pool.Exec(qCtx, `
-		INSERT INTO api_keys (id, user_id, name, key_hash, scopes, expires_at, last_used_at, revoked_at, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		uuid.UUID(k.ID),
-		uuid.UUID(k.UserID),
-		k.Name,
-		k.KeyHash,
-		scopesJSON,
-		k.ExpiresAt,
-		k.LastUsedAt,
-		k.RevokedAt,
-		k.CreatedAt,
-	)
-	return err
-}
-
-func (r *apiKeyRepository) FindByHash(ctx context.Context, keyHash string) (domain.APIKey, error) {
-	qCtx, cancel := r.ctx(ctx)
-	defer cancel()
-
-	row := r.pool.QueryRow(qCtx, `
-		SELECT id, user_id, name, key_hash, scopes, expires_at, last_used_at, revoked_at, created_at
-		FROM api_keys WHERE key_hash = $1`, keyHash)
-	return scanAPIKey(row)
-}
-
-func (r *apiKeyRepository) FindByID(ctx context.Context, id domain.APIKeyID) (domain.APIKey, error) {
-	qCtx, cancel := r.ctx(ctx)
-	defer cancel()
-
-	row := r.pool.QueryRow(qCtx, `
-		SELECT id, user_id, name, key_hash, scopes, expires_at, last_used_at, revoked_at, created_at
-		FROM api_keys WHERE id = $1`, uuid.UUID(id))
-	return scanAPIKey(row)
-}
-
-func (r *apiKeyRepository) ListByUser(ctx context.Context, userID domain.UserID) ([]domain.APIKey, error) {
-	qCtx, cancel := r.ctx(ctx)
-	defer cancel()
-
-	rows, err := r.pool.Query(qCtx, `
-		SELECT id, user_id, name, key_hash, scopes, expires_at, last_used_at, revoked_at, created_at
-		FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC`, uuid.UUID(userID))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []domain.APIKey
-	for rows.Next() {
-		k, err := scanAPIKey(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, k)
-	}
-	return out, rows.Err()
-}
-
-func (r *apiKeyRepository) UpdateLastUsed(ctx context.Context, id domain.APIKeyID, _ time.Time) error {
-	qCtx, cancel := r.ctx(ctx)
-	defer cancel()
-
-	_, err := r.pool.Exec(qCtx, `UPDATE api_keys SET last_used_at = NOW() WHERE id = $1`, uuid.UUID(id))
-	return err
-}
-
-func (r *apiKeyRepository) Revoke(ctx context.Context, id domain.APIKeyID) error {
-	qCtx, cancel := r.ctx(ctx)
-	defer cancel()
-
-	tag, err := r.pool.Exec(qCtx, `UPDATE api_keys SET revoked_at = NOW() WHERE id = $1`, uuid.UUID(id))
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return domain.ErrAPIKeyNotFound
-	}
-	return nil
-}
-
 type rowScanner interface {
 	Scan(dest ...any) error
-}
-
-func scanAPIKey(row rowScanner) (domain.APIKey, error) {
-	var (
-		id         uuid.UUID
-		userID     uuid.UUID
-		name       string
-		keyHash    string
-		scopesJSON []byte
-		expiresAt  *time.Time
-		lastUsedAt *time.Time
-		revokedAt  *time.Time
-		createdAt  time.Time
-	)
-
-	err := row.Scan(&id, &userID, &name, &keyHash, &scopesJSON, &expiresAt, &lastUsedAt, &revokedAt, &createdAt)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domain.APIKey{}, domain.ErrAPIKeyNotFound
-		}
-		return domain.APIKey{}, err
-	}
-
-	var scopes []string
-	if err := json.Unmarshal(scopesJSON, &scopes); err != nil {
-		scopes = []string{}
-	}
-
-	return domain.APIKey{
-		ID:         domain.APIKeyID(id),
-		UserID:     domain.UserID(userID),
-		Name:       name,
-		KeyHash:    keyHash,
-		Scopes:     scopes,
-		ExpiresAt:  expiresAt,
-		LastUsedAt: lastUsedAt,
-		RevokedAt:  revokedAt,
-		CreatedAt:  createdAt,
-	}, nil
 }
 
 // teamRepository

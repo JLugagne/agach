@@ -18,7 +18,6 @@ import (
 // narrow so that pkg/middleware does not depend on internal/identity.
 type AuthValidator interface {
 	ValidateJWT(ctx context.Context, token string) (any, error)
-	ValidateAPIKey(ctx context.Context, rawKey string) (any, error)
 }
 
 type responseWriter struct {
@@ -83,37 +82,25 @@ func NewRequireAuth(authQueries AuthValidator) func(http.Handler) http.Handler {
 			}
 
 			authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
-			apiKey := strings.TrimSpace(r.Header.Get("X-Api-Key"))
 
-			if authHeader == "" && apiKey == "" {
+			if authHeader == "" {
 				unauthorized(w)
 				return
 			}
 
 			ctx := r.Context()
 
-			if authHeader != "" {
-				lower := strings.ToLower(authHeader)
-				if !strings.HasPrefix(lower, "bearer ") {
-					unauthorized(w)
-					return
-				}
-				token := strings.TrimSpace(authHeader[len("bearer "):])
-				if token == "" {
-					unauthorized(w)
-					return
-				}
-				actor, err := authQueries.ValidateJWT(ctx, token)
-				if err != nil {
-					unauthorized(w)
-					return
-				}
-				r = r.WithContext(context.WithValue(ctx, ActorContextKey, actor))
-				next.ServeHTTP(w, r)
+			lower := strings.ToLower(authHeader)
+			if !strings.HasPrefix(lower, "bearer ") {
+				unauthorized(w)
 				return
 			}
-
-			actor, err := authQueries.ValidateAPIKey(ctx, apiKey)
+			token := strings.TrimSpace(authHeader[len("bearer "):])
+			if token == "" {
+				unauthorized(w)
+				return
+			}
+			actor, err := authQueries.ValidateJWT(ctx, token)
 			if err != nil {
 				unauthorized(w)
 				return

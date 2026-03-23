@@ -27,8 +27,7 @@ import (
 
 // deepSecurityMockAuth satisfies middleware.AuthValidator for deep security tests.
 type deepSecurityMockAuth struct {
-	validJWTs    map[string]any
-	validAPIKeys map[string]any
+	validJWTs map[string]any
 }
 
 func (m *deepSecurityMockAuth) ValidateJWT(_ context.Context, token string) (any, error) {
@@ -38,17 +37,9 @@ func (m *deepSecurityMockAuth) ValidateJWT(_ context.Context, token string) (any
 	return nil, errUnauthorized
 }
 
-func (m *deepSecurityMockAuth) ValidateAPIKey(_ context.Context, key string) (any, error) {
-	if a, ok := m.validAPIKeys[key]; ok {
-		return a, nil
-	}
-	return nil, errUnauthorized
-}
-
 func newDeepSecurityAuthHandler() http.Handler {
 	mock := &deepSecurityMockAuth{
-		validJWTs:    map[string]any{"valid-jwt-deep": testActor{Email: "user@example.com"}},
-		validAPIKeys: map[string]any{"agach_validkey_deep": testActor{Email: "user@example.com"}},
+		validJWTs: map[string]any{"valid-jwt-deep": testActor{Email: "user@example.com"}},
 	}
 	return middleware.NewRequireAuth(mock)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -396,10 +387,6 @@ func (a *authCallRecorder) ValidateJWT(_ context.Context, token string) (any, er
 	if a.onValidateJWT != nil {
 		a.onValidateJWT(token)
 	}
-	return nil, errUnauthorized
-}
-
-func (a *authCallRecorder) ValidateAPIKey(_ context.Context, _ string) (any, error) {
 	return nil, errUnauthorized
 }
 

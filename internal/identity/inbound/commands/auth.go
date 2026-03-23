@@ -60,9 +60,6 @@ func (h *AuthCommandsHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/auth/me", h.GetMe).Methods("GET")
 	router.HandleFunc("/api/auth/me", h.UpdateProfile).Methods("PATCH")
 	router.HandleFunc("/api/auth/me/password", h.ChangePassword).Methods("POST")
-	router.HandleFunc("/api/auth/apikeys", h.ListAPIKeys).Methods("GET")
-	router.Handle("/api/auth/apikeys", h.authLimiter.middleware(bodySizeLimit(http.HandlerFunc(h.CreateAPIKey)))).Methods("POST")
-	router.HandleFunc("/api/auth/apikeys/{id}", h.RevokeAPIKey).Methods("DELETE")
 }
 
 type registerRequest struct {
@@ -75,12 +72,6 @@ type loginRequest struct {
 	Email      string `json:"email" validate:"required,email"`
 	Password   string `json:"password" validate:"required"`
 	RememberMe bool   `json:"remember_me"`
-}
-
-type createAPIKeyRequest struct {
-	Name      string     `json:"name" validate:"required"`
-	Scopes    []string   `json:"scopes"`
-	ExpiresAt *time.Time `json:"expires_at"`
 }
 
 type updateProfileRequest struct {
@@ -192,85 +183,6 @@ func (h *AuthCommandsHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	h.controller.SendSuccess(w, r, nil)
 }
 
-// ListAPIKeys handles GET /api/auth/apikeys.
-func (h *AuthCommandsHandler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
-	if !ok {
-		return
-	}
-
-	keys, err := h.queries.ListAPIKeys(r.Context(), actor)
-	if err != nil {
-		h.controller.SendError(w, r, err)
-		return
-	}
-
-	h.controller.SendSuccess(w, r, toPublicAPIKeys(keys))
-}
-
-// CreateAPIKey handles POST /api/auth/apikeys.
-func (h *AuthCommandsHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
-	if !ok {
-		return
-	}
-
-	var req createAPIKeyRequest
-	if err := h.controller.DecodeAndValidate(r, &req, &apierror.Error{Code: "INVALID_REQUEST", Message: "invalid request body"}); err != nil {
-		h.controller.SendFail(w, r, nil, err)
-		return
-	}
-
-	key, rawKey, err := h.commands.CreateAPIKey(r.Context(), actor, req.Name, req.Scopes, req.ExpiresAt)
-	if err != nil {
-		h.controller.SendError(w, r, err)
-		return
-	}
-
-	pub := toPublicAPIKey(key)
-	h.controller.SendSuccess(w, r, map[string]interface{}{
-		"api_key":    rawKey,
-		"id":         pub.ID,
-		"name":       pub.Name,
-		"scopes":     pub.Scopes,
-		"expires_at": pub.ExpiresAt,
-		"created_at": pub.CreatedAt,
-	})
-}
-
-// RevokeAPIKey handles DELETE /api/auth/apikeys/{id}.
-func (h *AuthCommandsHandler) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
-	if !ok {
-		return
-	}
-
-	vars := mux.Vars(r)
-	keyID, err := domain.ParseAPIKeyID(vars["id"])
-	if err != nil {
-		status := http.StatusBadRequest
-		h.controller.SendFail(w, r, &status, &apierror.Error{Code: "INVALID_KEY_ID", Message: "invalid api key id"})
-		return
-	}
-
-	if err := h.commands.RevokeAPIKey(r.Context(), actor, keyID); err != nil {
-		if errors.Is(err, domain.ErrAPIKeyNotFound) {
-			status := http.StatusNotFound
-			h.controller.SendFail(w, r, &status, &apierror.Error{Code: "API_KEY_NOT_FOUND", Message: "api key not found"})
-			return
-		}
-		if errors.Is(err, domain.ErrForbidden) {
-			status := http.StatusForbidden
-			h.controller.SendFail(w, r, &status, &apierror.Error{Code: "FORBIDDEN", Message: "access denied"})
-			return
-		}
-		h.controller.SendError(w, r, err)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
 // GetMe handles GET /api/auth/me.
 func (h *AuthCommandsHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	actor, ok := h.actorFromRequest(w, r)
@@ -335,7 +247,7 @@ func (h *AuthCommandsHandler) ChangePassword(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ActorFromRequest extracts the actor from the Authorization or X-Api-Key header.
+// ActorFromRequest extracts the actor from the Authorization header.
 // Returns (actor, true) on success; writes an error response and returns (zero, false) on failure.
 func (h *AuthCommandsHandler) ActorFromRequest(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {
 	return h.actorFromRequest(w, r)
@@ -343,7 +255,6 @@ func (h *AuthCommandsHandler) ActorFromRequest(w http.ResponseWriter, r *http.Re
 
 func (h *AuthCommandsHandler) actorFromRequest(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {
 	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
-	apiKeyHeader := strings.TrimSpace(r.Header.Get("X-Api-Key"))
 
 	status := http.StatusUnauthorized
 
@@ -352,15 +263,6 @@ func (h *AuthCommandsHandler) actorFromRequest(w http.ResponseWriter, r *http.Re
 		actor, err := h.queries.ValidateJWT(r.Context(), token)
 		if err != nil {
 			h.controller.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "invalid or expired token"})
-			return domain.Actor{}, false
-		}
-		return actor, true
-	}
-
-	if apiKeyHeader != "" {
-		actor, err := h.queries.ValidateAPIKey(r.Context(), apiKeyHeader)
-		if err != nil {
-			h.controller.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "invalid api key"})
 			return domain.Actor{}, false
 		}
 		return actor, true
@@ -423,39 +325,6 @@ func toPublicUser(u domain.User) publicUser {
 		Role:        string(u.Role),
 		CreatedAt:   u.CreatedAt,
 	}
-}
-
-type publicAPIKey struct {
-	ID         string     `json:"id"`
-	Name       string     `json:"name"`
-	Scopes     []string   `json:"scopes"`
-	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
-	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
-	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
-}
-
-func toPublicAPIKey(k domain.APIKey) publicAPIKey {
-	return publicAPIKey{
-		ID:         k.ID.String(),
-		Name:       k.Name,
-		Scopes:     k.Scopes,
-		ExpiresAt:  k.ExpiresAt,
-		LastUsedAt: k.LastUsedAt,
-		RevokedAt:  k.RevokedAt,
-		CreatedAt:  k.CreatedAt,
-	}
-}
-
-func toPublicAPIKeys(keys []domain.APIKey) []publicAPIKey {
-	out := make([]publicAPIKey, 0, len(keys))
-	for _, k := range keys {
-		if k.RevokedAt != nil {
-			continue
-		}
-		out = append(out, toPublicAPIKey(k))
-	}
-	return out
 }
 
 // authIPLimiter is a per-IP rate limiter for auth endpoints.

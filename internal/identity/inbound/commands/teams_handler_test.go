@@ -519,37 +519,6 @@ func TestTeamsHandler_SetUserRole_UserNotFound_ReturnsNotFound(t *testing.T) {
 // TeamsHandler auth: API key header
 // ─────────────────────────────────────────────────────────────────────────────
 
-func TestTeamsHandler_APIKeyAuth_Success(t *testing.T) {
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleAdmin}
-	team := domain.Team{ID: domain.NewTeamID(), Name: "Engineering", Slug: "engineering"}
-
-	cmds := &mockTeamCommands{
-		createTeamFunc: func(_ context.Context, _ domain.Actor, _, _, _ string) (domain.Team, error) {
-			return team, nil
-		},
-	}
-
-	authQrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return domain.Actor{}, domain.ErrUnauthorized
-		},
-		validateAPIKeyFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return actor, nil
-		},
-	}
-
-	router := newTeamsTestHandler(cmds, &mockTeamQueries{}, authQrs)
-
-	body, _ := json.Marshal(map[string]string{"name": "Engineering", "slug": "engineering"})
-	req := httptest.NewRequest("POST", "/api/identity/teams", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Api-Key", "agach_somevalidapikey")
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // handleTeamError - missing branch (ErrTeamNotFound via SetUserTeam)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -650,24 +619,3 @@ func TestTeamsHandler_ListUsers_ServiceError_ReturnsInternalError(t *testing.T) 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }
 
-func TestTeamsHandler_APIKeyAuth_InvalidKey_ReturnsUnauthorized(t *testing.T) {
-	authQrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return domain.Actor{}, domain.ErrUnauthorized
-		},
-		validateAPIKeyFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return domain.Actor{}, domain.ErrAPIKeyInvalid
-		},
-	}
-
-	router := newTeamsTestHandler(&mockTeamCommands{}, &mockTeamQueries{}, authQrs)
-
-	body, _ := json.Marshal(map[string]string{"name": "Engineering", "slug": "engineering"})
-	req := httptest.NewRequest("POST", "/api/identity/teams", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Api-Key", "bad-api-key")
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-}

@@ -24,19 +24,11 @@ var okHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 // mockAuthQueries is a test double for AuthValidator that validates tokens by a
 // simple lookup map. Any token not in the map returns errUnauthorized.
 type mockAuthQueries struct {
-	validJWTs    map[string]any
-	validAPIKeys map[string]any
+	validJWTs map[string]any
 }
 
 func (m *mockAuthQueries) ValidateJWT(_ context.Context, token string) (any, error) {
 	if a, ok := m.validJWTs[token]; ok {
-		return a, nil
-	}
-	return nil, errUnauthorized
-}
-
-func (m *mockAuthQueries) ValidateAPIKey(_ context.Context, key string) (any, error) {
-	if a, ok := m.validAPIKeys[key]; ok {
 		return a, nil
 	}
 	return nil, errUnauthorized
@@ -50,8 +42,7 @@ var validActor = testActor{Email: "test@example.com"}
 
 func newTestAuthMiddleware() http.Handler {
 	mock := &mockAuthQueries{
-		validJWTs:    map[string]any{"valid-jwt": validActor},
-		validAPIKeys: map[string]any{"agach_validkey": validActor},
+		validJWTs: map[string]any{"valid-jwt": validActor},
 	}
 	return middleware.NewRequireAuth(mock)(okHandler)
 }
@@ -69,16 +60,6 @@ func TestRequireAuth(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Equal(t, "ok", rr.Body.String())
-	})
-
-	t.Run("Passes through when X-Api-Key header has valid key", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.Header.Set("X-Api-Key", "agach_validkey")
-		rr := httptest.NewRecorder()
-
-		handler.ServeHTTP(rr, req)
-
-		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 
 	t.Run("Rejects request with neither header with 401", func(t *testing.T) {
@@ -104,16 +85,6 @@ func TestRequireAuth(t *testing.T) {
 	t.Run("Rejects invalid JWT with 401", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Authorization", "Bearer fake-token")
-		rr := httptest.NewRecorder()
-
-		handler.ServeHTTP(rr, req)
-
-		assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	})
-
-	t.Run("Rejects invalid API key with 401", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.Header.Set("X-Api-Key", "fake-key")
 		rr := httptest.NewRecorder()
 
 		handler.ServeHTTP(rr, req)

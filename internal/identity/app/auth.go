@@ -2,12 +2,6 @@ package app
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/rand"
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/mail"
@@ -16,7 +10,6 @@ import (
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
-	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/apikeys"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/users"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/service"
 	"github.com/golang-jwt/jwt/v5"
@@ -27,7 +20,6 @@ const (
 	bcryptCost        = 12
 	minPasswordLen    = 8
 	minSecretLen      = 32
-	apiKeyPrefix      = "agach_"
 	accessTokenTTL    = 15 * time.Minute
 	refreshTokenTTL         = 7 * 24 * time.Hour
 	refreshTokenTTLRemember = 30 * 24 * time.Hour
@@ -36,30 +28,24 @@ const (
 	tokenTypeRefresh  = "refresh"
 )
 
-var allowedScopes = map[string]bool{
-	"server:read":  true,
-	"server:write": true,
-}
-
 var tokenBlocklist sync.Map
 
 type authService struct {
-	users   users.UserRepository
-	apikeys apikeys.APIKeyRepository
-	secret  []byte
-	sso     *SSOService
+	users  users.UserRepository
+	secret []byte
+	sso    *SSOService
 }
 
 // NewAuthService creates an auth service backed by the provided repositories.
 // secret must be at least 32 bytes. sso may be nil if SSO is not configured.
-func NewAuthService(u users.UserRepository, k apikeys.APIKeyRepository, secret []byte, sso *SSOService) service.AuthCommands {
-	return &authService{users: u, apikeys: k, secret: secret, sso: sso}
+func NewAuthService(u users.UserRepository, secret []byte, sso *SSOService) service.AuthCommands {
+	return &authService{users: u, secret: secret, sso: sso}
 }
 
 // NewAuthQueriesService returns the queries-side of the same auth service.
 // sso may be nil if SSO is not configured.
-func NewAuthQueriesService(u users.UserRepository, k apikeys.APIKeyRepository, secret []byte, sso *SSOService) service.AuthQueries {
-	return &authService{users: u, apikeys: k, secret: secret, sso: sso}
+func NewAuthQueriesService(u users.UserRepository, secret []byte, sso *SSOService) service.AuthQueries {
+	return &authService{users: u, secret: secret, sso: sso}
 }
 
 var (
@@ -205,51 +191,6 @@ func (s *authService) Logout(_ context.Context, token string) error {
 	return nil
 }
 
-func (s *authService) CreateAPIKey(ctx context.Context, actor domain.Actor, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string, error) {
-	for _, scope := range scopes {
-		if !allowedScopes[scope] {
-			return domain.APIKey{}, "", &domain.Error{
-				Code:    "INVALID_SCOPE",
-				Message: fmt.Sprintf("unknown or invalid scope: %q", scope),
-			}
-		}
-	}
-
-	raw, err := generateRawKey()
-	if err != nil {
-		return domain.APIKey{}, "", fmt.Errorf("generate api key: %w", err)
-	}
-
-	keyHash := s.hashKey(raw)
-
-	now := time.Now()
-	key := domain.APIKey{
-		ID:        domain.NewAPIKeyID(),
-		UserID:    actor.UserID,
-		Name:      name,
-		KeyHash:   keyHash,
-		Scopes:    scopes,
-		ExpiresAt: expiresAt,
-		CreatedAt: now,
-	}
-
-	if err := s.apikeys.Create(ctx, key); err != nil {
-		return domain.APIKey{}, "", err
-	}
-	return key, raw, nil
-}
-
-func (s *authService) RevokeAPIKey(ctx context.Context, actor domain.Actor, keyID domain.APIKeyID) error {
-	key, err := s.apikeys.FindByID(ctx, keyID)
-	if err != nil {
-		return err
-	}
-	if key.UserID != actor.UserID && !actor.IsAdmin() {
-		return domain.ErrForbidden
-	}
-	return s.apikeys.Revoke(ctx, keyID)
-}
-
 func (s *authService) ValidateJWT(ctx context.Context, token string) (domain.Actor, error) {
 	if _, blocked := tokenBlocklist.Load(token); blocked {
 		return domain.Actor{}, domain.ErrUnauthorized
@@ -288,54 +229,6 @@ func (s *authService) ValidateJWT(ctx context.Context, token string) (domain.Act
 		Email:  user.Email,
 		Role:   user.Role,
 	}, nil
-}
-
-func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (domain.Actor, error) {
-	if len(rawKey) <= len(apiKeyPrefix) {
-		return domain.Actor{}, domain.ErrAPIKeyInvalid
-	}
-
-	prefix := rawKey[:len(apiKeyPrefix)]
-	if subtle.ConstantTimeCompare([]byte(prefix), []byte(apiKeyPrefix)) != 1 {
-		return domain.Actor{}, domain.ErrAPIKeyInvalid
-	}
-
-	keyHash := s.hashKey(rawKey)
-
-	key, err := s.apikeys.FindByHash(ctx, keyHash)
-	if err != nil {
-		if errors.Is(err, domain.ErrAPIKeyNotFound) {
-			return domain.Actor{}, domain.ErrAPIKeyInvalid
-		}
-		return domain.Actor{}, err
-	}
-
-	if key.RevokedAt != nil {
-		return domain.Actor{}, domain.ErrAPIKeyRevoked
-	}
-	if key.ExpiresAt != nil && key.ExpiresAt.Before(time.Now()) {
-		return domain.Actor{}, domain.ErrAPIKeyExpired
-	}
-
-	_ = s.apikeys.UpdateLastUsed(ctx, key.ID, time.Now())
-
-	user, err := s.users.FindByID(ctx, key.UserID)
-	if err != nil {
-		if errors.Is(err, domain.ErrUserNotFound) {
-			return domain.Actor{}, domain.ErrUnauthorized
-		}
-		return domain.Actor{}, err
-	}
-
-	return domain.Actor{
-		UserID: user.ID,
-		Email:  user.Email,
-		Role:   user.Role,
-	}, nil
-}
-
-func (s *authService) ListAPIKeys(ctx context.Context, actor domain.Actor) ([]domain.APIKey, error) {
-	return s.apikeys.ListByUser(ctx, actor.UserID)
 }
 
 func (s *authService) GetCurrentUser(ctx context.Context, actor domain.Actor) (domain.User, error) {
@@ -413,16 +306,3 @@ func (s *authService) parseToken(tokenStr string) (jwt.MapClaims, error) {
 	return claims, nil
 }
 
-func generateRawKey() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return apiKeyPrefix + base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func (s *authService) hashKey(raw string) string {
-	mac := hmac.New(sha256.New, s.secret)
-	mac.Write([]byte(raw))
-	return hex.EncodeToString(mac.Sum(nil))
-}

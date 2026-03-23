@@ -239,7 +239,6 @@ func (h *TeamsHandler) SetUserRole(w http.ResponseWriter, r *http.Request) {
 
 func (h *TeamsHandler) actorFromRequest(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {
 	authHeader := r.Header.Get("Authorization")
-	apiKeyHeader := r.Header.Get("X-Api-Key")
 	status := http.StatusUnauthorized
 
 	if authHeader != "" {
@@ -252,15 +251,6 @@ func (h *TeamsHandler) actorFromRequest(w http.ResponseWriter, r *http.Request) 
 		actor, err := h.authQueries.ValidateJWT(r.Context(), token)
 		if err != nil {
 			h.ctrl.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "invalid or expired token"})
-			return domain.Actor{}, false
-		}
-		return actor, true
-	}
-
-	if apiKeyHeader != "" {
-		actor, err := h.authQueries.ValidateAPIKey(r.Context(), apiKeyHeader)
-		if err != nil {
-			h.ctrl.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "invalid api key"})
 			return domain.Actor{}, false
 		}
 		return actor, true

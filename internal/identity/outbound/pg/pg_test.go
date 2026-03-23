@@ -3,10 +3,7 @@ package pg_test
 import (
 	"context"
 	"testing"
-	"time"
 
-	"github.com/JLugagne/agach-mcp/internal/identity/domain"
-	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/apikeys/apikeystest"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/teams/teamstest"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/users/userstest"
 	"github.com/JLugagne/agach-mcp/internal/identity/outbound/pg"
@@ -57,22 +54,4 @@ func TestTeamRepository_Contract(t *testing.T) {
 func TestUserRepository_Contract(t *testing.T) {
 	repos := newTestRepos(t)
 	userstest.UsersContractTesting(t, repos.Users)
-}
-
-func TestAPIKeyRepository_Contract(t *testing.T) {
-	repos := newTestRepos(t)
-	ctx := context.Background()
-
-	// APIKeys require an existing user
-	user := domain.User{
-		ID:        domain.NewUserID(),
-		Email:     "apikey-test@example.com",
-		Role:      domain.RoleMember,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-	err := repos.Users.Create(ctx, user)
-	require.NoError(t, err)
-
-	apikeystest.APIKeysContractTesting(t, repos.APIKeys, user.ID)
 }

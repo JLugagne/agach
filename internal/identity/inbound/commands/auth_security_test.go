@@ -19,7 +19,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/stretchr/testify/assert"
@@ -110,50 +109,6 @@ func TestSecurity_GREEN_NoBodySizeLimit_LargePayloadRejected(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VULN-3  auth.go:50–51
-// No rate limiting on POST /api/auth/apikeys (API key creation).
-//
-// /api/auth/register and /api/auth/login are wrapped with authLimiter.middleware
-// but /api/auth/apikeys is registered with a plain HandleFunc. An authenticated
-// attacker can create API keys in a tight loop without being throttled.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// GREEN — after applying rate limiting, the endpoint must throttle after burst.
-func TestSecurity_GREEN_RateLimit_CreateAPIKey_ThrottledAfterBurst(t *testing.T) {
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-	cmds := &mockAuthCommands{
-		createAPIKeyFunc: func(_ context.Context, _ domain.Actor, _ string, _ []string, _ *time.Time) (domain.APIKey, string, error) {
-			return domain.APIKey{ID: domain.NewAPIKeyID(), Name: "k", Scopes: []string{}}, "raw-key", nil
-		},
-	}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return actor, nil
-		},
-	}
-	_, router := newTestHandler(cmds, qrs)
-
-	body := []byte(`{"name":"test-key","scopes":[]}`)
-
-	got429 := false
-	for i := 0; i < 20; i++ {
-		req := httptest.NewRequest("POST", "/api/auth/apikeys", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer valid-token")
-		req.RemoteAddr = "10.0.0.1:1234"
-		rr := httptest.NewRecorder()
-		router.ServeHTTP(rr, req)
-		if rr.Code == http.StatusTooManyRequests {
-			got429 = true
-			break
-		}
-	}
-
-	assert.True(t, got429,
-		"GREEN: CreateAPIKey must be rate-limited after burst is exceeded")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // VULN-4  auth.go:308–313
 // X-Forwarded-Proto is trusted unconditionally for the Secure cookie flag.
 //
@@ -203,47 +158,3 @@ func TestSecurity_GREEN_XForwardedProto_NotTrustedWithoutConfig(t *testing.T) {
 		"GREEN: Secure flag must NOT be set from an untrusted X-Forwarded-Proto on a plain HTTP connection")
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VULN-5  auth.go:355–361
-// Excessive data exposure — revoked API keys returned in default listing.
-//
-// toPublicAPIKeys does not filter out keys whose RevokedAt is non-nil.
-// Every key the user ever created (including revoked ones) is returned,
-// leaking key metadata (name, scopes, timestamps) that should be hidden
-// after revocation.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// GREEN — after fixing the handler/service, only non-revoked keys must appear.
-func TestSecurity_GREEN_ExcessiveDataExposure_RevokedKeysFiltered(t *testing.T) {
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-	revokedAt := time.Now().Add(-24 * time.Hour)
-	mixedKeys := []domain.APIKey{
-		{ID: domain.NewAPIKeyID(), Name: "old-key", Scopes: []string{"server:read"}, RevokedAt: &revokedAt},
-		{ID: domain.NewAPIKeyID(), Name: "active-key", Scopes: []string{"server:write"}},
-	}
-
-	cmds := &mockAuthCommands{}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) { return actor, nil },
-		listAPIKeysFunc: func(_ context.Context, _ domain.Actor) ([]domain.APIKey, error) {
-			return mixedKeys, nil
-		},
-	}
-	_, router := newTestHandler(cmds, qrs)
-
-	req := httptest.NewRequest("GET", "/api/auth/apikeys", nil)
-	req.Header.Set("Authorization", "Bearer valid-token")
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	require.Equal(t, http.StatusOK, rr.Code)
-	var resp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-	data, _ := resp["data"].([]interface{})
-
-	// GREEN: only the active key must be present.
-	require.Len(t, data, 1,
-		"GREEN: only active (non-revoked) keys must appear in the default listing")
-	key, _ := data[0].(map[string]interface{})
-	assert.Equal(t, "active-key", key["name"])
-}

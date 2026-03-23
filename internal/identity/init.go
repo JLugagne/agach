@@ -58,8 +58,8 @@ func Init(ctx context.Context, cfg Config, pool *pgxpool.Pool) (*System, error) 
 	if len(cfg.SSO.Providers) > 0 {
 		ssoSvc = app.NewSSOService(cfg.SSO, repos.Users, cfg.JWTSecret)
 	}
-	authCmds := app.NewAuthService(repos.Users, repos.APIKeys, cfg.JWTSecret, ssoSvc)
-	authQrys := app.NewAuthQueriesService(repos.Users, repos.APIKeys, cfg.JWTSecret, ssoSvc)
+	authCmds := app.NewAuthService(repos.Users, cfg.JWTSecret, ssoSvc)
+	authQrys := app.NewAuthQueriesService(repos.Users, cfg.JWTSecret, ssoSvc)
 	teamCmds := app.NewTeamService(repos.Teams, repos.Users)
 	teamQrys := app.NewTeamQueriesService(repos.Teams, repos.Users)
 

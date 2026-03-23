@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/internal/identity/inbound/commands"
@@ -28,8 +27,6 @@ type mockAuthCommands struct {
 	loginSSOFunc      func(ctx context.Context, provider, idToken, nonce string) (string, string, error)
 	refreshTokenFunc  func(ctx context.Context, refreshToken string) (string, error)
 	logoutFunc        func(ctx context.Context, token string) error
-	createAPIKeyFunc  func(ctx context.Context, actor domain.Actor, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string, error)
-	revokeAPIKeyFunc  func(ctx context.Context, actor domain.Actor, keyID domain.APIKeyID) error
 	updateProfileFunc func(ctx context.Context, actor domain.Actor, displayName string) (domain.User, error)
 	changePasswordFunc func(ctx context.Context, actor domain.Actor, currentPassword, newPassword string) error
 }
@@ -55,12 +52,6 @@ func (m *mockAuthCommands) Logout(ctx context.Context, token string) error {
 	}
 	return nil
 }
-func (m *mockAuthCommands) CreateAPIKey(ctx context.Context, actor domain.Actor, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string, error) {
-	return m.createAPIKeyFunc(ctx, actor, name, scopes, expiresAt)
-}
-func (m *mockAuthCommands) RevokeAPIKey(ctx context.Context, actor domain.Actor, keyID domain.APIKeyID) error {
-	return m.revokeAPIKeyFunc(ctx, actor, keyID)
-}
 func (m *mockAuthCommands) UpdateProfile(ctx context.Context, actor domain.Actor, displayName string) (domain.User, error) {
 	if m.updateProfileFunc != nil {
 		return m.updateProfileFunc(ctx, actor, displayName)
@@ -76,22 +67,11 @@ func (m *mockAuthCommands) ChangePassword(ctx context.Context, actor domain.Acto
 
 type mockAuthQueries struct {
 	validateJWTFunc    func(ctx context.Context, token string) (domain.Actor, error)
-	validateAPIKeyFunc func(ctx context.Context, rawKey string) (domain.Actor, error)
-	listAPIKeysFunc    func(ctx context.Context, actor domain.Actor) ([]domain.APIKey, error)
 	getCurrentUserFunc func(ctx context.Context, actor domain.Actor) (domain.User, error)
 }
 
 func (m *mockAuthQueries) ValidateJWT(ctx context.Context, token string) (domain.Actor, error) {
 	return m.validateJWTFunc(ctx, token)
-}
-func (m *mockAuthQueries) ValidateAPIKey(ctx context.Context, rawKey string) (domain.Actor, error) {
-	if m.validateAPIKeyFunc != nil {
-		return m.validateAPIKeyFunc(ctx, rawKey)
-	}
-	return domain.Actor{}, domain.ErrAPIKeyInvalid
-}
-func (m *mockAuthQueries) ListAPIKeys(ctx context.Context, actor domain.Actor) ([]domain.APIKey, error) {
-	return m.listAPIKeysFunc(ctx, actor)
 }
 func (m *mockAuthQueries) GetCurrentUser(ctx context.Context, actor domain.Actor) (domain.User, error) {
 	return m.getCurrentUserFunc(ctx, actor)
@@ -115,22 +95,6 @@ func postJSON(router *mux.Router, path string, body interface{}) *httptest.Respo
 	b, _ := json.Marshal(body)
 	req := httptest.NewRequest("POST", path, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-	return rr
-}
-
-func getWithBearer(router *mux.Router, path, token string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest("GET", path, nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-	return rr
-}
-
-func deleteWithBearer(router *mux.Router, path, token string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest("DELETE", path, nil)
-	req.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 	return rr
@@ -407,256 +371,8 @@ func TestAuthHandler_Logout_ClearsCookie(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ListAPIKeys
-// ─────────────────────────────────────────────────────────────────────────────
-
-func TestAuthHandler_ListAPIKeys_Success(t *testing.T) {
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-	keys := []domain.APIKey{
-		{ID: domain.NewAPIKeyID(), Name: "Key 1", Scopes: []string{"server:read"}},
-	}
-
-	cmds := &mockAuthCommands{}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return actor, nil
-		},
-		listAPIKeysFunc: func(_ context.Context, _ domain.Actor) ([]domain.APIKey, error) {
-			return keys, nil
-		},
-	}
-
-	_, router := newTestHandler(cmds, qrs)
-
-	rr := getWithBearer(router, "/api/auth/apikeys", "valid-token")
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	var resp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-	assert.Equal(t, "success", resp["status"])
-}
-
-func TestAuthHandler_ListAPIKeys_NoAuth_ReturnsUnauthorized(t *testing.T) {
-	cmds := &mockAuthCommands{}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return domain.Actor{}, domain.ErrUnauthorized
-		},
-	}
-	_, router := newTestHandler(cmds, qrs)
-
-	req := httptest.NewRequest("GET", "/api/auth/apikeys", nil)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-}
-
-func TestAuthHandler_ListAPIKeys_WithAPIKey_Success(t *testing.T) {
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-	keys := []domain.APIKey{}
-
-	cmds := &mockAuthCommands{}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return domain.Actor{}, domain.ErrUnauthorized
-		},
-		validateAPIKeyFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return actor, nil
-		},
-		listAPIKeysFunc: func(_ context.Context, _ domain.Actor) ([]domain.APIKey, error) {
-			return keys, nil
-		},
-	}
-	_, router := newTestHandler(cmds, qrs)
-
-	req := httptest.NewRequest("GET", "/api/auth/apikeys", nil)
-	req.Header.Set("X-Api-Key", "agach_somevalidkey")
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CreateAPIKey
-// ─────────────────────────────────────────────────────────────────────────────
-
-func TestAuthHandler_CreateAPIKey_Success(t *testing.T) {
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-	key := domain.APIKey{ID: domain.NewAPIKeyID(), Name: "My Key", Scopes: []string{"server:read"}}
-
-	cmds := &mockAuthCommands{
-		createAPIKeyFunc: func(_ context.Context, _ domain.Actor, name string, scopes []string, _ *time.Time) (domain.APIKey, string, error) {
-			return key, "agach_rawkey123", nil
-		},
-	}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return actor, nil
-		},
-	}
-
-	_, router := newTestHandler(cmds, qrs)
-
-	req := httptest.NewRequest("POST", "/api/auth/apikeys", bytes.NewReader([]byte(`{"name":"My Key","scopes":["server:read"]}`)))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer valid-token")
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	var resp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-	data, _ := resp["data"].(map[string]interface{})
-	assert.Equal(t, "agach_rawkey123", data["api_key"])
-}
-
-func TestAuthHandler_CreateAPIKey_InvalidToken_ReturnsUnauthorized(t *testing.T) {
-	cmds := &mockAuthCommands{}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return domain.Actor{}, domain.ErrUnauthorized
-		},
-	}
-	_, router := newTestHandler(cmds, qrs)
-
-	req := httptest.NewRequest("POST", "/api/auth/apikeys", bytes.NewReader([]byte(`{"name":"Key"}`)))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer bad-token")
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// RevokeAPIKey
-// ─────────────────────────────────────────────────────────────────────────────
-
-func TestAuthHandler_RevokeAPIKey_Success(t *testing.T) {
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-	keyID := domain.NewAPIKeyID()
-
-	cmds := &mockAuthCommands{
-		revokeAPIKeyFunc: func(_ context.Context, _ domain.Actor, id domain.APIKeyID) error {
-			return nil
-		},
-	}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return actor, nil
-		},
-	}
-
-	_, router := newTestHandler(cmds, qrs)
-
-	rr := deleteWithBearer(router, "/api/auth/apikeys/"+keyID.String(), "valid-token")
-
-	assert.Equal(t, http.StatusNoContent, rr.Code)
-}
-
-func TestAuthHandler_RevokeAPIKey_InvalidKeyID_ReturnsBadRequest(t *testing.T) {
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-
-	cmds := &mockAuthCommands{}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return actor, nil
-		},
-	}
-	_, router := newTestHandler(cmds, qrs)
-
-	rr := deleteWithBearer(router, "/api/auth/apikeys/not-a-uuid", "valid-token")
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestAuthHandler_RevokeAPIKey_NotFound_ReturnsNotFound(t *testing.T) {
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-	keyID := domain.NewAPIKeyID()
-
-	cmds := &mockAuthCommands{
-		revokeAPIKeyFunc: func(_ context.Context, _ domain.Actor, _ domain.APIKeyID) error {
-			return domain.ErrAPIKeyNotFound
-		},
-	}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return actor, nil
-		},
-	}
-	_, router := newTestHandler(cmds, qrs)
-
-	rr := deleteWithBearer(router, "/api/auth/apikeys/"+keyID.String(), "valid-token")
-
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
-
-func TestAuthHandler_RevokeAPIKey_Forbidden_ReturnsForbidden(t *testing.T) {
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-	keyID := domain.NewAPIKeyID()
-
-	cmds := &mockAuthCommands{
-		revokeAPIKeyFunc: func(_ context.Context, _ domain.Actor, _ domain.APIKeyID) error {
-			return domain.ErrForbidden
-		},
-	}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return actor, nil
-		},
-	}
-	_, router := newTestHandler(cmds, qrs)
-
-	rr := deleteWithBearer(router, "/api/auth/apikeys/"+keyID.String(), "valid-token")
-
-	assert.Equal(t, http.StatusForbidden, rr.Code)
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // ActorFromRequest / security
 // ─────────────────────────────────────────────────────────────────────────────
-
-func TestAuthHandler_ActorFromRequest_NoCredentials_ReturnsUnauthorized(t *testing.T) {
-	cmds := &mockAuthCommands{}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return domain.Actor{}, domain.ErrUnauthorized
-		},
-	}
-	_, router := newTestHandler(cmds, qrs)
-
-	req := httptest.NewRequest("GET", "/api/auth/apikeys", nil)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	var resp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-	err, _ := resp["error"].(map[string]interface{})
-	assert.Equal(t, "UNAUTHORIZED", err["code"])
-}
-
-func TestAuthHandler_ActorFromRequest_InvalidAPIKey_ReturnsUnauthorized(t *testing.T) {
-	cmds := &mockAuthCommands{}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return domain.Actor{}, domain.ErrUnauthorized
-		},
-		validateAPIKeyFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return domain.Actor{}, domain.ErrAPIKeyInvalid
-		},
-	}
-	_, router := newTestHandler(cmds, qrs)
-
-	req := httptest.NewRequest("GET", "/api/auth/apikeys", nil)
-	req.Header.Set("X-Api-Key", "invalid-key")
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Rate limiting
@@ -727,76 +443,6 @@ func TestAuthHandler_Login_MissingPassword_ReturnsBadRequest(t *testing.T) {
 
 	rr := postJSON(router, "/api/auth/login", map[string]string{"email": "user@example.com"})
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CreateAPIKey handler - missing branches
-// ─────────────────────────────────────────────────────────────────────────────
-
-func TestAuthHandler_CreateAPIKey_InvalidBody_ReturnsBadRequest(t *testing.T) {
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-	cmds := &mockAuthCommands{}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return actor, nil
-		},
-	}
-	_, router := newTestHandler(cmds, qrs)
-
-	req := httptest.NewRequest("POST", "/api/auth/apikeys", bytes.NewReader([]byte("bad-json")))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer valid-token")
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestAuthHandler_CreateAPIKey_ServiceError_ReturnsInternalError(t *testing.T) {
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-	cmds := &mockAuthCommands{
-		createAPIKeyFunc: func(_ context.Context, _ domain.Actor, _ string, _ []string, _ *time.Time) (domain.APIKey, string, error) {
-			return domain.APIKey{}, "", domain.ErrForbidden
-		},
-	}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return actor, nil
-		},
-	}
-	_, router := newTestHandler(cmds, qrs)
-
-	req := httptest.NewRequest("POST", "/api/auth/apikeys", bytes.NewReader([]byte(`{"name":"key"}`)))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer valid-token")
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	// Service error → internal server error or error response
-	assert.NotEqual(t, http.StatusOK, rr.Code)
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ActorFromRequest (public method)
-// ─────────────────────────────────────────────────────────────────────────────
-
-func TestAuthHandler_ActorFromRequest_Public_ValidJWT(t *testing.T) {
-	actor := domain.Actor{UserID: domain.NewUserID(), Role: domain.RoleMember}
-	cmds := &mockAuthCommands{}
-	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) {
-			return actor, nil
-		},
-		listAPIKeysFunc: func(_ context.Context, _ domain.Actor) ([]domain.APIKey, error) {
-			return nil, nil
-		},
-	}
-	h, router := newTestHandler(cmds, qrs)
-	_ = h
-
-	// Exercise ActorFromRequest via the ListAPIKeys route which calls actorFromRequest
-	rr := getWithBearer(router, "/api/auth/apikeys", "valid-token")
-	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

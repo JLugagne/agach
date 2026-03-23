@@ -90,10 +90,8 @@ func TestSecurity_RED_UnboundedFSWalk_NoDepthLimit(t *testing.T) {
 	// Vulnerability: walks all 10 levels up and finds the planted config.
 	assert.NoError(t, err,
 		"RED (vulnerability): unbounded walk — no depth limit enforced")
-	if cfg != nil {
-		assert.Equal(t, "root-level-stolen", cfg.ResolvedAPIKey(),
-			"RED (vulnerability): config 10 levels up was loaded")
-	}
+	assert.NotNil(t, cfg,
+		"RED (vulnerability): config 10 levels up was loaded")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -102,15 +100,6 @@ func TestSecurity_RED_UnboundedFSWalk_NoDepthLimit(t *testing.T) {
 // config.go:36 — ResolvedAPIKey() returns "" with no error. There is no
 // Validate() method.  Callers proceed unauthenticated without any indication.
 // ─────────────────────────────────────────────────────────────────────────────
-
-// RED: an empty APIKey field is silently returned with no error signal.
-func TestSecurity_RED_EmptyAPIKey_AcceptedSilently(t *testing.T) {
-	cfg := &agachconfig.Config{APIKey: ""}
-	key := cfg.ResolvedAPIKey()
-	// Vulnerability: no validation, caller cannot detect missing credential.
-	assert.Equal(t, "", key,
-		"RED (vulnerability): empty API key silently returned — unauthenticated callers possible")
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VULN-4 — Unset env var silently resolves to empty string
@@ -137,7 +126,6 @@ func TestSecurity_RED_EmptyAPIKey_AcceptedSilently(t *testing.T) {
 func TestSecurity_RED_PlaintextHTTP_AcceptedSilently(t *testing.T) {
 	cfg := &agachconfig.Config{
 		BaseURL: "http://plaintext.example.com",
-		APIKey:  "my-key",
 	}
 	url := cfg.ResolvedBaseURL()
 	// Vulnerability: no validation; API key will be transmitted in clear text.

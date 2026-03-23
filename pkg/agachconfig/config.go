@@ -13,7 +13,6 @@ const maxWalkDepth = 5
 
 type Config struct {
 	BaseURL string `yaml:"base_url"`
-	APIKey  string `yaml:"api_key"`
 }
 
 func Load(dir string) (*Config, error) {
@@ -55,24 +54,9 @@ func (c *Config) ResolvedBaseURL() string {
 	return c.BaseURL
 }
 
-func (c *Config) ResolvedAPIKey() string {
-	return c.APIKey
-}
-
 func (c *Config) Validate() error {
 	if c.BaseURL == "" {
 		return fmt.Errorf("base_url is required")
-	}
-
-	if c.APIKey == "" {
-		return fmt.Errorf("api_key is required and must not be empty")
-	}
-
-	if strings.HasPrefix(c.APIKey, "$") {
-		varName := strings.TrimPrefix(c.APIKey, "$")
-		if _, set := os.LookupEnv(varName); !set {
-			return fmt.Errorf("api_key references env var $%s which is not set", varName)
-		}
 	}
 
 	if strings.HasPrefix(c.BaseURL, "http://") {

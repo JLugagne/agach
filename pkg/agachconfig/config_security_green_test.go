@@ -84,42 +84,6 @@ func TestSecurity_GREEN_UnboundedFSWalk_MaxDepthRespected(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VULN-3 GREEN — empty APIKey rejected by Validate()
-// ─────────────────────────────────────────────────────────────────────────────
-
-func TestSecurity_GREEN_EmptyAPIKey_ReturnsValidateError(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(
-		filepath.Join(dir, ".agach.yml"),
-		[]byte("base_url: http://localhost:8222\napi_key: \"\"\n"),
-		0600,
-	))
-
-	cfg, err := agachconfig.Load(dir)
-	require.NoError(t, err)
-	require.NotNil(t, cfg)
-
-	err = cfg.Validate()
-	assert.Error(t, err, "Validate must return an error when APIKey is empty")
-	assert.True(t, strings.Contains(err.Error(), "api_key"),
-		"error must name the offending field, got: %s", err.Error())
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VULN-4 GREEN — unset env var reference rejected by Validate()
-// ─────────────────────────────────────────────────────────────────────────────
-
-func TestSecurity_GREEN_UnsetEnvVar_ValidateReturnsError(t *testing.T) {
-	const varName = "AGACH_SEC_UNSET_XYZ987_UNIQUE"
-	os.Unsetenv(varName)
-
-	cfg := &agachconfig.Config{APIKey: "$" + varName}
-	err := cfg.Validate()
-	assert.Error(t, err,
-		"Validate must error when an env-var reference in APIKey resolves to empty (var not set)")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // VULN-5 GREEN — world-readable config file must be rejected
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -148,7 +112,6 @@ func TestSecurity_GREEN_CorrectlyRestrictedConfig_Loaded(t *testing.T) {
 	cfg, err := agachconfig.Load(dir)
 	require.NoError(t, err)
 	require.NotNil(t, cfg, "0600 config file must load successfully")
-	assert.Equal(t, "super-secret", cfg.ResolvedAPIKey())
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -158,7 +121,6 @@ func TestSecurity_GREEN_CorrectlyRestrictedConfig_Loaded(t *testing.T) {
 func TestSecurity_GREEN_PlaintextHTTP_FlaggedByValidate(t *testing.T) {
 	cfg := &agachconfig.Config{
 		BaseURL: "http://remote.example.com",
-		APIKey:  "my-key",
 	}
 	err := cfg.Validate()
 	assert.Error(t, err,
@@ -175,7 +137,6 @@ func TestSecurity_GREEN_PlaintextHTTP_FlaggedByValidate(t *testing.T) {
 func TestSecurity_GREEN_HTTPS_AcceptedByValidate(t *testing.T) {
 	cfg := &agachconfig.Config{
 		BaseURL: "https://secure.example.com",
-		APIKey:  "my-key",
 	}
 	assert.NoError(t, cfg.Validate(), "https:// base_url must pass Validate")
 }
@@ -184,7 +145,6 @@ func TestSecurity_GREEN_HTTPS_AcceptedByValidate(t *testing.T) {
 func TestSecurity_GREEN_LocalhostHTTP_AcceptedByValidate(t *testing.T) {
 	cfg := &agachconfig.Config{
 		BaseURL: "http://localhost:8322",
-		APIKey:  "my-key",
 	}
 	assert.NoError(t, cfg.Validate(), "http://localhost URLs must pass Validate")
 }
@@ -193,7 +153,6 @@ func TestSecurity_GREEN_LocalhostHTTP_AcceptedByValidate(t *testing.T) {
 func TestSecurity_GREEN_Loopback127_AcceptedByValidate(t *testing.T) {
 	cfg := &agachconfig.Config{
 		BaseURL: "http://127.0.0.1:8322",
-		APIKey:  "my-key",
 	}
 	assert.NoError(t, cfg.Validate(), "http://127.0.0.1 URLs must pass Validate")
 }
@@ -231,13 +190,12 @@ func TestSecurity_GREEN_EnvVarInjection_NotExpandedFromFile(t *testing.T) {
 func TestSecurity_GREEN_Validate_WellFormedConfig(t *testing.T) {
 	cfg := &agachconfig.Config{
 		BaseURL: "https://secure.example.com",
-		APIKey:  "a-sufficiently-long-api-key-value",
 	}
 	assert.NoError(t, cfg.Validate(), "well-formed config must pass Validate")
 }
 
 // GREEN: empty BaseURL must fail Validate.
 func TestSecurity_GREEN_Validate_EmptyBaseURL(t *testing.T) {
-	cfg := &agachconfig.Config{BaseURL: "", APIKey: "my-key"}
+	cfg := &agachconfig.Config{BaseURL: ""}
 	assert.Error(t, cfg.Validate(), "Validate must error on empty BaseURL")
 }

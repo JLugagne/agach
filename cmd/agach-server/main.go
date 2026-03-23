@@ -195,10 +195,6 @@ func (a *authValidatorAdapter) ValidateJWT(ctx context.Context, token string) (a
 	return a.q.ValidateJWT(ctx, token)
 }
 
-func (a *authValidatorAdapter) ValidateAPIKey(ctx context.Context, rawKey string) (any, error) {
-	return a.q.ValidateAPIKey(ctx, rawKey)
-}
-
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
