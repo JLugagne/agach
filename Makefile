@@ -7,11 +7,15 @@ generate:
 
 build: build-server build-cli
 
+
+build-daemon:
+	CGO_ENABLED=1 go build -tags $(GO_TAGS) -o agach-server ./cmd/agach-daemon
+
 build-server: generate
-	CGO_ENABLED=1 go build -tags $(GO_TAGS) -o agach-server ./cmd/agach-server
+	go build -tags $(GO_TAGS) -o agach-server ./cmd/agach-server
 
 build-cli:
-	CGO_ENABLED=1 go build -tags $(GO_TAGS) -o agach ./cmd/agach
+	go build -tags $(GO_TAGS) -o agach ./cmd/agach
 
 run: build-server
 	./agach-server

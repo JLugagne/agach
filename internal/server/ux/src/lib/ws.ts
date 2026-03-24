@@ -59,6 +59,13 @@ class WebSocketClient {
     return () => { this.listeners.delete(cb); };
   }
 
+  /** Send a message to the server via WebSocket */
+  send(msg: unknown) {
+    if (this.ws && this.connected) {
+      this.ws.send(JSON.stringify(msg));
+    }
+  }
+
   disconnect() {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.ws?.close();

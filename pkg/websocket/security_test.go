@@ -54,7 +54,7 @@ func newProductionWSTestServer(t *testing.T, hub *websocket.Hub) *httptest.Serve
 		if err != nil {
 			return
 		}
-		hub.ServeWS(conn, r.URL.Query().Get("project_id"))
+		hub.ServeWS(conn, websocket.WithProjectID(r.URL.Query().Get("project_id")))
 	}))
 	t.Cleanup(srv.Close)
 	return srv

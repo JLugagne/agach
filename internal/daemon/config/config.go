@@ -28,6 +28,47 @@ type Config struct {
 	NodeName string `yaml:"node_name"`
 }
 
+// DefaultConfigPath returns the default path for the daemon config file (~/.config/agach/daemon.yml).
+func DefaultConfigPath() (string, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("get user config dir: %w", err)
+	}
+	return filepath.Join(configDir, "agach", "daemon.yml"), nil
+}
+
+// WriteDefault writes a default daemon config file and creates the ~/.config/agach/ directory.
+// Returns an error if the config file already exists.
+func WriteDefault() error {
+	path, err := DefaultConfigPath()
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("config file %q already exists", path)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return fmt.Errorf("create config directory: %w", err)
+	}
+
+	cfg := Config{
+		BaseURL: "http://localhost:8322",
+	}
+
+	data, err := yaml.Marshal(&cfg)
+	if err != nil {
+		return fmt.Errorf("marshaling default config: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return fmt.Errorf("writing config file %q: %w", path, err)
+	}
+
+	return nil
+}
+
 // Load reads daemon configuration from a YAML file and environment variables.
 // It searches for .agach-daemon.yml starting from dir and walking up to parent directories.
 func Load(dir string) (*Config, error) {
@@ -38,6 +79,13 @@ func Load(dir string) (*Config, error) {
 	cfg := &Config{}
 
 	configPath := findConfigFile(dir)
+	if configPath == "" {
+		if defaultPath, err := DefaultConfigPath(); err == nil {
+			if _, err := os.Stat(defaultPath); err == nil {
+				configPath = defaultPath
+			}
+		}
+	}
 	if configPath != "" {
 		if err := loadFromFile(configPath, cfg); err != nil {
 			return nil, err
@@ -131,6 +179,15 @@ func (c *Config) ValidateForOnboarding() error {
 	}
 
 	return nil
+}
+
+// SQLitePath returns the path for the daemon's SQLite database in the user config directory.
+func (c *Config) SQLitePath() string {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		configDir = os.TempDir()
+	}
+	return filepath.Join(configDir, "agach", "daemon.db")
 }
 
 // WebSocketURL returns the WebSocket URL derived from BaseURL.

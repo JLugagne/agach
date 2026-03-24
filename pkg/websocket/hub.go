@@ -31,9 +31,16 @@ type Hub struct {
 	broadcast  chan Event
 	register   chan *Client
 	unregister chan *Client
+	relay      chan relayMessage
 	stop       chan struct{}
 	mu         sync.Mutex
 	logger     *logrus.Logger
+}
+
+// relayMessage carries a raw message from one client to be forwarded to others.
+type relayMessage struct {
+	from *Client
+	data json.RawMessage
 }
 
 // Client represents a WebSocket client connection
@@ -42,6 +49,7 @@ type Client struct {
 	conn      *websocket.Conn
 	send      chan Event
 	projectID string
+	isDaemon  bool
 	closed    bool
 	closeMu   sync.Mutex
 }
@@ -53,6 +61,7 @@ func NewHub(logger *logrus.Logger) *Hub {
 		broadcast:  make(chan Event, broadcastBuffer),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
+		relay:      make(chan relayMessage, broadcastBuffer),
 		stop:       make(chan struct{}),
 		logger:     logger,
 	}
@@ -108,7 +117,41 @@ func (h *Hub) Run() {
 				}
 			}
 			h.mu.Unlock()
+
+		case msg := <-h.relay:
+			h.mu.Lock()
+			if msg.from.isDaemon {
+				// Daemon response → forward to all browser clients
+				for client := range h.clients {
+					if client.isDaemon {
+						continue
+					}
+					h.sendRaw(client, msg.data)
+				}
+			} else {
+				// Browser request → forward to all daemon clients
+				for client := range h.clients {
+					if !client.isDaemon {
+						continue
+					}
+					h.sendRaw(client, msg.data)
+				}
+			}
+			h.mu.Unlock()
 		}
+	}
+}
+
+// sendRaw writes a raw JSON message to a client. Must be called with h.mu held.
+func (h *Hub) sendRaw(client *Client, data json.RawMessage) {
+	client.closeMu.Lock()
+	defer client.closeMu.Unlock()
+	if client.closed {
+		return
+	}
+	_ = client.conn.SetWriteDeadline(time.Now().Add(writeWait))
+	if err := client.conn.WriteMessage(websocket.TextMessage, data); err != nil {
+		h.logger.WithError(err).Debug("relay write failed")
 	}
 }
 
@@ -137,6 +180,18 @@ func (h *Hub) Broadcast(event Event) {
 	}
 }
 
+// dockerMessageTypes lists the WS message types that should be relayed
+// between browser clients and daemon clients.
+var dockerMessageTypes = map[string]bool{
+	"docker.list":        true,
+	"docker.rebuild":     true,
+	"docker.logs":        true,
+	"docker.prune":       true,
+	"docker.build_event": true,
+	"docker.prune_event": true,
+	"error":              true,
+}
+
 // ReadPump pumps messages from the WebSocket connection to the hub
 func (c *Client) ReadPump() {
 	defer func() {
@@ -144,6 +199,7 @@ func (c *Client) ReadPump() {
 		c.conn.Close()
 	}()
 
+	c.conn.SetReadLimit(64 * 1024)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error {
 		c.conn.SetReadDeadline(time.Now().Add(pongWait))
@@ -151,14 +207,12 @@ func (c *Client) ReadPump() {
 	})
 
 	for {
-		_, _, err := c.conn.ReadMessage()
+		_, data, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				c.hub.logger.WithError(err).Warn("WebSocket read error")
 			}
 			if err == websocket.ErrReadLimit {
-				// Drain the underlying TCP receive buffer to avoid sending RST to
-				// the client, which would abort any in-flight write.
 				nc := c.conn.UnderlyingConn()
 				nc.SetDeadline(time.Now().Add(500 * time.Millisecond))
 				buf := make([]byte, 4096)
@@ -170,6 +224,21 @@ func (c *Client) ReadPump() {
 				}
 			}
 			break
+		}
+
+		// Check if this is a relayable message
+		var peek struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(data, &peek); err != nil {
+			continue
+		}
+		if dockerMessageTypes[peek.Type] {
+			select {
+			case c.hub.relay <- relayMessage{from: c, data: data}:
+			default:
+				c.hub.logger.WithField("type", peek.Type).Warn("Relay channel full, dropping message")
+			}
 		}
 	}
 }
@@ -214,18 +283,28 @@ func (c *Client) WritePump() {
 	}
 }
 
+// ServeWSOption configures a WebSocket client.
+type ServeWSOption func(*Client)
+
+// WithProjectID scopes the client to only receive events for that project.
+func WithProjectID(pid string) ServeWSOption {
+	return func(c *Client) { c.projectID = pid }
+}
+
+// AsDaemon marks the client as a daemon connection for message relay.
+func AsDaemon() ServeWSOption {
+	return func(c *Client) { c.isDaemon = true }
+}
+
 // ServeWS handles WebSocket requests from clients.
-// projectID, if non-empty, scopes the client to only receive events for that project.
-func (h *Hub) ServeWS(conn *websocket.Conn, projectID ...string) {
-	pid := ""
-	if len(projectID) > 0 {
-		pid = projectID[0]
-	}
+func (h *Hub) ServeWS(conn *websocket.Conn, opts ...ServeWSOption) {
 	client := &Client{
-		hub:       h,
-		conn:      conn,
-		send:      make(chan Event, 256),
-		projectID: pid,
+		hub:  h,
+		conn: conn,
+		send: make(chan Event, 256),
+	}
+	for _, opt := range opts {
+		opt(client)
 	}
 
 	h.register <- client

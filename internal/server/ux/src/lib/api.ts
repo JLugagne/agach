@@ -261,6 +261,7 @@ export const deleteNotification = (id: string) => request<void>('DELETE', `/api/
 export const generateOnboardingCode = (data: GenerateOnboardingCodeRequest) =>
   request<OnboardingCodeResponse>('POST', '/api/onboarding/codes', data);
 export const listNodes = () => request<{ nodes: NodeResponse[] }>('GET', '/api/nodes');
+export const getNode = (nodeId: string) => request<{ node: NodeResponse }>('GET', `/api/nodes/${nodeId}`);
 export const revokeNode = (nodeId: string) => request<void>('DELETE', `/api/nodes/${nodeId}`);
 export const renameNode = (nodeId: string, name: string) =>
   request<{ node: NodeResponse }>('PATCH', `/api/nodes/${nodeId}/name`, { name });

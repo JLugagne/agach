@@ -14,20 +14,23 @@ import (
 )
 
 type OnboardingHandler struct {
-	onboarding  service.OnboardingCommands
-	authQueries service.AuthQueries
-	controller  *controller.Controller
+	onboarding   service.OnboardingCommands
+	authCommands service.AuthCommands
+	authQueries  service.AuthQueries
+	controller   *controller.Controller
 }
 
 func NewOnboardingHandler(
 	onboarding service.OnboardingCommands,
+	authCommands service.AuthCommands,
 	authQueries service.AuthQueries,
 	ctrl *controller.Controller,
 ) *OnboardingHandler {
 	return &OnboardingHandler{
-		onboarding:  onboarding,
-		authQueries: authQueries,
-		controller:  ctrl,
+		onboarding:   onboarding,
+		authCommands: authCommands,
+		authQueries:  authQueries,
+		controller:   ctrl,
 	}
 }
 
@@ -36,6 +39,8 @@ func (h *OnboardingHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/onboarding/codes", h.GenerateCode).Methods("POST")
 	// Unauthenticated: daemon completes onboarding
 	router.HandleFunc("/api/onboarding/complete", h.CompleteOnboarding).Methods("POST")
+	// Unauthenticated: daemon refreshes access token
+	router.HandleFunc("/api/daemon/refresh", h.RefreshDaemonToken).Methods("POST")
 }
 
 type generateCodeRequest struct {
@@ -134,6 +139,46 @@ func (h *OnboardingHandler) handleOnboardingError(w http.ResponseWriter, r *http
 	default:
 		h.controller.SendError(w, r, err)
 	}
+}
+
+type refreshDaemonTokenRequest struct {
+	NodeID       string `json:"node_id" validate:"required,uuid"`
+	RefreshToken string `json:"refresh_token" validate:"required"`
+}
+
+// RefreshDaemonToken handles POST /api/daemon/refresh
+func (h *OnboardingHandler) RefreshDaemonToken(w http.ResponseWriter, r *http.Request) {
+	var req refreshDaemonTokenRequest
+	if err := h.controller.DecodeAndValidate(r, &req, nil); err != nil {
+		h.controller.SendFail(w, r, nil, err)
+		return
+	}
+
+	nodeID, err := domain.ParseNodeID(req.NodeID)
+	if err != nil {
+		status := http.StatusBadRequest
+		h.controller.SendFail(w, r, &status, &apierror.Error{Code: "INVALID_NODE_ID", Message: "invalid node ID format"})
+		return
+	}
+
+	newAccessToken, err := h.authCommands.RefreshDaemonToken(r.Context(), nodeID, req.RefreshToken)
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrUnauthorized):
+			status := http.StatusUnauthorized
+			h.controller.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "invalid refresh token"})
+		case errors.Is(err, domain.ErrNodeRevoked):
+			status := http.StatusGone
+			h.controller.SendFail(w, r, &status, &apierror.Error{Code: "NODE_REVOKED", Message: "node has been revoked"})
+		default:
+			h.controller.SendError(w, r, err)
+		}
+		return
+	}
+
+	h.controller.SendSuccess(w, r, map[string]string{
+		"access_token": newAccessToken,
+	})
 }
 
 func (h *OnboardingHandler) actorFromRequest(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {

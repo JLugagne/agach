@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -13,6 +14,9 @@ import (
 )
 
 func Run() error {
+	initConfig := flag.Bool("init", false, "Create a default config file and exit")
+	flag.Parse()
+
 	logger := logrus.New()
 	logger.SetLevel(logrus.InfoLevel)
 	logger.SetFormatter(&logrus.TextFormatter{
@@ -22,6 +26,15 @@ func Run() error {
 	workDir, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("get working directory: %w", err)
+	}
+
+	if *initConfig {
+		if err := config.WriteDefault(); err != nil {
+			return fmt.Errorf("create config: %w", err)
+		}
+		path, _ := config.DefaultConfigPath()
+		logger.WithField("path", path).Info("Config file created")
+		return nil
 	}
 
 	cfg, err := config.Load(workDir)
@@ -35,7 +48,10 @@ func Run() error {
 
 	logger.WithField("server", cfg.BaseURL).Info("Configuration loaded")
 
-	daemon := app.New(cfg, logger, workDir)
+	daemon, err := app.New(cfg, logger)
+	if err != nil {
+		return fmt.Errorf("init daemon: %w", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

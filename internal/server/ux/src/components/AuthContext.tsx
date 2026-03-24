@@ -20,20 +20,20 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-
-  // Restore session from stored token (we store the user alongside it).
-  useEffect(() => {
-    const stored = localStorage.getItem('agach_user');
-    if (stored && getToken()) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {
-        clearToken();
-      }
+function restoreUser(): AuthUser | null {
+  const stored = localStorage.getItem('agach_user');
+  if (stored && getToken()) {
+    try {
+      return JSON.parse(stored);
+    } catch {
+      clearToken();
     }
-  }, []);
+  }
+  return null;
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(restoreUser);
 
   // Listen for API 401 events — clear session and reload to show login.
   useEffect(() => {

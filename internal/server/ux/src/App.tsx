@@ -20,6 +20,7 @@ import AccountPage from './pages/AccountPage';
 import ApiKeysPage from './pages/ApiKeysPage';
 import NotificationsPage from './pages/NotificationsPage';
 import NodesPage from './pages/NodesPage';
+import NodeSettingsPage from './pages/NodeSettingsPage';
 
 
 function ProtectedRoute() {
@@ -68,6 +69,7 @@ function App() {
                 <Route path="/dockerfiles" element={<DockerfilesPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/nodes" element={<NodesPage />} />
+                <Route path="/nodes/:nodeId/settings" element={<NodeSettingsPage />} />
                 <Route path="/account" element={<AccountPage />} />
                 <Route path="/account/api-keys" element={<ApiKeysPage />} />
               </Route>

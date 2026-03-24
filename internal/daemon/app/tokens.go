@@ -7,7 +7,10 @@ import (
 	"path/filepath"
 )
 
-const tokenFileName = ".agach-daemon-tokens.json"
+const (
+	tokenFileName = "tokens.json"
+	configDirName = "agach-daemon"
+)
 
 type TokenStore struct {
 	path string
@@ -20,7 +23,16 @@ type Tokens struct {
 	NodeName     string `json:"node_name"`
 }
 
-func NewTokenStore(dir string) *TokenStore {
+func NewTokenStore() (*TokenStore, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return nil, fmt.Errorf("get user config dir: %w", err)
+	}
+	return &TokenStore{path: filepath.Join(configDir, configDirName, tokenFileName)}, nil
+}
+
+// NewTokenStoreWithDir creates a token store in a specific directory (for testing).
+func NewTokenStoreWithDir(dir string) *TokenStore {
 	return &TokenStore{path: filepath.Join(dir, tokenFileName)}
 }
 

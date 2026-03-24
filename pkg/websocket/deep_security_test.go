@@ -65,7 +65,7 @@ func newHubServer(t *testing.T, hub *websocket.Hub) *httptest.Server {
 		if err != nil {
 			return
 		}
-		hub.ServeWS(conn, r.URL.Query().Get("project_id"))
+		hub.ServeWS(conn, websocket.WithProjectID(r.URL.Query().Get("project_id")))
 	}))
 	t.Cleanup(srv.Close)
 	return srv
@@ -165,7 +165,7 @@ func TestSecurity_RED_MissingReadDeadline_HalfOpenConnectionLeaksGoroutine(t *te
 		// Grab the underlying connection via reflection-free approach:
 		// keep a reference to the net.Conn by using a custom listener.
 		_ = hj
-		hub.ServeWS(conn, "")
+		hub.ServeWS(conn)
 		rawMu.Lock()
 		rawConn = conn.UnderlyingConn()
 		rawMu.Unlock()

@@ -20,9 +20,22 @@ import (
 
 var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
 
+func refreshHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"status": "success",
+		"data": map[string]any{
+			"access_token": "refreshed-token",
+		},
+	})
+}
+
 func TestApp_Run_WithExistingTokens(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/ws" {
+		switch r.URL.Path {
+		case "/api/daemon/refresh":
+			refreshHandler(w, r)
+		case "/ws":
 			conn, err := upgrader.Upgrade(w, r, nil)
 			if err != nil {
 				return
@@ -34,9 +47,10 @@ func TestApp_Run_WithExistingTokens(t *testing.T) {
 	defer server.Close()
 
 	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
 	cfg := &config.Config{BaseURL: server.URL}
 
-	tokenStore := app.NewTokenStore(dir)
+	tokenStore := app.NewTokenStoreWithDir(filepath.Join(dir, "agach-daemon"))
 	err := tokenStore.Save(&app.Tokens{
 		AccessToken:  "test-token",
 		RefreshToken: "refresh-token",
@@ -47,7 +61,8 @@ func TestApp_Run_WithExistingTokens(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.WarnLevel)
 
-	daemon := app.New(cfg, logger, dir)
+	daemon, err := app.New(cfg, logger)
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -60,7 +75,8 @@ func TestApp_Run_Onboarding(t *testing.T) {
 	onboardingCalled := false
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/onboarding/complete" {
+		switch r.URL.Path {
+		case "/api/onboarding/complete":
 			onboardingCalled = true
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]any{
@@ -75,9 +91,9 @@ func TestApp_Run_Onboarding(t *testing.T) {
 					},
 				},
 			})
-			return
-		}
-		if r.URL.Path == "/ws" {
+		case "/api/daemon/refresh":
+			refreshHandler(w, r)
+		case "/ws":
 			conn, err := upgrader.Upgrade(w, r, nil)
 			if err != nil {
 				return
@@ -89,6 +105,7 @@ func TestApp_Run_Onboarding(t *testing.T) {
 	defer server.Close()
 
 	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
 	cfg := &config.Config{
 		BaseURL:        server.URL,
 		OnboardingCode: "123456",
@@ -97,7 +114,8 @@ func TestApp_Run_Onboarding(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.WarnLevel)
 
-	daemon := app.New(cfg, logger, dir)
+	daemon, err := app.New(cfg, logger)
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -106,15 +124,16 @@ func TestApp_Run_Onboarding(t *testing.T) {
 
 	assert.True(t, onboardingCalled)
 
-	tokenStore := app.NewTokenStore(dir)
+	tokenStore, err := app.NewTokenStore()
+	require.NoError(t, err)
 	tokens, err := tokenStore.Load()
 	require.NoError(t, err)
-	assert.Equal(t, "new-token", tokens.AccessToken)
+	assert.Equal(t, "refreshed-token", tokens.AccessToken)
 }
 
 func TestTokenStore_SaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
-	store := app.NewTokenStore(dir)
+	store := app.NewTokenStoreWithDir(dir)
 
 	tokens := &app.Tokens{
 		AccessToken:  "access",
@@ -132,7 +151,7 @@ func TestTokenStore_SaveAndLoad(t *testing.T) {
 	assert.Equal(t, tokens.RefreshToken, loaded.RefreshToken)
 	assert.Equal(t, tokens.NodeID, loaded.NodeID)
 
-	path := filepath.Join(dir, ".agach-daemon-tokens.json")
+	path := filepath.Join(dir, "tokens.json")
 	info, err := os.Stat(path)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
@@ -140,9 +159,30 @@ func TestTokenStore_SaveAndLoad(t *testing.T) {
 
 func TestTokenStore_Load_NotExists(t *testing.T) {
 	dir := t.TempDir()
-	store := app.NewTokenStore(dir)
+	store := app.NewTokenStoreWithDir(dir)
 
 	tokens, err := store.Load()
 	require.NoError(t, err)
 	assert.Nil(t, tokens)
+}
+
+func TestTokenStore_DefaultDir(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	store, err := app.NewTokenStore()
+	require.NoError(t, err)
+
+	tokens := &app.Tokens{
+		AccessToken:  "access",
+		RefreshToken: "refresh",
+		NodeID:       "node",
+	}
+
+	err = store.Save(tokens)
+	require.NoError(t, err)
+
+	path := filepath.Join(dir, "agach-daemon", "tokens.json")
+	_, err = os.Stat(path)
+	require.NoError(t, err)
 }

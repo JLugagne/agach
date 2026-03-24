@@ -98,6 +98,7 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	wsRouter.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		// Browsers cannot set custom headers on WebSocket connections.
 		// Accept the JWT via the ?token= query parameter instead.
+		isDaemon := false
 		if cfg.AuthQueries != nil {
 			token := r.URL.Query().Get("token")
 			if token == "" {
@@ -110,6 +111,7 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 					http.Error(w, `{"status":"fail","error":{"code":"UNAUTHORIZED","message":"authentication required"}}`, http.StatusUnauthorized)
 					return
 				}
+				isDaemon = true
 			}
 		}
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -117,7 +119,11 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 			logger.WithError(err).Error("Failed to upgrade WebSocket")
 			return
 		}
-		hub.ServeWS(conn)
+		var opts []websocket.ServeWSOption
+		if isDaemon {
+			opts = append(opts, websocket.AsDaemon())
+		}
+		hub.ServeWS(conn, opts...)
 	}).Methods("GET")
 
 	logger.Info("REST API and WebSocket initialized successfully")

@@ -46,10 +46,14 @@ func (m *mockOnboardingCommands) CompleteOnboarding(ctx context.Context, code st
 // ─────────────────────────────────────────────────────────────────────────────
 
 func newTestOnboardingHandler(cmds *mockOnboardingCommands, qrs *mockAuthQueries) (*commands.OnboardingHandler, *mux.Router) {
+	return newTestOnboardingHandlerWithAuth(cmds, &mockAuthCommands{}, qrs)
+}
+
+func newTestOnboardingHandlerWithAuth(cmds *mockOnboardingCommands, authCmds *mockAuthCommands, qrs *mockAuthQueries) (*commands.OnboardingHandler, *mux.Router) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.PanicLevel)
 	ctrl := controller.NewController(logger)
-	h := commands.NewOnboardingHandler(cmds, qrs, ctrl)
+	h := commands.NewOnboardingHandler(cmds, authCmds, qrs, ctrl)
 	r := mux.NewRouter()
 	h.RegisterRoutes(r)
 	return h, r

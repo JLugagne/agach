@@ -23,6 +23,7 @@ const (
 
 type WSEvent struct {
 	Type      string          `json:"type"`
+	RequestID string          `json:"request_id,omitempty"`
 	ProjectID string          `json:"project_id,omitempty"`
 	Data      json.RawMessage `json:"data"`
 }
@@ -107,6 +108,20 @@ func (c *WSClient) IsConnected() bool {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
 	return c.connected
+}
+
+// Send sends a message to the server via the WebSocket connection.
+func (c *WSClient) Send(msg interface{}) error {
+	c.connMu.Lock()
+	conn := c.conn
+	connected := c.connected
+	c.connMu.Unlock()
+
+	if !connected || conn == nil {
+		return fmt.Errorf("not connected")
+	}
+	_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
+	return conn.WriteJSON(msg)
 }
 
 func (c *WSClient) run() {

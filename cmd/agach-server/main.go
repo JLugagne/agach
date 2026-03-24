@@ -27,6 +27,7 @@ import (
 
 func main() {
 	configPath := flag.String("config", getEnv("AGACH_CONFIG", "agach-server.yml"), "Path to server config file")
+	initConfig := flag.Bool("init", false, "Create a default config file and exit")
 	flag.Parse()
 
 	logger := logrus.New()
@@ -34,6 +35,14 @@ func main() {
 	logger.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
+
+	if *initConfig {
+		if err := svrconfig.WriteDefault(*configPath); err != nil {
+			logger.WithError(err).Fatal("Failed to create config file")
+		}
+		logger.WithField("path", *configPath).Info("Config file created")
+		return
+	}
 
 	cfg, err := svrconfig.Load(*configPath)
 	if err != nil {

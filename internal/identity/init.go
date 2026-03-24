@@ -153,7 +153,7 @@ func (s *System) RegisterRoutes(router *mux.Router, ctrl *controller.Controller)
 		ssoH.RegisterRoutes(router)
 	}
 
-	onboardingH := identitycmds.NewOnboardingHandler(s.OnboardingCommands, s.AuthQueries, ctrl)
+	onboardingH := identitycmds.NewOnboardingHandler(s.OnboardingCommands, s.AuthCommands, s.AuthQueries, ctrl)
 	onboardingH.RegisterRoutes(router)
 
 	nodesH := identitycmds.NewNodesHandler(s.NodeCommands, s.NodeQueries, s.AuthQueries, ctrl)
