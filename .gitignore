@@ -48,6 +48,7 @@ CLAUDE.md
 /.agach-mcp
 /agach-mcp
 /agach-server
+/agach-daemon
 /agach
 *.pen
 /features
@@ -64,3 +65,6 @@ CLAUDE.md
 
 # Sauf les skills doc-
 !.claude/skills/doc-*/
+
+.code-indexer
+.agach-daemon-tokens.json

@@ -58,4 +58,10 @@ var (
 	}
 	ErrSSOProviderNotFound = &Error{Code: "SSO_PROVIDER_NOT_FOUND", Message: "SSO provider not configured"}
 	ErrSSONotSupported     = &Error{Code: "SSO_NOT_SUPPORTED", Message: "SAML not yet supported"}
+
+	ErrNodeNotFound          = &Error{Code: "NODE_NOT_FOUND", Message: "node not found"}
+	ErrNodeRevoked           = &Error{Code: "NODE_REVOKED", Message: "node has been revoked"}
+	ErrOnboardingCodeNotFound = &Error{Code: "ONBOARDING_CODE_NOT_FOUND", Message: "onboarding code not found"}
+	ErrOnboardingCodeExpired  = &Error{Code: "ONBOARDING_CODE_EXPIRED", Message: "onboarding code has expired"}
+	ErrOnboardingCodeUsed     = &Error{Code: "ONBOARDING_CODE_USED", Message: "onboarding code has already been used"}
 )

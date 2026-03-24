@@ -3,6 +3,7 @@ package svrconfig
 import (
 	"fmt"
 	"os"
+	"time"
 
 	identitysvrconfig "github.com/JLugagne/agach-mcp/internal/identity/svrconfig"
 	"gopkg.in/yaml.v3"
@@ -10,7 +11,8 @@ import (
 
 // Config is the root server configuration decoded from the YAML config file.
 type Config struct {
-	SSO identitysvrconfig.SsoConfig `yaml:"sso"`
+	SSO          identitysvrconfig.SsoConfig `yaml:"sso"`
+	DaemonJWTTTL time.Duration              `yaml:"daemon_jwt_ttl"`
 }
 
 // Load reads and decodes a YAML config file at the given path.

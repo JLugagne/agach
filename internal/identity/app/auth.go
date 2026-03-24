@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
+	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/nodes"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/users"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/service"
 	"github.com/golang-jwt/jwt/v5"
@@ -32,20 +33,32 @@ var tokenBlocklist sync.Map
 
 type authService struct {
 	users  users.UserRepository
+	nodes  nodes.NodeRepository
 	secret []byte
 	sso    *SSOService
 }
 
 // NewAuthService creates an auth service backed by the provided repositories.
 // secret must be at least 32 bytes. sso may be nil if SSO is not configured.
+// nodes may be nil; when nil, daemon token validation skips revocation checks.
 func NewAuthService(u users.UserRepository, secret []byte, sso *SSOService) service.AuthCommands {
 	return &authService{users: u, secret: secret, sso: sso}
+}
+
+// NewAuthServiceWithNodes creates an auth service with nodes repository support for daemon tokens.
+func NewAuthServiceWithNodes(u users.UserRepository, n nodes.NodeRepository, secret []byte, sso *SSOService) service.AuthCommands {
+	return &authService{users: u, nodes: n, secret: secret, sso: sso}
 }
 
 // NewAuthQueriesService returns the queries-side of the same auth service.
 // sso may be nil if SSO is not configured.
 func NewAuthQueriesService(u users.UserRepository, secret []byte, sso *SSOService) service.AuthQueries {
 	return &authService{users: u, secret: secret, sso: sso}
+}
+
+// NewAuthQueriesServiceWithNodes returns the queries-side of the auth service with nodes repository support.
+func NewAuthQueriesServiceWithNodes(u users.UserRepository, n nodes.NodeRepository, secret []byte, sso *SSOService) service.AuthQueries {
+	return &authService{users: u, nodes: n, secret: secret, sso: sso}
 }
 
 var (
@@ -283,6 +296,82 @@ func (s *authService) ChangePassword(ctx context.Context, actor domain.Actor, cu
 	user.UpdatedAt = time.Now()
 
 	return s.users.Update(ctx, user)
+}
+
+func (s *authService) ValidateDaemonJWT(ctx context.Context, token string) (domain.DaemonActor, error) {
+	if _, blocked := tokenBlocklist.Load(token); blocked {
+		return domain.DaemonActor{}, domain.ErrUnauthorized
+	}
+
+	claims, err := s.parseToken(token)
+	if err != nil {
+		return domain.DaemonActor{}, domain.ErrUnauthorized
+	}
+
+	tokenType, _ := claims[jwtClaimTokenType].(string)
+	if tokenType != "daemon" {
+		return domain.DaemonActor{}, domain.ErrUnauthorized
+	}
+
+	sub, err := claims.GetSubject()
+	if err != nil {
+		return domain.DaemonActor{}, domain.ErrUnauthorized
+	}
+
+	nodeID, err := domain.ParseNodeID(sub)
+	if err != nil {
+		return domain.DaemonActor{}, domain.ErrUnauthorized
+	}
+
+	ownerIDStr, _ := claims["owner_id"].(string)
+	ownerID, err := domain.ParseUserID(ownerIDStr)
+	if err != nil {
+		return domain.DaemonActor{}, domain.ErrUnauthorized
+	}
+
+	modeStr, _ := claims["mode"].(string)
+	mode := domain.NodeMode(modeStr)
+
+	if s.nodes != nil {
+		node, err := s.nodes.FindByID(ctx, nodeID)
+		if err != nil {
+			return domain.DaemonActor{}, domain.ErrUnauthorized
+		}
+		if node.IsRevoked() {
+			return domain.DaemonActor{}, domain.ErrNodeRevoked
+		}
+		go s.nodes.UpdateLastSeen(context.Background(), nodeID)
+	}
+
+	return domain.DaemonActor{
+		NodeID:      nodeID,
+		OwnerUserID: ownerID,
+		Mode:        mode,
+	}, nil
+}
+
+func (s *authService) RefreshDaemonToken(ctx context.Context, nodeID domain.NodeID, refreshToken string) (string, error) {
+	if s.nodes == nil {
+		return "", domain.ErrUnauthorized
+	}
+
+	node, err := s.nodes.FindByID(ctx, nodeID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNodeNotFound) {
+			return "", domain.ErrUnauthorized
+		}
+		return "", err
+	}
+
+	if node.IsRevoked() {
+		return "", domain.ErrNodeRevoked
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(node.RefreshTokenHash), []byte(refreshToken)); err != nil {
+		return "", domain.ErrUnauthorized
+	}
+
+	return issueDaemonToken(node, accessTokenTTL, s.secret)
 }
 
 func (s *authService) issueToken(user domain.User, tokenType string, ttl time.Duration) (string, error) {

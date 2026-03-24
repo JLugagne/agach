@@ -463,6 +463,27 @@ export interface UnreadCountResponse {
   unread_count: number;
 }
 
+// Nodes & Onboarding
+export interface NodeResponse {
+  id: string;
+  name: string;
+  mode: 'default' | 'shared';
+  status: 'active' | 'revoked';
+  last_seen_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+}
+
+export interface OnboardingCodeResponse {
+  code: string;
+  expires_at: string;
+}
+
+export interface GenerateOnboardingCodeRequest {
+  mode: 'default' | 'shared';
+  node_name?: string;
+}
+
 // WebSocket
 export interface WSEvent {
   type: string;

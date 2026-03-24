@@ -77,9 +77,10 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, j
 
 	// Initialize identity system (auth + SSO)
 	identitySystem, err := identity.Init(context.Background(), identity.Config{
-		Logger:    logger,
-		JWTSecret: jwtSecret,
-		SSO:       cfg.SSO,
+		Logger:       logger,
+		JWTSecret:    jwtSecret,
+		SSO:          cfg.SSO,
+		DaemonJWTTTL: cfg.DaemonJWTTTL,
 	}, pool)
 	if err != nil {
 		logger.WithError(err).Fatal("Failed to initialize identity system")

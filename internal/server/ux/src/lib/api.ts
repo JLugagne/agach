@@ -13,6 +13,7 @@ import type {
   ModelTokenStatResponse, ModelPricingResponse, FeatureStatsResponse,
   FeatureResponse, FeatureWithSummaryResponse, CreateFeatureRequest, UpdateFeatureRequest, UpdateFeatureStatusRequest,
   NotificationResponse, UnreadCountResponse,
+  NodeResponse, OnboardingCodeResponse, GenerateOnboardingCodeRequest,
 } from './types';
 import { refreshAccessToken, setToken } from './auth';
 
@@ -255,3 +256,11 @@ export const markNotificationRead = (id: string) => request<void>('PUT', `/api/n
 export const markAllNotificationsRead = () => request<void>('PUT', `/api/notifications/read-all`);
 export const markAllProjectNotificationsRead = (projectId: string) => request<void>('PUT', `/api/projects/${projectId}/notifications/read-all`);
 export const deleteNotification = (id: string) => request<void>('DELETE', `/api/notifications/${id}`);
+
+// Onboarding & Nodes
+export const generateOnboardingCode = (data: GenerateOnboardingCodeRequest) =>
+  request<OnboardingCodeResponse>('POST', '/api/onboarding/codes', data);
+export const listNodes = () => request<{ nodes: NodeResponse[] }>('GET', '/api/nodes');
+export const revokeNode = (nodeId: string) => request<void>('DELETE', `/api/nodes/${nodeId}`);
+export const renameNode = (nodeId: string, name: string) =>
+  request<{ node: NodeResponse }>('PATCH', `/api/nodes/${nodeId}/name`, { name });

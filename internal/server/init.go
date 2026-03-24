@@ -104,9 +104,12 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 				http.Error(w, `{"status":"fail","error":{"code":"UNAUTHORIZED","message":"authentication required"}}`, http.StatusUnauthorized)
 				return
 			}
+			// Accept both user access tokens and daemon tokens.
 			if _, err := cfg.AuthQueries.ValidateJWT(r.Context(), token); err != nil {
-				http.Error(w, `{"status":"fail","error":{"code":"UNAUTHORIZED","message":"authentication required"}}`, http.StatusUnauthorized)
-				return
+				if _, daemonErr := cfg.AuthQueries.ValidateDaemonJWT(r.Context(), token); daemonErr != nil {
+					http.Error(w, `{"status":"fail","error":{"code":"UNAUTHORIZED","message":"authentication required"}}`, http.StatusUnauthorized)
+					return
+				}
 			}
 		}
 		conn, err := upgrader.Upgrade(w, r, nil)

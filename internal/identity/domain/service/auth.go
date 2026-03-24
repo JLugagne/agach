@@ -14,9 +14,11 @@ type AuthCommands interface {
 	Logout(ctx context.Context, refreshToken string) error
 	UpdateProfile(ctx context.Context, actor domain.Actor, displayName string) (domain.User, error)
 	ChangePassword(ctx context.Context, actor domain.Actor, currentPassword, newPassword string) error
+	RefreshDaemonToken(ctx context.Context, nodeID domain.NodeID, refreshToken string) (newAccessToken string, err error)
 }
 
 type AuthQueries interface {
 	ValidateJWT(ctx context.Context, token string) (domain.Actor, error)
+	ValidateDaemonJWT(ctx context.Context, token string) (domain.DaemonActor, error)
 	GetCurrentUser(ctx context.Context, actor domain.Actor) (domain.User, error)
 }

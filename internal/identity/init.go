@@ -21,19 +21,23 @@ import (
 
 // Config holds the configuration for the identity system.
 type Config struct {
-	Logger    *logrus.Logger
-	JWTSecret []byte
-	SSO       identitysvrconfig.SsoConfig
+	Logger       *logrus.Logger
+	JWTSecret    []byte
+	SSO          identitysvrconfig.SsoConfig
+	DaemonJWTTTL time.Duration
 }
 
 // System holds the initialized identity services.
 type System struct {
-	AuthCommands service.AuthCommands
-	AuthQueries  service.AuthQueries
-	TeamCommands service.TeamCommands
-	TeamQueries  service.TeamQueries
-	SSOConfig    identitysvrconfig.SsoConfig
-	JWTSecret    []byte
+	AuthCommands       service.AuthCommands
+	AuthQueries        service.AuthQueries
+	TeamCommands       service.TeamCommands
+	TeamQueries        service.TeamQueries
+	NodeCommands       service.NodeCommands
+	NodeQueries        service.NodeQueries
+	OnboardingCommands service.OnboardingCommands
+	SSOConfig          identitysvrconfig.SsoConfig
+	JWTSecret          []byte
 }
 
 // Init initializes the identity system: runs migrations, wires repositories and services.
@@ -58,10 +62,18 @@ func Init(ctx context.Context, cfg Config, pool *pgxpool.Pool) (*System, error) 
 	if len(cfg.SSO.Providers) > 0 {
 		ssoSvc = app.NewSSOService(cfg.SSO, repos.Users, cfg.JWTSecret)
 	}
-	authCmds := app.NewAuthService(repos.Users, cfg.JWTSecret, ssoSvc)
-	authQrys := app.NewAuthQueriesService(repos.Users, cfg.JWTSecret, ssoSvc)
+	authCmds := app.NewAuthServiceWithNodes(repos.Users, repos.Nodes, cfg.JWTSecret, ssoSvc)
+	authQrys := app.NewAuthQueriesServiceWithNodes(repos.Users, repos.Nodes, cfg.JWTSecret, ssoSvc)
 	teamCmds := app.NewTeamService(repos.Teams, repos.Users)
 	teamQrys := app.NewTeamQueriesService(repos.Teams, repos.Users)
+
+	daemonTTL := cfg.DaemonJWTTTL
+	if daemonTTL == 0 {
+		daemonTTL = 30 * 24 * time.Hour
+	}
+	onboardingSvc := app.NewOnboardingService(repos.OnboardingCodes, repos.Nodes, cfg.JWTSecret, daemonTTL)
+	nodeCmds := app.NewNodeService(repos.Nodes, repos.NodeAccess)
+	nodeQrys := app.NewNodeQueriesService(repos.Nodes, repos.NodeAccess)
 
 	if err := seedDefaultAdmin(ctx, repos, logger); err != nil {
 		logger.WithError(err).Error("Failed to seed default admin user")
@@ -69,12 +81,15 @@ func Init(ctx context.Context, cfg Config, pool *pgxpool.Pool) (*System, error) 
 	}
 
 	return &System{
-		AuthCommands: authCmds,
-		AuthQueries:  authQrys,
-		TeamCommands: teamCmds,
-		TeamQueries:  teamQrys,
-		SSOConfig:    cfg.SSO,
-		JWTSecret:    cfg.JWTSecret,
+		AuthCommands:       authCmds,
+		AuthQueries:        authQrys,
+		TeamCommands:       teamCmds,
+		TeamQueries:        teamQrys,
+		NodeCommands:       nodeCmds,
+		NodeQueries:        nodeQrys,
+		OnboardingCommands: onboardingSvc,
+		SSOConfig:          cfg.SSO,
+		JWTSecret:          cfg.JWTSecret,
 	}, nil
 }
 
@@ -137,4 +152,10 @@ func (s *System) RegisterRoutes(router *mux.Router, ctrl *controller.Controller)
 		ssoH := identitycmds.NewSSOCommandsHandler(s.AuthCommands, s.AuthQueries, ctrl, s.SSOConfig, s.JWTSecret)
 		ssoH.RegisterRoutes(router)
 	}
+
+	onboardingH := identitycmds.NewOnboardingHandler(s.OnboardingCommands, s.AuthQueries, ctrl)
+	onboardingH.RegisterRoutes(router)
+
+	nodesH := identitycmds.NewNodesHandler(s.NodeCommands, s.NodeQueries, s.AuthQueries, ctrl)
+	nodesH.RegisterRoutes(router)
 }

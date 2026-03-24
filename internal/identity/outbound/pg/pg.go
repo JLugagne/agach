@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
+	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/nodeaccess"
+	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/nodes"
+	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/onboardingcodes"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/teams"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/users"
 	"github.com/google/uuid"
@@ -17,12 +20,18 @@ import (
 //go:embed migrations/001_identity.sql
 var migrationSQL string
 
+//go:embed migrations/002_nodes.sql
+var migration002SQL string
+
 const queryTimeout = 30 * time.Second
 
 // Repositories holds all identity PostgreSQL repository implementations.
 type Repositories struct {
-	Users users.UserRepository
-	Teams teams.TeamRepository
+	Users          users.UserRepository
+	Teams          teams.TeamRepository
+	Nodes          nodes.NodeRepository
+	OnboardingCodes onboardingcodes.OnboardingCodeRepository
+	NodeAccess     nodeaccess.NodeAccessRepository
 }
 
 // NewRepositories creates identity repositories backed by a pgxpool.Pool and runs migrations.
@@ -33,10 +42,16 @@ func NewRepositories(ctx context.Context, pool *pgxpool.Pool, encKey string) (*R
 	if _, err := pool.Exec(mCtx, migrationSQL); err != nil {
 		return nil, err
 	}
+	if _, err := pool.Exec(mCtx, migration002SQL); err != nil {
+		return nil, err
+	}
 	base := &baseRepository{pool: pool, encKey: encKey}
 	return &Repositories{
-		Users: &userRepository{base},
-		Teams: &teamRepository{base},
+		Users:           &userRepository{base},
+		Teams:           &teamRepository{base},
+		Nodes:           &pgNodeRepository{base},
+		OnboardingCodes: &pgOnboardingCodeRepository{base},
+		NodeAccess:      &pgNodeAccessRepository{base},
 	}, nil
 }
 
@@ -51,8 +66,11 @@ func (b *baseRepository) ctx(parent context.Context) (context.Context, context.C
 
 // compile-time interface checks
 var (
-	_ users.UserRepository = (*userRepository)(nil)
-	_ teams.TeamRepository = (*teamRepository)(nil)
+	_ users.UserRepository                     = (*userRepository)(nil)
+	_ teams.TeamRepository                     = (*teamRepository)(nil)
+	_ nodes.NodeRepository                     = (*pgNodeRepository)(nil)
+	_ onboardingcodes.OnboardingCodeRepository = (*pgOnboardingCodeRepository)(nil)
+	_ nodeaccess.NodeAccessRepository          = (*pgNodeAccessRepository)(nil)
 )
 
 // userRepository

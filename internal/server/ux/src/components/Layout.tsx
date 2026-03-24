@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { LayoutGrid, Users, Settings, Plus, AlertTriangle, Sun, Moon, BarChart3, BookOpen, Container, Key, LogOut, UserCircle, ChevronUp, Menu, X } from 'lucide-react';
+import { LayoutGrid, Users, Settings, Plus, AlertTriangle, Sun, Moon, BarChart3, BookOpen, Container, Key, LogOut, UserCircle, ChevronUp, Menu, X, Server } from 'lucide-react';
 import { listFeatures, getProject } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useTheme } from './ThemeContext';
@@ -227,6 +227,13 @@ export function Layout({ children }: LayoutProps) {
                 active={isActive('/dockerfiles')}
                 onClick={() => navigate_('/dockerfiles')}
                 data-qa="nav-dockerfiles-btn"
+              />
+              <NavItem
+                icon={<Server size={18} />}
+                label="Nodes"
+                active={isActive('/nodes') || isActive('/onboarding')}
+                onClick={() => navigate_('/nodes')}
+                data-qa="nav-nodes-btn"
               />
             </>
           )}

@@ -72,3 +72,12 @@ type Actor struct {
 
 func (a Actor) IsAdmin() bool { return a.Role == RoleAdmin }
 func (a Actor) IsZero() bool  { return a.UserID == UserID{} }
+
+// DaemonActor represents an authenticated daemon for a request.
+type DaemonActor struct {
+	NodeID      NodeID
+	OwnerUserID UserID
+	Mode        NodeMode
+}
+
+func (a DaemonActor) IsZero() bool { return a.NodeID == NodeID{} }

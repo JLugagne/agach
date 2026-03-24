@@ -3,12 +3,16 @@ package app_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/identity/app"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
+	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/nodes/nodestest"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/users/userstest"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var testJWTSecret = []byte("test-secret-key-that-is-long-enough-32bytes")
@@ -435,4 +439,172 @@ func TestAuthService_GetCurrentUser_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, expectedUser.ID, user.ID)
 	assert.Equal(t, expectedUser.Email, user.Email)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ValidateDaemonJWT
+// ─────────────────────────────────────────────────────────────────────────────
+
+func makeDaemonToken(t *testing.T, nodeID domain.NodeID, ownerID domain.UserID, mode domain.NodeMode, ttl time.Duration, secret []byte) string {
+	t.Helper()
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"sub":        nodeID.String(),
+		"owner_id":   ownerID.String(),
+		"mode":       string(mode),
+		"token_type": "daemon",
+		"iat":        now.Unix(),
+		"exp":        now.Add(ttl).Unix(),
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := tok.SignedString(secret)
+	require.NoError(t, err)
+	return signed
+}
+
+func TestAuthService_ValidateDaemonJWT_Success(t *testing.T) {
+	ctx := context.Background()
+
+	nodeID := domain.NewNodeID()
+	ownerID := domain.NewUserID()
+	node := domain.Node{
+		ID:          nodeID,
+		OwnerUserID: ownerID,
+		Mode:        domain.NodeModeDefault,
+		Status:      domain.NodeStatusActive,
+	}
+
+	mockNodes := &nodestest.MockNodeRepository{
+		FindByIDFunc: func(_ context.Context, id domain.NodeID) (domain.Node, error) {
+			return node, nil
+		},
+		UpdateLastSeenFunc: func(_ context.Context, id domain.NodeID) error {
+			return nil
+		},
+	}
+
+	svc := app.NewAuthQueriesServiceWithNodes(&userstest.MockUserRepository{}, mockNodes, testJWTSecret, nil)
+	token := makeDaemonToken(t, nodeID, ownerID, domain.NodeModeDefault, 15*time.Minute, testJWTSecret)
+
+	actor, err := svc.ValidateDaemonJWT(ctx, token)
+
+	require.NoError(t, err)
+	assert.Equal(t, nodeID, actor.NodeID)
+	assert.Equal(t, ownerID, actor.OwnerUserID)
+	assert.Equal(t, domain.NodeModeDefault, actor.Mode)
+}
+
+func TestAuthService_ValidateDaemonJWT_WrongTokenType(t *testing.T) {
+	ctx := context.Background()
+
+	mockUsers := &userstest.MockUserRepository{
+		FindByEmailFunc: func(_ context.Context, email string) (domain.User, error) {
+			return domain.User{}, domain.ErrUserNotFound
+		},
+		CreateFunc: func(_ context.Context, user domain.User) error { return nil },
+	}
+	registerSvc := app.NewAuthService(mockUsers, testJWTSecret, nil)
+	registeredUser, err := registerSvc.Register(ctx, "wrongtype@example.com", "password123", "User")
+	require.NoError(t, err)
+
+	loginUsers := &userstest.MockUserRepository{
+		FindByEmailFunc: func(_ context.Context, email string) (domain.User, error) {
+			return registeredUser, nil
+		},
+		UpdateFunc: func(_ context.Context, user domain.User) error { return nil },
+	}
+	loginSvc := app.NewAuthService(loginUsers, testJWTSecret, nil)
+	accessToken, _, err := loginSvc.Login(ctx, "wrongtype@example.com", "password123", false)
+	require.NoError(t, err)
+
+	svc := app.NewAuthQueriesService(&userstest.MockUserRepository{}, testJWTSecret, nil)
+	_, err = svc.ValidateDaemonJWT(ctx, accessToken)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrUnauthorized)
+}
+
+func TestAuthService_ValidateDaemonJWT_RevokedNode(t *testing.T) {
+	ctx := context.Background()
+
+	nodeID := domain.NewNodeID()
+	ownerID := domain.NewUserID()
+	node := domain.Node{
+		ID:          nodeID,
+		OwnerUserID: ownerID,
+		Mode:        domain.NodeModeDefault,
+		Status:      domain.NodeStatusRevoked,
+	}
+
+	mockNodes := &nodestest.MockNodeRepository{
+		FindByIDFunc: func(_ context.Context, id domain.NodeID) (domain.Node, error) {
+			return node, nil
+		},
+	}
+
+	svc := app.NewAuthQueriesServiceWithNodes(&userstest.MockUserRepository{}, mockNodes, testJWTSecret, nil)
+	token := makeDaemonToken(t, nodeID, ownerID, domain.NodeModeDefault, 15*time.Minute, testJWTSecret)
+
+	_, err := svc.ValidateDaemonJWT(ctx, token)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrNodeRevoked)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RefreshDaemonToken
+// ─────────────────────────────────────────────────────────────────────────────
+
+func TestAuthService_RefreshDaemonToken_Success(t *testing.T) {
+	ctx := context.Background()
+
+	nodeID := domain.NewNodeID()
+	ownerID := domain.NewUserID()
+	rawRefreshToken := "super-secret-refresh-token"
+	hash, err := bcrypt.GenerateFromPassword([]byte(rawRefreshToken), 4)
+	require.NoError(t, err)
+
+	node := domain.Node{
+		ID:               nodeID,
+		OwnerUserID:      ownerID,
+		Mode:             domain.NodeModeDefault,
+		Status:           domain.NodeStatusActive,
+		RefreshTokenHash: string(hash),
+	}
+
+	mockNodes := &nodestest.MockNodeRepository{
+		FindByIDFunc: func(_ context.Context, id domain.NodeID) (domain.Node, error) {
+			return node, nil
+		},
+	}
+
+	svc := app.NewAuthServiceWithNodes(&userstest.MockUserRepository{}, mockNodes, testJWTSecret, nil)
+
+	newToken, err := svc.RefreshDaemonToken(ctx, nodeID, rawRefreshToken)
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, newToken)
+}
+
+func TestAuthService_RefreshDaemonToken_RevokedNode(t *testing.T) {
+	ctx := context.Background()
+
+	nodeID := domain.NewNodeID()
+	node := domain.Node{
+		ID:     nodeID,
+		Status: domain.NodeStatusRevoked,
+	}
+
+	mockNodes := &nodestest.MockNodeRepository{
+		FindByIDFunc: func(_ context.Context, id domain.NodeID) (domain.Node, error) {
+			return node, nil
+		},
+	}
+
+	svc := app.NewAuthServiceWithNodes(&userstest.MockUserRepository{}, mockNodes, testJWTSecret, nil)
+
+	_, err := svc.RefreshDaemonToken(ctx, nodeID, "any-token")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrNodeRevoked)
 }
