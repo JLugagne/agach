@@ -20,14 +20,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestRoleHandler(t *testing.T, mock *servicetest.MockCommands) *commands.RoleCommandsHandler {
+func newTestRoleHandler(t *testing.T, mock *servicetest.MockCommands) *commands.AgentCommandsHandler {
+	t.Helper()
+	return newTestRoleHandlerWithQueries(t, mock, &servicetest.MockQueries{})
+}
+
+func newTestRoleHandlerWithQueries(t *testing.T, mock *servicetest.MockCommands, qrs *servicetest.MockQueries) *commands.AgentCommandsHandler {
 	t.Helper()
 	logger := logrus.New()
 	logger.SetOutput(bytes.NewBuffer(nil))
 	ctrl := controller.NewController(logger)
 	hub := websocket.NewHub(logger)
 	go hub.Run()
-	return commands.NewRoleCommandsHandler(mock, ctrl, hub)
+	return commands.NewAgentCommandsHandler(mock, qrs, ctrl, hub)
 }
 
 func TestCreateRole_Success(t *testing.T) {
@@ -35,7 +40,7 @@ func TestCreateRole_Success(t *testing.T) {
 	now := time.Now()
 
 	mock := &servicetest.MockCommands{
-		CreateRoleFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
+		CreateAgentFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
 			assert.Equal(t, "engineer", slug)
 			assert.Equal(t, "Software Engineer", name)
 			return domain.Role{
@@ -57,7 +62,7 @@ func TestCreateRole_Success(t *testing.T) {
 	handler.RegisterRoutes(router)
 
 	body := `{"slug": "engineer", "name": "Software Engineer", "icon": "💻", "color": "#3B82F6", "description": "Builds software", "tech_stack": ["Go"], "sort_order": 1}`
-	req := httptest.NewRequest(http.MethodPost, "/api/roles", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/agents", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
@@ -84,7 +89,7 @@ func TestCreateRole_ValidationError(t *testing.T) {
 
 	// Missing required slug and name
 	body := `{"description": "some description"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/roles", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/agents", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
@@ -107,7 +112,7 @@ func TestCreateRole_ValidationError(t *testing.T) {
 
 func TestCreateRole_DomainError(t *testing.T) {
 	mock := &servicetest.MockCommands{
-		CreateRoleFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
+		CreateAgentFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
 			return domain.Role{}, domain.ErrRoleAlreadyExists
 		},
 	}
@@ -117,7 +122,7 @@ func TestCreateRole_DomainError(t *testing.T) {
 	handler.RegisterRoutes(router)
 
 	body := `{"slug": "engineer", "name": "Software Engineer"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/roles", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/agents", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
@@ -131,27 +136,33 @@ func TestCreateRole_DomainError(t *testing.T) {
 
 	errData, ok := resp["error"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, "ROLE_ALREADY_EXISTS", errData["code"])
+	assert.Equal(t, "AGENT_ALREADY_EXISTS", errData["code"])
 }
 
 func TestUpdateRole_Success(t *testing.T) {
 	slug := "engineer"
+	roleID := domain.NewRoleID()
 
-	mock := &servicetest.MockCommands{
-		UpdateRoleFunc: func(ctx context.Context, roleID domain.RoleID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error {
-			// The handler currently passes slug as roleID (known workaround)
-			assert.Equal(t, domain.RoleID(slug), roleID)
+	mockCmd := &servicetest.MockCommands{
+		UpdateAgentFunc: func(ctx context.Context, rID domain.RoleID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error {
+			assert.Equal(t, roleID, rID)
 			assert.Equal(t, "Senior Engineer", name)
 			return nil
 		},
 	}
+	mockQrs := &servicetest.MockQueries{
+		GetAgentBySlugFunc: func(ctx context.Context, s string) (*domain.Role, error) {
+			assert.Equal(t, slug, s)
+			return &domain.Role{ID: roleID, Slug: slug, Name: "Engineer"}, nil
+		},
+	}
 
-	handler := newTestRoleHandler(t, mock)
+	handler := newTestRoleHandlerWithQueries(t, mockCmd, mockQrs)
 	router := mux.NewRouter()
 	handler.RegisterRoutes(router)
 
 	body := `{"name": "Senior Engineer"}`
-	req := httptest.NewRequest(http.MethodPatch, "/api/roles/"+slug, bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPatch, "/api/agents/"+slug, bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
@@ -170,19 +181,26 @@ func TestUpdateRole_Success(t *testing.T) {
 
 func TestDeleteRole_Success(t *testing.T) {
 	slug := "engineer"
+	roleID := domain.NewRoleID()
 
-	mock := &servicetest.MockCommands{
-		DeleteRoleFunc: func(ctx context.Context, roleID domain.RoleID) error {
-			assert.Equal(t, domain.RoleID(slug), roleID)
+	mockCmd := &servicetest.MockCommands{
+		DeleteAgentFunc: func(ctx context.Context, rID domain.RoleID) error {
+			assert.Equal(t, roleID, rID)
 			return nil
 		},
 	}
+	mockQrs := &servicetest.MockQueries{
+		GetAgentBySlugFunc: func(ctx context.Context, s string) (*domain.Role, error) {
+			assert.Equal(t, slug, s)
+			return &domain.Role{ID: roleID, Slug: slug}, nil
+		},
+	}
 
-	handler := newTestRoleHandler(t, mock)
+	handler := newTestRoleHandlerWithQueries(t, mockCmd, mockQrs)
 	router := mux.NewRouter()
 	handler.RegisterRoutes(router)
 
-	req := httptest.NewRequest(http.MethodDelete, "/api/roles/"+slug, nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/agents/"+slug, nil)
 	rr := httptest.NewRecorder()
 
 	router.ServeHTTP(rr, req)
@@ -209,7 +227,7 @@ func TestDeleteRole_EmptySlug(t *testing.T) {
 	// that empty slug results in a 405 Method Not Allowed (no route matched).
 	// The handler guards against empty slug internally, but mux routing
 	// means this path does not reach the handler at all.
-	req := httptest.NewRequest(http.MethodDelete, "/api/roles/", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/agents/", nil)
 	rr := httptest.NewRecorder()
 
 	router.ServeHTTP(rr, req)

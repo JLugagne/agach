@@ -536,6 +536,27 @@ var ValidNotificationScopes = map[NotificationScope]bool{
 	NotificationScopeGlobal:  true,
 }
 
+// ChatSessionID represents a unique chat session identifier
+type ChatSessionID string
+
+// NewChatSessionID generates a new chat session ID
+func NewChatSessionID() ChatSessionID {
+	return ChatSessionID(newID())
+}
+
+// String returns the string representation of a ChatSessionID
+func (id ChatSessionID) String() string {
+	return string(id)
+}
+
+// ParseChatSessionID validates and returns a ChatSessionID.
+func ParseChatSessionID(s string) (ChatSessionID, error) {
+	if _, err := uuid.Parse(s); err != nil {
+		return "", fmt.Errorf("invalid chat session ID %q: must be a valid UUID", s)
+	}
+	return ChatSessionID(s), nil
+}
+
 // Notification represents a user-facing notification
 type Notification struct {
 	ID        NotificationID       `json:"id"`

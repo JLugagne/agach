@@ -11,6 +11,7 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	agentsrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/agents"
+	chatsrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/chats"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/columns"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/comments"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/dependencies"
@@ -42,6 +43,7 @@ type Repositories struct {
 	Dockerfiles  dockerfiles.DockerfileRepository
 	Features      featuresrepo.FeatureRepository
 	Notifications notificationsrepo.NotificationRepository
+	Chats         chatsrepo.ChatSessionRepository
 }
 
 // NewRepositories creates all repository implementations backed by a pgxpool.Pool and runs migrations.
@@ -76,6 +78,7 @@ func NewRepositories(pool *pgxpool.Pool) (*Repositories, error) {
 		Dockerfiles:  &dockerfileRepository{base},
 		Features:      &featureRepository{base},
 		Notifications: &notificationRepository{base},
+		Chats:         &chatSessionRepository{base},
 	}, nil
 }
 

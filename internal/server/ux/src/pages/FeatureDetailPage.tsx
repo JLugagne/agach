@@ -283,6 +283,7 @@ export default function FeatureDetailPage() {
           {!editing && (
             <div className="flex items-center gap-2 ml-4 shrink-0">
               <button
+                onClick={() => navigate(`/projects/${projectId}/features/${featureId}/chat`)}
                 data-qa="feature-chat-btn"
                 className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors rounded-md hover:bg-[var(--bg-tertiary)]"
                 title="Chat"

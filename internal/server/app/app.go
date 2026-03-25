@@ -34,6 +34,7 @@ type App struct {
 	skills       skillsrepo.SkillRepository
 	dockerfiles    dockerfilesrepo.DockerfileRepository
 	notifications  notificationsrepo.NotificationRepository
+	chats          *ChatService
 	logger         *logrus.Logger
 }
 
@@ -50,6 +51,7 @@ type Config struct {
 	Skills       skillsrepo.SkillRepository
 	Dockerfiles    dockerfilesrepo.DockerfileRepository
 	Notifications  notificationsrepo.NotificationRepository
+	Chats          *ChatService
 	Logger         *logrus.Logger
 }
 
@@ -71,6 +73,7 @@ func NewApp(cfg Config) *App {
 		skills:       cfg.Skills,
 		dockerfiles:    cfg.Dockerfiles,
 		notifications:  cfg.Notifications,
+		chats:          cfg.Chats,
 		logger:         cfg.Logger,
 	}
 }
@@ -80,6 +83,11 @@ var (
 	_ service.Commands = (*App)(nil)
 	_ service.Queries  = (*App)(nil)
 )
+
+// ChatService returns the chat service instance
+func (a *App) ChatService() *ChatService {
+	return a.chats
+}
 
 // Project Commands
 

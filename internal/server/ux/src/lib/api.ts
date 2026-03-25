@@ -14,6 +14,7 @@ import type {
   FeatureResponse, FeatureWithSummaryResponse, CreateFeatureRequest, UpdateFeatureRequest, UpdateFeatureStatusRequest,
   NotificationResponse, UnreadCountResponse,
   NodeResponse, OnboardingCodeResponse, GenerateOnboardingCodeRequest,
+  ChatSessionResponse,
 } from './types';
 import { refreshAccessToken, setToken } from './auth';
 
@@ -265,3 +266,17 @@ export const getNode = (nodeId: string) => request<{ node: NodeResponse }>('GET'
 export const revokeNode = (nodeId: string) => request<void>('DELETE', `/api/nodes/${nodeId}`);
 export const renameNode = (nodeId: string, name: string) =>
   request<{ node: NodeResponse }>('PATCH', `/api/nodes/${nodeId}/name`, { name });
+
+// Chat sessions
+export const listChatSessions = (projectId: string, featureId: string) =>
+  request<ChatSessionResponse[]>('GET', `/api/projects/${projectId}/features/${featureId}/chats`);
+
+export const getChatSession = (projectId: string, featureId: string, sessionId: string) =>
+  request<ChatSessionResponse>('GET', `/api/projects/${projectId}/features/${featureId}/chats/${sessionId}`);
+
+export const startChatSession = (projectId: string, featureId: string, resumeSessionId?: string) =>
+  request<ChatSessionResponse>('POST', `/api/projects/${projectId}/features/${featureId}/chats`,
+    resumeSessionId ? { resume_session_id: resumeSessionId } : {});
+
+export const endChatSession = (projectId: string, featureId: string, sessionId: string) =>
+  request<void>('POST', `/api/projects/${projectId}/features/${featureId}/chats/${sessionId}/end`);

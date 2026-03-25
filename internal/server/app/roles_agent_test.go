@@ -47,7 +47,7 @@ func TestCloneRole_Success(t *testing.T) {
 	}
 	a := newAgentMgmtApp(nil, mockRoles, nil, nil)
 
-	result, err := a.CloneRole(ctx, "base", "copy", "Copy Name")
+	result, err := a.CloneAgent(ctx, "base", "copy", "Copy Name")
 	require.NoError(t, err)
 	assert.Equal(t, "copy", result.Slug)
 }
@@ -71,7 +71,7 @@ func TestCloneRole_DefaultName(t *testing.T) {
 	}
 	a := newAgentMgmtApp(nil, mockRoles, nil, nil)
 
-	_, err := a.CloneRole(ctx, "base", "copy-slug", "")
+	_, err := a.CloneAgent(ctx, "base", "copy-slug", "")
 	require.NoError(t, err)
 	assert.Equal(t, "Base Role (copy)", capturedName)
 }
@@ -85,7 +85,7 @@ func TestCloneRole_SourceNotFound(t *testing.T) {
 	}
 	a := newAgentMgmtApp(nil, mockRoles, nil, nil)
 
-	_, err := a.CloneRole(ctx, "missing", "new-slug", "")
+	_, err := a.CloneAgent(ctx, "missing", "new-slug", "")
 	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
 }
 
@@ -107,7 +107,7 @@ func TestCloneRole_NewSlugTaken(t *testing.T) {
 	}
 	a := newAgentMgmtApp(nil, mockRoles, nil, nil)
 
-	_, err := a.CloneRole(ctx, "base", "taken", "")
+	_, err := a.CloneAgent(ctx, "base", "taken", "")
 	assert.ErrorIs(t, err, domain.ErrRoleAlreadyExists)
 }
 
@@ -115,7 +115,7 @@ func TestCloneRole_EmptyNewSlug(t *testing.T) {
 	ctx := context.Background()
 	a := newAgentMgmtApp(nil, &agentstest.MockRoleRepository{}, nil, nil)
 
-	_, err := a.CloneRole(ctx, "base", "", "")
+	_, err := a.CloneAgent(ctx, "base", "", "")
 	assert.ErrorIs(t, err, domain.ErrRoleSlugRequired)
 }
 

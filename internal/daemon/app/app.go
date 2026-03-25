@@ -44,16 +44,19 @@ func (s State) String() string {
 }
 
 type App struct {
-	cfg            *config.Config
-	logger         *logrus.Logger
-	tokenStore     *TokenStore
-	tokens         *Tokens
-	state          State
-	wsClient       *client.WSClient
-	onboarding     *client.OnboardingClient
-	authClient     *client.AuthClient
+	cfg           *config.Config
+	logger        *logrus.Logger
+	tokenStore    *TokenStore
+	tokens        *Tokens
+	state         State
+	wsClient      *client.WSClient
+	onboarding    *client.OnboardingClient
+	authClient    *client.AuthClient
 	dockerService *DockerService
 	db            *sql.DB
+	gitService    *GitService
+	projectClient *client.ProjectClient
+	chatManager   *ChatManager
 }
 
 func New(cfg *config.Config, logger *logrus.Logger) (*App, error) {
@@ -94,6 +97,15 @@ func (a *App) Run(ctx context.Context) error {
 	if err := a.initDockerService(ctx); err != nil {
 		return fmt.Errorf("init docker service: %w", err)
 	}
+
+	gitService, err := NewGitService(a.logger)
+	if err != nil {
+		return fmt.Errorf("init git service: %w", err)
+	}
+	a.gitService = gitService
+	a.projectClient = client.NewProjectClient(a.cfg.BaseURL)
+	uploadClient := client.NewChatUploadClient(a.cfg.BaseURL)
+	a.chatManager = NewChatManager(a.logger, a.gitService, a.projectClient, uploadClient, a.tokens.AccessToken, a.sendWSMessage)
 
 	a.wsClient = client.NewWSClient(
 		a.cfg.WebSocketURL(),
@@ -199,6 +211,14 @@ func (a *App) handleWSEvent(event client.WSEvent) {
 		a.handleDockerLogs(event)
 	case daemonws.TypeDockerPrune:
 		a.handleDockerPrune(event)
+	case daemonws.TypeChatStart:
+		a.handleChatStart(event)
+	case daemonws.TypeChatUserMsg:
+		a.handleChatUserMsg(event)
+	case daemonws.TypeChatEnd:
+		a.handleChatEndRequest(event)
+	case daemonws.TypeChatPing:
+		a.handleChatPing(event)
 	}
 }
 
@@ -337,6 +357,74 @@ func (a *App) handleDockerPrune(event client.WSEvent) {
 			a.logger.WithField("removed", result.Removed).Info("prune completed")
 		}
 	}()
+}
+
+func (a *App) handleChatStart(event client.WSEvent) {
+	if a.chatManager == nil {
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "chat manager not initialized"})
+		return
+	}
+	var req daemonws.ChatStartRequest
+	if err := json.Unmarshal(event.Data, &req); err != nil {
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "invalid chat.start payload"})
+		return
+	}
+	if req.ProjectID == "" || req.FeatureID == "" {
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "project_id and feature_id are required"})
+		return
+	}
+	go a.chatManager.StartSession(context.Background(), event.RequestID, req)
+}
+
+func (a *App) handleChatUserMsg(event client.WSEvent) {
+	if a.chatManager == nil {
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "chat manager not initialized"})
+		return
+	}
+	var req daemonws.ChatUserMessage
+	if err := json.Unmarshal(event.Data, &req); err != nil {
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "invalid chat.user_message payload"})
+		return
+	}
+	if req.SessionID == "" {
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "session_id is required"})
+		return
+	}
+	if err := a.chatManager.SendMessage(req.SessionID, req.Content); err != nil {
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: err.Error()})
+	}
+}
+
+func (a *App) handleChatEndRequest(event client.WSEvent) {
+	if a.chatManager == nil {
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "chat manager not initialized"})
+		return
+	}
+	var req struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.Unmarshal(event.Data, &req); err != nil || req.SessionID == "" {
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "session_id is required"})
+		return
+	}
+	a.chatManager.EndSession(req.SessionID, "user_ended")
+}
+
+func (a *App) handleChatPing(event client.WSEvent) {
+	if a.chatManager == nil {
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "chat manager not initialized"})
+		return
+	}
+	var req struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.Unmarshal(event.Data, &req); err != nil || req.SessionID == "" {
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "session_id is required"})
+		return
+	}
+	if err := a.chatManager.RefreshActivity(req.SessionID); err != nil {
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: err.Error()})
+	}
 }
 
 func (a *App) sendWSResponse(event client.WSEvent, msg daemonws.Message) {

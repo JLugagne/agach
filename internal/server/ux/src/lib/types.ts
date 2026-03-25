@@ -484,6 +484,42 @@ export interface GenerateOnboardingCodeRequest {
   node_name?: string;
 }
 
+// Chat
+export interface ChatSessionResponse {
+  id: string;
+  feature_id: string;
+  project_id: string;
+  state: 'active' | 'ended' | 'timeout';
+  claude_session_id: string;
+  jsonl_path: string;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  model: string;
+  created_at: string;
+  ended_at: string | null;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  type: 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'system';
+  content: string;
+  timestamp: string;
+  raw?: unknown;
+}
+
+export interface ChatStats {
+  messageCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  totalCost: number;
+  durationSeconds: number;
+  model: string;
+}
+
 // WebSocket
 export interface WSEvent {
   type: string;

@@ -257,7 +257,7 @@ func TestApp_DeleteRole_NilRoleReturned_ReturnsError(t *testing.T) {
 		return nil, nil // nil role, no error
 	}
 
-	err := a.DeleteRole(ctx, roleID)
+	err := a.DeleteAgent(ctx, roleID)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
 }
@@ -274,7 +274,7 @@ func TestApp_DeleteRole_DeleteError_ReturnsError(t *testing.T) {
 		return errors.New("delete failed")
 	}
 
-	err := a.DeleteRole(ctx, roleID)
+	err := a.DeleteAgent(ctx, roleID)
 	require.Error(t, err)
 }
 
@@ -287,7 +287,7 @@ func TestApp_UpdateRole_NilRoleReturned_ReturnsError(t *testing.T) {
 		return nil, nil // nil role, no error
 	}
 
-	err := a.UpdateRole(ctx, roleID, "New Name", "", "", "", "", "", nil, 0)
+	err := a.UpdateAgent(ctx, roleID, "New Name", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
 }
@@ -304,7 +304,7 @@ func TestApp_UpdateRole_UpdateError_ReturnsError(t *testing.T) {
 		return errors.New("update failed")
 	}
 
-	err := a.UpdateRole(ctx, roleID, "New Name", "", "", "", "", "", nil, 0)
+	err := a.UpdateAgent(ctx, roleID, "New Name", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
 }
 
@@ -323,7 +323,7 @@ func TestApp_UpdateRole_WithSortOrder_UpdatesField(t *testing.T) {
 		return nil
 	}
 
-	err := a.UpdateRole(ctx, roleID, "", "", "", "", "", "", nil, 5)
+	err := a.UpdateAgent(ctx, roleID, "", "", "", "", "", "", nil, 5)
 	require.NoError(t, err)
 	assert.Equal(t, 5, updated.SortOrder)
 }
@@ -343,7 +343,7 @@ func TestApp_UpdateRole_WithPromptTemplate_UpdatesField(t *testing.T) {
 		return nil
 	}
 
-	err := a.UpdateRole(ctx, roleID, "", "", "", "", "", "my template", nil, 0)
+	err := a.UpdateAgent(ctx, roleID, "", "", "", "", "", "my template", nil, 0)
 	require.NoError(t, err)
 	assert.Equal(t, "my template", updated.PromptTemplate)
 }
@@ -356,7 +356,7 @@ func TestApp_ListRoles_RepositoryError_ReturnsError(t *testing.T) {
 		return nil, errors.New("db error")
 	}
 
-	_, err := a.ListRoles(ctx)
+	_, err := a.ListAgents(ctx)
 	require.Error(t, err)
 }
 
@@ -369,7 +369,7 @@ func TestApp_CreateRole_AlreadyExists_ReturnsError(t *testing.T) {
 		return existing, nil // role found — already exists
 	}
 
-	_, err := a.CreateRole(ctx, "test", "Test Role", "", "", "", "", "", nil, 0)
+	_, err := a.CreateAgent(ctx, "test", "Test Role", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrRoleAlreadyExists)
 }
@@ -385,7 +385,7 @@ func TestApp_CreateRole_CreateError_ReturnsError(t *testing.T) {
 		return errors.New("db error")
 	}
 
-	_, err := a.CreateRole(ctx, "test", "Test Role", "", "", "", "", "", nil, 0)
+	_, err := a.CreateAgent(ctx, "test", "Test Role", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
 }
 
@@ -397,7 +397,7 @@ func TestApp_ListProjectRoles_RepositoryError_ReturnsError(t *testing.T) {
 		return nil, errors.New("db error")
 	}
 
-	_, err := a.ListProjectRoles(ctx, domain.NewProjectID())
+	_, err := a.ListProjectAgents(ctx, domain.NewProjectID())
 	require.Error(t, err)
 }
 
@@ -409,7 +409,7 @@ func TestApp_DeleteProjectRole_NilRoleReturned_ReturnsError(t *testing.T) {
 		return nil, nil // nil, no error
 	}
 
-	err := a.DeleteProjectRole(ctx, domain.NewProjectID(), domain.NewRoleID())
+	err := a.DeleteProjectAgent(ctx, domain.NewProjectID(), domain.NewRoleID())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
 }
@@ -426,7 +426,7 @@ func TestApp_DeleteProjectRole_DeleteError_ReturnsError(t *testing.T) {
 		return errors.New("delete failed")
 	}
 
-	err := a.DeleteProjectRole(ctx, domain.NewProjectID(), roleID)
+	err := a.DeleteProjectAgent(ctx, domain.NewProjectID(), roleID)
 	require.Error(t, err)
 }
 
@@ -438,7 +438,7 @@ func TestApp_UpdateProjectRole_NilRoleReturned_ReturnsError(t *testing.T) {
 		return nil, nil // nil, no error
 	}
 
-	err := a.UpdateProjectRole(ctx, domain.NewProjectID(), domain.NewRoleID(), "New Name", "", "", "", "", "", nil, 0)
+	err := a.UpdateProjectAgent(ctx, domain.NewProjectID(), domain.NewRoleID(), "New Name", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
 }
@@ -455,7 +455,7 @@ func TestApp_UpdateProjectRole_UpdateError_ReturnsError(t *testing.T) {
 		return errors.New("update error")
 	}
 
-	err := a.UpdateProjectRole(ctx, domain.NewProjectID(), roleID, "New Name", "", "", "", "", "", nil, 0)
+	err := a.UpdateProjectAgent(ctx, domain.NewProjectID(), roleID, "New Name", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
 }
 
@@ -474,7 +474,7 @@ func TestApp_UpdateProjectRole_WithAllFields_UpdatesAll(t *testing.T) {
 		return nil
 	}
 
-	err := a.UpdateProjectRole(ctx, domain.NewProjectID(), roleID, "New Name", "icon", "color", "desc", "hint", "template", []string{"Go"}, 3)
+	err := a.UpdateProjectAgent(ctx, domain.NewProjectID(), roleID, "New Name", "icon", "color", "desc", "hint", "template", []string{"Go"}, 3)
 	require.NoError(t, err)
 	assert.Equal(t, "New Name", updated.Name)
 	assert.Equal(t, "icon", updated.Icon)
@@ -494,7 +494,7 @@ func TestApp_GetProjectRoleBySlug_NilRoleReturned_ReturnsError(t *testing.T) {
 		return nil, nil // nil, no error
 	}
 
-	_, err := a.GetProjectRoleBySlug(ctx, domain.NewProjectID(), "test")
+	_, err := a.GetProjectAgentBySlug(ctx, domain.NewProjectID(), "test")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
 }
@@ -510,6 +510,6 @@ func TestApp_CreateProjectRole_CreateError_ReturnsError(t *testing.T) {
 		return errors.New("db error")
 	}
 
-	_, err := a.CreateProjectRole(ctx, domain.NewProjectID(), "test", "Test Role", "", "", "", "", "", nil, 0)
+	_, err := a.CreateProjectAgent(ctx, domain.NewProjectID(), "test", "Test Role", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
 }

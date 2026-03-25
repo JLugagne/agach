@@ -21,6 +21,7 @@ import ApiKeysPage from './pages/ApiKeysPage';
 import NotificationsPage from './pages/NotificationsPage';
 import NodesPage from './pages/NodesPage';
 import NodeSettingsPage from './pages/NodeSettingsPage';
+import FeatureChatPage from './pages/FeatureChatPage';
 
 
 function ProtectedRoute() {
@@ -60,6 +61,7 @@ function App() {
                 <Route path="/projects/:projectId/settings/agents" element={<ProjectSettingsPage />} />
                 <Route path="/projects/:projectId/features" element={<FeaturesPage />} />
                 <Route path="/projects/:projectId/features/:featureId" element={<FeatureDetailPage />} />
+                <Route path="/projects/:projectId/features/:featureId/chat" element={<FeatureChatPage />} />
                 <Route path="/projects/:projectId/export/gemini" element={<ExportGeminiPage />} />
                 <Route path="/projects/:projectId/export/claude" element={<ExportClaudePage />} />
                 <Route path="/projects/:projectId/statistics" element={<StatisticsPage />} />

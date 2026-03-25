@@ -296,6 +296,12 @@ var (
 		Message: "notification title is required",
 	}
 
+	// Chat session errors
+	ErrChatSessionNotFound = &Error{
+		Code:    "CHAT_SESSION_NOT_FOUND",
+		Message: "chat session not found",
+	}
+
 	// Aliases for backward compatibility
 	ErrDependencyCycle  = ErrCircularDependency
 	ErrNoAvailableTasks = ErrNoTasksAvailable

@@ -1,6 +1,7 @@
 package commands
 
 import (
+	appservice "github.com/JLugagne/agach-mcp/internal/server/app"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/pkg/controller"
 	"github.com/JLugagne/agach-mcp/pkg/sse"
@@ -16,7 +17,7 @@ type App interface {
 }
 
 // NewRouter wires all command handlers onto the given router.
-func NewRouter(router *mux.Router, app App, ctrl *controller.Controller, hub *websocket.Hub, sseHub *sse.Hub) {
+func NewRouter(router *mux.Router, app App, ctrl *controller.Controller, hub *websocket.Hub, sseHub *sse.Hub, dataDir string) {
 	NewProjectCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
 	NewAgentCommandsHandler(app, app, ctrl, hub).RegisterRoutes(router)
 	NewTaskCommandsHandler(app, ctrl, hub, sseHub).RegisterRoutes(router)
@@ -28,4 +29,9 @@ func NewRouter(router *mux.Router, app App, ctrl *controller.Controller, hub *we
 	NewDockerfileCommandsHandler(app, ctrl).RegisterRoutes(router)
 	NewFeatureCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
 	NewNotificationCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
+
+	// Chat commands handler - requires app to be castable to an app type with ChatService method
+	if appWithChat, ok := app.(*appservice.App); ok {
+		NewChatsHandler(appWithChat.ChatService(), ctrl, hub, dataDir).RegisterRoutes(router)
+	}
 }

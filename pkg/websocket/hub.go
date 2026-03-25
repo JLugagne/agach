@@ -180,9 +180,9 @@ func (h *Hub) Broadcast(event Event) {
 	}
 }
 
-// dockerMessageTypes lists the WS message types that should be relayed
+// relayMessageTypes lists the WS message types that should be relayed
 // between browser clients and daemon clients.
-var dockerMessageTypes = map[string]bool{
+var relayMessageTypes = map[string]bool{
 	"docker.list":        true,
 	"docker.rebuild":     true,
 	"docker.logs":        true,
@@ -190,6 +190,14 @@ var dockerMessageTypes = map[string]bool{
 	"docker.build_event": true,
 	"docker.prune_event": true,
 	"error":              true,
+	"chat.start":         true,
+	"chat.message":       true,
+	"chat.user_message":  true,
+	"chat.end":           true,
+	"chat.error":         true,
+	"chat.stats":         true,
+	"chat.ping":          true,
+	"chat.ttl_warning":   true,
 }
 
 // ReadPump pumps messages from the WebSocket connection to the hub
@@ -233,7 +241,7 @@ func (c *Client) ReadPump() {
 		if err := json.Unmarshal(data, &peek); err != nil {
 			continue
 		}
-		if dockerMessageTypes[peek.Type] {
+		if relayMessageTypes[peek.Type] {
 			select {
 			case c.hub.relay <- relayMessage{from: c, data: data}:
 			default:

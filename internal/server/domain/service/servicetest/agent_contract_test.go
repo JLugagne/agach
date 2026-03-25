@@ -15,13 +15,13 @@ var _ service.Commands = (*servicetest.MockCommands)(nil)
 func TestAgentManagementContracts(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("CloneRole propagates ErrRoleNotFound", func(t *testing.T) {
+	t.Run("CloneAgent propagates ErrRoleNotFound", func(t *testing.T) {
 		mock := &servicetest.MockCommands{
-			CloneRoleFunc: func(_ context.Context, _, _, _ string) (domain.Role, error) {
+			CloneAgentFunc: func(_ context.Context, _, _, _ string) (domain.Role, error) {
 				return domain.Role{}, domain.ErrRoleNotFound
 			},
 		}
-		_, err := mock.CloneRole(ctx, "missing", "new-slug", "New")
+		_, err := mock.CloneAgent(ctx, "missing", "new-slug", "New")
 		assert.ErrorIs(t, err, domain.ErrRoleNotFound)
 	})
 

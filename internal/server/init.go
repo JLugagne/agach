@@ -22,6 +22,7 @@ type Config struct {
 	Pool        *pgxpool.Pool
 	Logger      *logrus.Logger
 	AuthQueries identityservice.AuthQueries
+	DataDir     string // Directory for storing chat session JSONL files
 	// WSRouter is the router on which to register the /ws endpoint.
 	// Use a router without auth middleware, since browsers cannot send
 	// Authorization headers on WebSocket connections; auth is done via
@@ -61,6 +62,7 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 		Skills:       repos.Skills,
 		Dockerfiles:    repos.Dockerfiles,
 		Notifications: repos.Notifications,
+		Chats:          app.NewChatService(repos.Chats),
 		Logger:         logger,
 	})
 
@@ -79,8 +81,8 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	ctrl := controller.NewController(logger)
 
 	// Register routes
-	commands.NewRouter(router, appInstance, ctrl, hub, sseHub)
-	queries.NewRouter(router, appInstance, ctrl, sseHub)
+	commands.NewRouter(router, appInstance, ctrl, hub, sseHub, cfg.DataDir)
+	queries.NewRouter(router, appInstance, ctrl, sseHub, cfg.DataDir)
 
 	// WebSocket endpoint
 	upgrader := gorillaws.Upgrader{

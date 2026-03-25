@@ -505,6 +505,29 @@ type FeatureWithSummaryResponse struct {
 	TaskSummary ProjectSummaryResponse `json:"task_summary"`
 }
 
+// Chat Sessions
+
+type StartChatSessionRequest struct {
+	ResumeSessionID *string `json:"resume_session_id" validate:"omitempty,entity_id"`
+}
+
+type ChatSessionResponse struct {
+	ID               string     `json:"id"`
+	FeatureID        string     `json:"feature_id"`
+	ProjectID        string     `json:"project_id"`
+	State            string     `json:"state"`
+	ClaudeSessionID  string     `json:"claude_session_id,omitempty"`
+	JSONLPath        string     `json:"jsonl_path,omitempty"`
+	InputTokens      int        `json:"input_tokens"`
+	OutputTokens     int        `json:"output_tokens"`
+	CacheReadTokens  int        `json:"cache_read_tokens"`
+	CacheWriteTokens int        `json:"cache_write_tokens"`
+	Model            string     `json:"model,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	EndedAt          *time.Time `json:"ended_at,omitempty"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+}
+
 // Validation errors
 var (
 	ErrInvalidProjectRequest = &apierror.Error{
@@ -552,5 +575,9 @@ var (
 	ErrInvalidNotificationRequest = &apierror.Error{
 		Code:    "INVALID_NOTIFICATION_REQUEST",
 		Message: "invalid notification request data",
+	}
+	ErrInvalidChatSessionRequest = &apierror.Error{
+		Code:    "INVALID_CHAT_SESSION_REQUEST",
+		Message: "invalid chat session request data",
 	}
 )

@@ -69,7 +69,7 @@ func newDeepSecurityRouter(t *testing.T, app commands.App) *mux.Router {
 	sseHub := sse.NewHub()
 
 	router := mux.NewRouter()
-	commands.NewRouter(router, app, ctrl, hub, sseHub)
+	commands.NewRouter(router, app, ctrl, hub, sseHub, "")
 	return router
 }
 
@@ -300,7 +300,7 @@ func TestSecurity_SEC03_PromptTemplateUnbounded_RED(t *testing.T) {
 	var receivedTemplateLen int
 
 	cmds := &servicetest.MockCommands{
-		CreateRoleFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
+		CreateAgentFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
 			createCalled = true
 			receivedTemplateLen = len(promptTemplate)
 			return domain.Role{ID: domain.NewRoleID(), Slug: slug, Name: name}, nil
@@ -318,7 +318,7 @@ func TestSecurity_SEC03_PromptTemplateUnbounded_RED(t *testing.T) {
 		"prompt_template": strings.Repeat("X", hugeSize),
 	})
 
-	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/roles", bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/agents", bytes.NewReader(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -371,13 +371,13 @@ func TestSecurity_SEC03_PromptTemplateBoundedByBodyLimit_GREEN(t *testing.T) {
 			next.ServeHTTP(w, r)
 		})
 	})
-	commands.RegisterAllRoutes(router, newTestApp(cmds, qrs), ctrl, hub, sseHub)
+	commands.NewRouter(router, newTestApp(cmds, qrs), ctrl, hub, sseHub, "")
 
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)
 
 	// Construct a raw payload that exceeds 512 KB.
-	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/roles",
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/agents",
 		strings.NewReader(strings.Repeat("x", 600*1024)))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")

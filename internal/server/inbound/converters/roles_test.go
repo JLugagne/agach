@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestToPublicRole(t *testing.T) {
-	role := domain.Role{
-		ID:          domain.RoleID("role-123"),
+func TestToPublicAgent(t *testing.T) {
+	agent := domain.Agent{
+		ID:          domain.AgentID("role-123"),
 		Slug:        "architect",
 		Name:        "System Architect",
 		Icon:        "📐",
@@ -21,7 +21,7 @@ func TestToPublicRole(t *testing.T) {
 		SortOrder:   1,
 	}
 
-	result := converters.ToPublicRole(role)
+	result := converters.ToPublicAgent(agent)
 
 	assert.Equal(t, "role-123", result.ID)
 	assert.Equal(t, "architect", result.Slug)
@@ -34,13 +34,13 @@ func TestToPublicRole(t *testing.T) {
 	assert.Equal(t, 1, result.SortOrder)
 }
 
-func TestToPublicRoles(t *testing.T) {
-	roles := []domain.Role{
-		{ID: domain.RoleID("role-1"), Slug: "dev", Name: "Developer"},
-		{ID: domain.RoleID("role-2"), Slug: "arch", Name: "Architect"},
+func TestToPublicAgents(t *testing.T) {
+	agents := []domain.Agent{
+		{ID: domain.AgentID("role-1"), Slug: "dev", Name: "Developer"},
+		{ID: domain.AgentID("role-2"), Slug: "arch", Name: "Architect"},
 	}
 
-	result := converters.ToPublicRoles(roles)
+	result := converters.ToPublicAgents(agents)
 
 	assert.Len(t, result, 2)
 	assert.Equal(t, "role-1", result[0].ID)
