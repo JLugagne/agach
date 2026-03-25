@@ -51,7 +51,7 @@ var sharedValidator = func() *validator.Validate {
 
 func TestSecurity_GREEN_CreateRoleRequest_TechStackReasonableSize(t *testing.T) {
 	// GREEN: a small, valid slice is always accepted.
-	req := server.CreateRoleRequest{
+	req := server.CreateAgentRequest{
 		Slug:      "go-impl",
 		Name:      "Go Implementer",
 		TechStack: []string{"Go", "Postgres", "Docker"},
@@ -210,7 +210,7 @@ func TestSecurity_GREEN_ReorderTaskRequest_NegativePositionRejected(t *testing.T
 // Tag: `json:"prompt_template"`  ← no validate tag at all
 
 func TestSecurity_GREEN_CreateRoleRequest_ReasonablePromptTemplate(t *testing.T) {
-	req := server.CreateRoleRequest{
+	req := server.CreateAgentRequest{
 		Slug:           "go-impl",
 		Name:           "Go Implementer",
 		PromptTemplate: "You are a Go implementer. Write clean, tested Go code.",

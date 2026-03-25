@@ -2,6 +2,23 @@ package domain
 
 import "time"
 
+// OnboardingResult holds the tokens and node information received after
+// successful daemon onboarding.
+type OnboardingResult struct {
+	AccessToken  string
+	RefreshToken string
+	NodeID       string
+	NodeName     string
+	Mode         string
+}
+
+// ProjectInfo holds project metadata returned from the server.
+type ProjectInfo struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	GitURL string `json:"git_url"`
+}
+
 // DaemonState represents the current state of the daemon.
 type DaemonState string
 

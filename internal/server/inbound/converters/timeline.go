@@ -16,9 +16,5 @@ func ToPublicTimelineEntry(entry domain.TimelineEntry) pkgserver.TimelineEntryRe
 
 // ToPublicTimeline converts []domain.TimelineEntry to []pkgserver.TimelineEntryResponse
 func ToPublicTimeline(entries []domain.TimelineEntry) []pkgserver.TimelineEntryResponse {
-	result := make([]pkgserver.TimelineEntryResponse, len(entries))
-	for i, e := range entries {
-		result[i] = ToPublicTimelineEntry(e)
-	}
-	return result
+	return MapSlice(entries, ToPublicTimelineEntry)
 }

@@ -66,8 +66,35 @@ export interface AgentResponse {
   prompt_template: string;
   content: string;
   skill_count: number;
+  specialized_count: number;
   sort_order: number;
   created_at: string;
+}
+
+// Specialized Agents
+export interface SpecializedAgentResponse {
+  id: string;
+  parent_agent_id: string;
+  parent_slug: string;
+  slug: string;
+  name: string;
+  skill_count: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateSpecializedAgentRequest {
+  slug: string;
+  name: string;
+  skill_slugs?: string[];
+  sort_order?: number;
+}
+
+export interface UpdateSpecializedAgentRequest {
+  name?: string;
+  skill_slugs?: string[];
+  sort_order?: number;
 }
 
 // Skills
@@ -489,6 +516,7 @@ export interface ChatSessionResponse {
   id: string;
   feature_id: string;
   project_id: string;
+  node_id?: string;
   state: 'active' | 'ended' | 'timeout';
   claude_session_id: string;
   jsonl_path: string;

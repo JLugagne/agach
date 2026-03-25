@@ -21,9 +21,5 @@ func ToPublicSkill(skill domain.Skill) pkgserver.SkillResponse {
 }
 
 func ToPublicSkills(skills []domain.Skill) []pkgserver.SkillResponse {
-	result := make([]pkgserver.SkillResponse, len(skills))
-	for i, s := range skills {
-		result[i] = ToPublicSkill(s)
-	}
-	return result
+	return MapSlice(skills, ToPublicSkill)
 }

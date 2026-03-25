@@ -9,7 +9,8 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/tasks"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/converters"
-	"github.com/JLugagne/agach-mcp/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/apierror"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
 	"github.com/gorilla/mux"
 )
@@ -107,7 +108,7 @@ func (h *TaskQueriesHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if featureID := r.URL.Query().Get("feature_id"); featureID != "" {
-		fid := domain.ProjectID(featureID)
+		fid := domain.FeatureID(featureID)
 		filters.FeatureID = &fid
 	}
 
@@ -181,7 +182,7 @@ func (h *TaskQueriesHandler) GetBoard(w http.ResponseWriter, r *http.Request) {
 		d, err := time.ParseDuration(ds)
 		if err == nil {
 			if d > maxDoneSince {
-				http.Error(w, `{"status":"fail","data":{"error":"done_since exceeds maximum allowed duration of 8760h"}}`, http.StatusBadRequest)
+				h.controller.SendFail(w, r, nil, &apierror.Error{Code: "INVALID_DONE_SINCE", Message: "done_since exceeds maximum allowed duration of 8760h"})
 				return
 			}
 			doneSince = &d
@@ -416,7 +417,7 @@ func (h *TaskQueriesHandler) ListTasksByAgent(w http.ResponseWriter, r *http.Req
 	agentSlug := vars["slug"]
 
 	if agentSlug == "" {
-		http.Error(w, `{"status":"fail","data":{"error":"agent slug is required"}}`, http.StatusBadRequest)
+		h.controller.SendFail(w, r, nil, &apierror.Error{Code: "MISSING_AGENT_SLUG", Message: "agent slug is required"})
 		return
 	}
 

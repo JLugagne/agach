@@ -21,9 +21,9 @@ type MockSkill struct {
 	UpdateFunc          func(ctx context.Context, skill domain.Skill) error
 	DeleteFunc          func(ctx context.Context, id domain.SkillID) error
 	IsInUseFunc         func(ctx context.Context, id domain.SkillID) (bool, error)
-	ListByAgentFunc     func(ctx context.Context, roleID domain.RoleID) ([]domain.Skill, error)
-	AssignToAgentFunc   func(ctx context.Context, roleID domain.RoleID, skillID domain.SkillID) error
-	RemoveFromAgentFunc func(ctx context.Context, roleID domain.RoleID, skillID domain.SkillID) error
+	ListByAgentFunc     func(ctx context.Context, agentID domain.AgentID) ([]domain.Skill, error)
+	AssignToAgentFunc   func(ctx context.Context, agentID domain.AgentID, skillID domain.SkillID) error
+	RemoveFromAgentFunc func(ctx context.Context, agentID domain.AgentID, skillID domain.SkillID) error
 }
 
 func (m *MockSkill) Create(ctx context.Context, skill domain.Skill) error {
@@ -75,33 +75,33 @@ func (m *MockSkill) IsInUse(ctx context.Context, id domain.SkillID) (bool, error
 	return m.IsInUseFunc(ctx, id)
 }
 
-func (m *MockSkill) ListByAgent(ctx context.Context, roleID domain.RoleID) ([]domain.Skill, error) {
+func (m *MockSkill) ListByAgent(ctx context.Context, agentID domain.AgentID) ([]domain.Skill, error) {
 	if m.ListByAgentFunc == nil {
 		panic("called not defined ListByAgentFunc")
 	}
-	return m.ListByAgentFunc(ctx, roleID)
+	return m.ListByAgentFunc(ctx, agentID)
 }
 
-func (m *MockSkill) AssignToAgent(ctx context.Context, roleID domain.RoleID, skillID domain.SkillID) error {
+func (m *MockSkill) AssignToAgent(ctx context.Context, agentID domain.AgentID, skillID domain.SkillID) error {
 	if m.AssignToAgentFunc == nil {
 		panic("called not defined AssignToAgentFunc")
 	}
-	return m.AssignToAgentFunc(ctx, roleID, skillID)
+	return m.AssignToAgentFunc(ctx, agentID, skillID)
 }
 
-func (m *MockSkill) RemoveFromAgent(ctx context.Context, roleID domain.RoleID, skillID domain.SkillID) error {
+func (m *MockSkill) RemoveFromAgent(ctx context.Context, agentID domain.AgentID, skillID domain.SkillID) error {
 	if m.RemoveFromAgentFunc == nil {
 		panic("called not defined RemoveFromAgentFunc")
 	}
-	return m.RemoveFromAgentFunc(ctx, roleID, skillID)
+	return m.RemoveFromAgentFunc(ctx, agentID, skillID)
 }
 
 // SkillContractTesting runs all contract tests for a SkillRepository implementation.
-// The caller must ensure that at least one role exists in the backing store before
-// invoking this function; the roleID parameter identifies that pre-seeded role.
-// If no role can be provided, pass a zero-value RoleID and the sub-tests that
+// The caller must ensure that at least one agent exists in the backing store before
+// invoking this function; the agentID parameter identifies that pre-seeded agent.
+// If no agent can be provided, pass a zero-value AgentID and the sub-tests that
 // require an agent association will be skipped.
-func SkillContractTesting(t *testing.T, repo skills.SkillRepository, roleID domain.RoleID) {
+func SkillContractTesting(t *testing.T, repo skills.SkillRepository, agentID domain.AgentID) {
 	ctx := context.Background()
 
 	t.Run("Contract: Create and FindByID", func(t *testing.T) {
@@ -211,7 +211,7 @@ func SkillContractTesting(t *testing.T, repo skills.SkillRepository, roleID doma
 	})
 
 	t.Run("Contract: Delete returns ErrSkillInUse when assigned to agent", func(t *testing.T) {
-		if roleID == "" {
+		if agentID == "" {
 			t.Skip("requires seeded role")
 		}
 
@@ -224,14 +224,14 @@ func SkillContractTesting(t *testing.T, repo skills.SkillRepository, roleID doma
 			UpdatedAt: time.Now(),
 		}
 		require.NoError(t, repo.Create(ctx, skill))
-		require.NoError(t, repo.AssignToAgent(ctx, roleID, skill.ID))
+		require.NoError(t, repo.AssignToAgent(ctx, agentID, skill.ID))
 
 		err := repo.Delete(ctx, skill.ID)
 		assert.ErrorIs(t, err, domain.ErrSkillInUse)
 	})
 
 	t.Run("Contract: AssignToAgent and ListByAgent", func(t *testing.T) {
-		if roleID == "" {
+		if agentID == "" {
 			t.Skip("requires seeded role")
 		}
 
@@ -244,9 +244,9 @@ func SkillContractTesting(t *testing.T, repo skills.SkillRepository, roleID doma
 			UpdatedAt: time.Now(),
 		}
 		require.NoError(t, repo.Create(ctx, skill))
-		require.NoError(t, repo.AssignToAgent(ctx, roleID, skill.ID))
+		require.NoError(t, repo.AssignToAgent(ctx, agentID, skill.ID))
 
-		list, err := repo.ListByAgent(ctx, roleID)
+		list, err := repo.ListByAgent(ctx, agentID)
 		require.NoError(t, err)
 
 		found := false
@@ -260,7 +260,7 @@ func SkillContractTesting(t *testing.T, repo skills.SkillRepository, roleID doma
 	})
 
 	t.Run("Contract: AssignToAgent idempotency — duplicate returns error", func(t *testing.T) {
-		if roleID == "" {
+		if agentID == "" {
 			t.Skip("requires seeded role")
 		}
 
@@ -273,14 +273,14 @@ func SkillContractTesting(t *testing.T, repo skills.SkillRepository, roleID doma
 			UpdatedAt: time.Now(),
 		}
 		require.NoError(t, repo.Create(ctx, skill))
-		require.NoError(t, repo.AssignToAgent(ctx, roleID, skill.ID))
+		require.NoError(t, repo.AssignToAgent(ctx, agentID, skill.ID))
 
-		err := repo.AssignToAgent(ctx, roleID, skill.ID)
+		err := repo.AssignToAgent(ctx, agentID, skill.ID)
 		assert.Error(t, err)
 	})
 
 	t.Run("Contract: RemoveFromAgent", func(t *testing.T) {
-		if roleID == "" {
+		if agentID == "" {
 			t.Skip("requires seeded role")
 		}
 
@@ -293,10 +293,10 @@ func SkillContractTesting(t *testing.T, repo skills.SkillRepository, roleID doma
 			UpdatedAt: time.Now(),
 		}
 		require.NoError(t, repo.Create(ctx, skill))
-		require.NoError(t, repo.AssignToAgent(ctx, roleID, skill.ID))
-		require.NoError(t, repo.RemoveFromAgent(ctx, roleID, skill.ID))
+		require.NoError(t, repo.AssignToAgent(ctx, agentID, skill.ID))
+		require.NoError(t, repo.RemoveFromAgent(ctx, agentID, skill.ID))
 
-		list, err := repo.ListByAgent(ctx, roleID)
+		list, err := repo.ListByAgent(ctx, agentID)
 		require.NoError(t, err)
 
 		for _, s := range list {
@@ -305,11 +305,11 @@ func SkillContractTesting(t *testing.T, repo skills.SkillRepository, roleID doma
 	})
 
 	t.Run("Contract: RemoveFromAgent on non-existent association", func(t *testing.T) {
-		if roleID == "" {
+		if agentID == "" {
 			t.Skip("requires seeded role")
 		}
 
-		err := repo.RemoveFromAgent(ctx, roleID, domain.NewSkillID())
+		err := repo.RemoveFromAgent(ctx, agentID, domain.NewSkillID())
 		assert.Error(t, err)
 	})
 }

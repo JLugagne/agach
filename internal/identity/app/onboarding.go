@@ -16,7 +16,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const defaultDaemonJWTTTL = 30 * 24 * time.Hour
+const defaultDaemonJWTTTL = domain.DefaultDaemonJWTTTL
 
 type onboardingService struct {
 	codes        onboardingcodes.OnboardingCodeRepository

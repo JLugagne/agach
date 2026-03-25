@@ -12,6 +12,8 @@ import (
 type dockerfileRepository struct{ *baseRepository }
 
 func (r *dockerfileRepository) Create(ctx context.Context, d domain.Dockerfile) error {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO dockerfiles (id, slug, name, description, version, content, is_latest, sort_order, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)`,
@@ -28,6 +30,8 @@ func (r *dockerfileRepository) Create(ctx context.Context, d domain.Dockerfile) 
 }
 
 func (r *dockerfileRepository) FindByID(ctx context.Context, id domain.DockerfileID) (*domain.Dockerfile, error) {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	row := r.pool.QueryRow(ctx, `
 		SELECT id, slug, name, description, version, content, is_latest, sort_order, created_at, updated_at
 		FROM dockerfiles WHERE id = $1`, string(id))
@@ -35,7 +39,8 @@ func (r *dockerfileRepository) FindByID(ctx context.Context, id domain.Dockerfil
 }
 
 func (r *dockerfileRepository) FindBySlug(ctx context.Context, slug string) (*domain.Dockerfile, error) {
-	// Return latest version; if no latest, return most recently created
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	row := r.pool.QueryRow(ctx, `
 		SELECT id, slug, name, description, version, content, is_latest, sort_order, created_at, updated_at
 		FROM dockerfiles WHERE slug = $1
@@ -44,6 +49,8 @@ func (r *dockerfileRepository) FindBySlug(ctx context.Context, slug string) (*do
 }
 
 func (r *dockerfileRepository) FindBySlugAndVersion(ctx context.Context, slug, version string) (*domain.Dockerfile, error) {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	row := r.pool.QueryRow(ctx, `
 		SELECT id, slug, name, description, version, content, is_latest, sort_order, created_at, updated_at
 		FROM dockerfiles WHERE slug = $1 AND version = $2`, slug, version)
@@ -51,6 +58,8 @@ func (r *dockerfileRepository) FindBySlugAndVersion(ctx context.Context, slug, v
 }
 
 func (r *dockerfileRepository) List(ctx context.Context) ([]domain.Dockerfile, error) {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, slug, name, description, version, content, is_latest, sort_order, created_at, updated_at
 		FROM dockerfiles ORDER BY slug ASC, sort_order ASC, version ASC`)
@@ -62,6 +71,8 @@ func (r *dockerfileRepository) List(ctx context.Context) ([]domain.Dockerfile, e
 }
 
 func (r *dockerfileRepository) Update(ctx context.Context, d domain.Dockerfile) error {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE dockerfiles SET name=$1, description=$2, content=$3, is_latest=$4, sort_order=$5, updated_at=$6
 		WHERE id=$7`,
@@ -77,6 +88,8 @@ func (r *dockerfileRepository) Update(ctx context.Context, d domain.Dockerfile) 
 }
 
 func (r *dockerfileRepository) Delete(ctx context.Context, id domain.DockerfileID) error {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	tag, err := r.pool.Exec(ctx, `DELETE FROM dockerfiles WHERE id = $1`, string(id))
 	if err != nil {
 		return fmt.Errorf("delete dockerfile: %w", err)
@@ -88,6 +101,8 @@ func (r *dockerfileRepository) Delete(ctx context.Context, id domain.DockerfileI
 }
 
 func (r *dockerfileRepository) IsInUse(ctx context.Context, id domain.DockerfileID) (bool, error) {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	var count int
 	err := r.pool.QueryRow(ctx,
 		`SELECT COUNT(*) FROM projects WHERE dockerfile_id = $1`, string(id),
@@ -99,25 +114,33 @@ func (r *dockerfileRepository) IsInUse(ctx context.Context, id domain.Dockerfile
 }
 
 func (r *dockerfileRepository) SetLatest(ctx context.Context, id domain.DockerfileID) error {
-	// Get the slug of the target dockerfile
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("set latest dockerfile: begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
 	var slug string
-	err := r.pool.QueryRow(ctx, `SELECT slug FROM dockerfiles WHERE id = $1`, string(id)).Scan(&slug)
+	err = tx.QueryRow(ctx, `SELECT slug FROM dockerfiles WHERE id = $1`, string(id)).Scan(&slug)
 	if err != nil {
 		return fmt.Errorf("set latest dockerfile: %w", err)
 	}
 
-	// Clear is_latest on all versions with same slug, then set on this one
-	_, err = r.pool.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
 		UPDATE dockerfiles SET is_latest = (id = $1) WHERE slug = $2`,
 		string(id), slug,
 	)
 	if err != nil {
 		return fmt.Errorf("set latest dockerfile: %w", err)
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (r *dockerfileRepository) GetProjectDockerfile(ctx context.Context, projectID domain.ProjectID) (*domain.Dockerfile, error) {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	row := r.pool.QueryRow(ctx, `
 		SELECT d.id, d.slug, d.name, d.description, d.version, d.content, d.is_latest, d.sort_order, d.created_at, d.updated_at
 		FROM dockerfiles d
@@ -134,6 +157,8 @@ func (r *dockerfileRepository) GetProjectDockerfile(ctx context.Context, project
 }
 
 func (r *dockerfileRepository) SetProjectDockerfile(ctx context.Context, projectID domain.ProjectID, dockerfileID domain.DockerfileID) error {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	tag, err := r.pool.Exec(ctx,
 		`UPDATE projects SET dockerfile_id = $1, updated_at = NOW() WHERE id = $2`,
 		string(dockerfileID), string(projectID),
@@ -148,6 +173,8 @@ func (r *dockerfileRepository) SetProjectDockerfile(ctx context.Context, project
 }
 
 func (r *dockerfileRepository) ClearProjectDockerfile(ctx context.Context, projectID domain.ProjectID) error {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	_, err := r.pool.Exec(ctx,
 		`UPDATE projects SET dockerfile_id = NULL, updated_at = NOW() WHERE id = $1`,
 		string(projectID),

@@ -7,6 +7,7 @@ import type {
   BoardResponse, ColumnResponse, AddDependencyRequest,
   UpdateProjectRequest, ToolUsageStatResponse, TimelineEntryResponse,
   SkillResponse, CreateSkillRequest, UpdateSkillRequest, AddSkillToAgentRequest,
+  SpecializedAgentResponse, CreateSpecializedAgentRequest, UpdateSpecializedAgentRequest,
   AssignAgentToProjectRequest, RemoveAgentFromProjectRequest,
   BulkReassignTasksRequest, BulkReassignTasksResponse, TasksByAgentResponse,
   DockerfileResponse, CreateDockerfileRequest, UpdateDockerfileRequest, SetProjectDockerfileRequest,
@@ -187,6 +188,20 @@ export const addSkillToAgent = (agentSlug: string, data: AddSkillToAgentRequest)
 export const removeSkillFromAgent = (agentSlug: string, skillSlug: string) =>
   request<void>('DELETE', `/api/agents/${agentSlug}/skills/${skillSlug}`);
 
+// Specialized agents
+export const listSpecializedAgents = (parentSlug: string) =>
+  request<SpecializedAgentResponse[]>('GET', `/api/agents/${parentSlug}/specialized`);
+export const getSpecializedAgent = (parentSlug: string, specSlug: string) =>
+  request<SpecializedAgentResponse>('GET', `/api/agents/${parentSlug}/specialized/${specSlug}`);
+export const createSpecializedAgent = (parentSlug: string, data: CreateSpecializedAgentRequest) =>
+  request<SpecializedAgentResponse>('POST', `/api/agents/${parentSlug}/specialized`, data);
+export const updateSpecializedAgent = (parentSlug: string, specSlug: string, data: UpdateSpecializedAgentRequest) =>
+  request<SpecializedAgentResponse>('PATCH', `/api/agents/${parentSlug}/specialized/${specSlug}`, data);
+export const deleteSpecializedAgent = (parentSlug: string, specSlug: string) =>
+  request<void>('DELETE', `/api/agents/${parentSlug}/specialized/${specSlug}`);
+export const listSpecializedAgentSkills = (parentSlug: string, specSlug: string) =>
+  request<SkillResponse[]>('GET', `/api/agents/${parentSlug}/specialized/${specSlug}/skills`);
+
 // Project agent management
 export const assignAgentToProject = (projectId: string, data: AssignAgentToProjectRequest) =>
   request<void>('POST', `/api/projects/${projectId}/agents`, data);
@@ -274,9 +289,12 @@ export const listChatSessions = (projectId: string, featureId: string) =>
 export const getChatSession = (projectId: string, featureId: string, sessionId: string) =>
   request<ChatSessionResponse>('GET', `/api/projects/${projectId}/features/${featureId}/chats/${sessionId}`);
 
-export const startChatSession = (projectId: string, featureId: string, resumeSessionId?: string) =>
+export const startChatSession = (projectId: string, featureId: string, resumeSessionId?: string, nodeId?: string) =>
   request<ChatSessionResponse>('POST', `/api/projects/${projectId}/features/${featureId}/chats`,
-    resumeSessionId ? { resume_session_id: resumeSessionId } : {});
+    {
+      ...(resumeSessionId ? { resume_session_id: resumeSessionId } : {}),
+      ...(nodeId ? { node_id: nodeId } : {}),
+    });
 
 export const endChatSession = (projectId: string, featureId: string, sessionId: string) =>
   request<void>('POST', `/api/projects/${projectId}/features/${featureId}/chats/${sessionId}/end`);

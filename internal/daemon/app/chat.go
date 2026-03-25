@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/JLugagne/agach-mcp/internal/daemon/client"
+	"github.com/JLugagne/agach-mcp/internal/daemon/domain"
 	"github.com/JLugagne/agach-mcp/pkg/daemonws"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -32,6 +32,7 @@ type ChatSession struct {
 	claudeCmd        *exec.Cmd
 	claudeStdin      io.WriteCloser
 	claudeStdout     *bufio.Reader
+	claudeStderr     *bytes.Buffer
 	jsonlFile        *os.File
 	jsonlPath        string
 	MessageCount     int
@@ -39,6 +40,7 @@ type ChatSession struct {
 	OutputTokens     int
 	CacheReadTokens  int
 	CacheWriteTokens int
+	TotalCost        float64
 	Model            string
 }
 
@@ -47,8 +49,8 @@ type ChatManager struct {
 	mu            sync.RWMutex
 	logger        *logrus.Logger
 	gitService    *GitService
-	projectClient *client.ProjectClient
-	uploadClient  *client.ChatUploadClient
+	projectClient domain.ProjectFetcher
+	uploadClient  domain.ChatUploader
 	token         string
 	sendMessage   func(daemonws.Message)
 	stopCh        chan struct{}
@@ -58,8 +60,8 @@ type ChatManager struct {
 func NewChatManager(
 	logger *logrus.Logger,
 	gitService *GitService,
-	projectClient *client.ProjectClient,
-	uploadClient *client.ChatUploadClient,
+	projectClient domain.ProjectFetcher,
+	uploadClient domain.ChatUploader,
 	token string,
 	sendMessage func(daemonws.Message),
 ) *ChatManager {
@@ -88,13 +90,16 @@ func (m *ChatManager) startClaudeProcess(session *ChatSession, resumeSessionID s
 	session.jsonlFile = f
 	session.jsonlPath = jsonlPath
 
-	args := []string{"--output-format", "streaming-json", "--verbose"}
+	args := []string{"--print", "--output-format", "stream-json", "--input-format", "stream-json", "--verbose"}
 	if resumeSessionID != "" {
 		args = append(args, "--resume", resumeSessionID)
 	}
 
 	cmd := exec.Command("claude", args...)
 	cmd.Dir = session.WorktreePath
+
+	session.claudeStderr = &bytes.Buffer{}
+	cmd.Stderr = session.claudeStderr
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -140,7 +145,14 @@ func (m *ChatManager) readClaudeOutput(session *ChatSession) {
 	}
 
 	if err := session.claudeCmd.Wait(); err != nil {
-		m.logger.WithError(err).WithField("session_id", session.ID).Warn("claude process exited")
+		stderr := ""
+		if session.claudeStderr != nil {
+			stderr = session.claudeStderr.String()
+		}
+		m.logger.WithError(err).WithFields(logrus.Fields{
+			"session_id": session.ID,
+			"stderr":     stderr,
+		}).Warn("claude process exited")
 	}
 }
 
@@ -160,8 +172,9 @@ func (m *ChatManager) handleClaudeMessage(session *ChatSession, line []byte) {
 				CacheReadTokens  int `json:"cache_read_input_tokens"`
 				CacheWriteTokens int `json:"cache_creation_input_tokens"`
 			} `json:"usage"`
-			Model     string `json:"model"`
-			SessionID string `json:"session_id"`
+			TotalCostUSD float64 `json:"total_cost_usd"`
+			Model        string  `json:"model"`
+			SessionID    string  `json:"session_id"`
 		}
 		if err := json.Unmarshal(line, &result); err == nil {
 			m.mu.Lock()
@@ -169,6 +182,7 @@ func (m *ChatManager) handleClaudeMessage(session *ChatSession, line []byte) {
 			session.OutputTokens += result.Usage.OutputTokens
 			session.CacheReadTokens += result.Usage.CacheReadTokens
 			session.CacheWriteTokens += result.Usage.CacheWriteTokens
+			session.TotalCost += result.TotalCostUSD
 			if result.Model != "" {
 				session.Model = result.Model
 			}
@@ -186,11 +200,57 @@ func (m *ChatManager) handleClaudeMessage(session *ChatSession, line []byte) {
 		m.mu.Unlock()
 	}
 
+	// Signal turn complete on result, forward text on assistant
+	if envelope.Type == "result" {
+		content, _ := json.Marshal(map[string]string{"text": ""})
+		event := daemonws.ChatMessageEvent{
+			SessionID:   session.ID,
+			MessageType: "result",
+			Content:     content,
+			IsFinal:     true,
+		}
+		payload, _ := json.Marshal(event)
+		m.sendMessage(daemonws.Message{
+			Type:    daemonws.TypeChatMessage,
+			Payload: payload,
+		})
+		return
+	}
+	if envelope.Type != "assistant" {
+		return
+	}
+
+	var msg struct {
+		Message struct {
+			Model   string `json:"model"`
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"message"`
+	}
+	var textContent string
+	if json.Unmarshal(line, &msg) == nil {
+		for _, block := range msg.Message.Content {
+			if block.Type == "text" {
+				textContent += block.Text
+			}
+		}
+		if msg.Message.Model != "" {
+			m.mu.Lock()
+			session.Model = msg.Message.Model
+			m.mu.Unlock()
+		}
+	}
+	if textContent == "" {
+		return
+	}
+
+	content, _ := json.Marshal(map[string]string{"text": textContent})
 	event := daemonws.ChatMessageEvent{
 		SessionID:   session.ID,
 		MessageType: envelope.Type,
-		Content:     json.RawMessage(bytes.TrimSpace(line)),
-		IsFinal:     envelope.Type == "result",
+		Content:     content,
 	}
 	payload, _ := json.Marshal(event)
 	m.sendMessage(daemonws.Message{
@@ -237,7 +297,10 @@ func (m *ChatManager) StartSession(ctx context.Context, requestID string, req da
 		return
 	}
 
-	sessionID := uuid.New().String()
+	sessionID := req.SessionID
+	if sessionID == "" {
+		sessionID = uuid.New().String()
+	}
 	now := time.Now()
 
 	session := &ChatSession{
@@ -427,7 +490,14 @@ func (m *ChatManager) SendMessage(sessionID string, content string) error {
 	session.LastActivity = time.Now()
 	m.mu.Unlock()
 
-	if _, err := fmt.Fprintln(session.claudeStdin, content); err != nil {
+	msg, _ := json.Marshal(map[string]any{
+		"type": "user",
+		"message": map[string]string{
+			"role":    "user",
+			"content": content,
+		},
+	})
+	if _, err := fmt.Fprintln(session.claudeStdin, string(msg)); err != nil {
 		return fmt.Errorf("write to claude stdin: %w", err)
 	}
 
@@ -449,10 +519,6 @@ func (m *ChatManager) broadcastStats() {
 
 	for _, s := range sessions {
 		m.mu.RLock()
-		cost := float64(s.InputTokens)/1_000_000*3.0 +
-			float64(s.OutputTokens)/1_000_000*15.0 +
-			float64(s.CacheReadTokens)/1_000_000*0.30 +
-			float64(s.CacheWriteTokens)/1_000_000*3.75
 		event := daemonws.ChatStatsEvent{
 			SessionID:        s.ID,
 			MessageCount:     s.MessageCount,
@@ -460,7 +526,7 @@ func (m *ChatManager) broadcastStats() {
 			OutputTokens:     s.OutputTokens,
 			CacheReadTokens:  s.CacheReadTokens,
 			CacheWriteTokens: s.CacheWriteTokens,
-			TotalCost:        cost,
+			TotalCost:        s.TotalCost,
 			DurationSeconds:  int(time.Since(s.StartedAt).Seconds()),
 			Model:            s.Model,
 		}

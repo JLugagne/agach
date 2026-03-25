@@ -58,7 +58,7 @@ type TaskRepository interface {
 	UpdateSessionID(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
 
 	// GetColdStartStats returns aggregated cold-start token statistics grouped by assigned role.
-	GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error)
+	GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.AgentColdStartStat, error)
 
 	// BulkCreate creates multiple tasks atomically within a single transaction.
 	// If any insert fails, no tasks are created.

@@ -83,7 +83,7 @@ func TestToPublicTask(t *testing.T) {
 	})
 
 	t.Run("non-nil feature_id maps correctly", func(t *testing.T) {
-		pid := domain.ProjectID("01961234-5678-7abc-9def-0123456789ab")
+		pid := domain.FeatureID("01961234-5678-7abc-9def-0123456789ab")
 		task := domain.Task{
 			ID:        domain.TaskID("01961234-5678-7abc-9def-0123456789ac"),
 			ColumnID:  domain.ColumnID("01961234-5678-7abc-9def-0123456789ad"),

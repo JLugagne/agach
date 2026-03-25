@@ -7,9 +7,9 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/converters"
-	"github.com/JLugagne/agach-mcp/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
-	"github.com/JLugagne/agach-mcp/pkg/websocket"
+	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/gorilla/mux"
 )
 
@@ -132,7 +132,7 @@ func (h *AgentCommandsHandler) UpdateAgent(w http.ResponseWriter, r *http.Reques
 	// Resolve slug to actual role ID
 	agent, err := h.queries.GetAgentBySlug(r.Context(), slug)
 	if err != nil || agent == nil {
-		h.controller.SendFail(w, r, nil, domain.ErrRoleNotFound)
+		h.controller.SendFail(w, r, nil, domain.ErrAgentNotFound)
 		return
 	}
 	roleID := agent.ID
@@ -178,7 +178,7 @@ func (h *AgentCommandsHandler) DeleteAgent(w http.ResponseWriter, r *http.Reques
 	// Resolve slug to actual role ID
 	agent, err := h.queries.GetAgentBySlug(r.Context(), slug)
 	if err != nil || agent == nil {
-		h.controller.SendFail(w, r, nil, domain.ErrRoleNotFound)
+		h.controller.SendFail(w, r, nil, domain.ErrAgentNotFound)
 		return
 	}
 	roleID := agent.ID

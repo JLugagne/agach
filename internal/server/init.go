@@ -1,18 +1,15 @@
 package server
 
 import (
-	"net/http"
-
-	identityservice "github.com/JLugagne/agach-mcp/internal/identity/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/app"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/commands"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/queries"
 	"github.com/JLugagne/agach-mcp/internal/server/outbound/pg"
-	"github.com/JLugagne/agach-mcp/pkg/controller"
-	"github.com/JLugagne/agach-mcp/pkg/sse"
-	"github.com/JLugagne/agach-mcp/pkg/websocket"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/pkg/daemonws"
+	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
+	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/gorilla/mux"
-	gorillaws "github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
@@ -21,7 +18,7 @@ import (
 type Config struct {
 	Pool        *pgxpool.Pool
 	Logger      *logrus.Logger
-	AuthQueries identityservice.AuthQueries
+	AuthQueries AuthQueries
 	DataDir     string // Directory for storing chat session JSONL files
 	// WSRouter is the router on which to register the /ws endpoint.
 	// Use a router without auth middleware, since browsers cannot send
@@ -62,6 +59,7 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 		Skills:       repos.Skills,
 		Dockerfiles:    repos.Dockerfiles,
 		Notifications: repos.Notifications,
+		Specialized:   repos.SpecializedAgents,
 		Chats:          app.NewChatService(repos.Chats),
 		Logger:         logger,
 	})
@@ -72,61 +70,46 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	hub := websocket.NewHub(logger)
 	go hub.Run()
 
+	relayHandler := hub.NewRelayHandler()
+	for _, msgType := range []string{
+		daemonws.TypeDockerList,
+		daemonws.TypeDockerRebuild,
+		daemonws.TypeDockerLogs,
+		daemonws.TypeDockerPrune,
+		daemonws.TypeBuildEvent,
+		daemonws.TypePruneEvent,
+		daemonws.TypeError,
+		daemonws.TypeChatStart,
+		daemonws.TypeChatMessage,
+		daemonws.TypeChatUserMsg,
+		daemonws.TypeChatEnd,
+		daemonws.TypeChatError,
+		daemonws.TypeChatStats,
+		daemonws.TypeChatPing,
+		daemonws.TypeChatTTLWarning,
+	} {
+		hub.RegisterHandler(msgType, relayHandler)
+	}
+
 	logger.Info("WebSocket hub initialized")
 
 	// Initialize SSE hub
-	sseHub := sse.NewHub()
+	sseHub := sse.NewHub(logger)
 
 	// Initialize controller
 	ctrl := controller.NewController(logger)
 
 	// Register routes
-	commands.NewRouter(router, appInstance, ctrl, hub, sseHub, cfg.DataDir)
-	queries.NewRouter(router, appInstance, ctrl, sseHub, cfg.DataDir)
-
-	// WebSocket endpoint
-	upgrader := gorillaws.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin: func(r *http.Request) bool {
-			return true // Allow all origins for development
-		},
-	}
+	chatService := appInstance.ChatService()
+	commands.NewRouter(router, appInstance, ctrl, hub, sseHub, cfg.DataDir, chatService)
+	queries.NewRouter(router, appInstance, ctrl, sseHub, cfg.DataDir, chatService)
 
 	wsRouter := router
 	if cfg.WSRouter != nil {
 		wsRouter = cfg.WSRouter
 	}
-	wsRouter.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		// Browsers cannot set custom headers on WebSocket connections.
-		// Accept the JWT via the ?token= query parameter instead.
-		isDaemon := false
-		if cfg.AuthQueries != nil {
-			token := r.URL.Query().Get("token")
-			if token == "" {
-				http.Error(w, `{"status":"fail","error":{"code":"UNAUTHORIZED","message":"authentication required"}}`, http.StatusUnauthorized)
-				return
-			}
-			// Accept both user access tokens and daemon tokens.
-			if _, err := cfg.AuthQueries.ValidateJWT(r.Context(), token); err != nil {
-				if _, daemonErr := cfg.AuthQueries.ValidateDaemonJWT(r.Context(), token); daemonErr != nil {
-					http.Error(w, `{"status":"fail","error":{"code":"UNAUTHORIZED","message":"authentication required"}}`, http.StatusUnauthorized)
-					return
-				}
-				isDaemon = true
-			}
-		}
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			logger.WithError(err).Error("Failed to upgrade WebSocket")
-			return
-		}
-		var opts []websocket.ServeWSOption
-		if isDaemon {
-			opts = append(opts, websocket.AsDaemon())
-		}
-		hub.ServeWS(conn, opts...)
-	}).Methods("GET")
+	wsHandler := commands.NewWSHandler(cfg.AuthQueries, hub, logger)
+	wsRouter.Handle("/ws", wsHandler).Methods("GET")
 
 	logger.Info("REST API and WebSocket initialized successfully")
 

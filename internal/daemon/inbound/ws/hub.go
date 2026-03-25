@@ -9,13 +9,11 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 
+	wsutil "github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/pkg/daemonws"
 )
 
 const (
-	writeWait  = 10 * time.Second
-	pongWait   = 60 * time.Second
-	pingPeriod = (pongWait * 9) / 10
 	sendBuffer = 256
 )
 
@@ -26,6 +24,8 @@ type Client struct {
 	send   chan daemonws.Message
 	closed bool
 	mu     sync.Mutex
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // Hub manages daemon WebSocket connections with targeted request/response messaging.
@@ -69,7 +69,7 @@ func (h *Hub) Run() {
 			h.mu.Lock()
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
-				client.closeSend()
+				client.DoCloseSend()
 			}
 			h.mu.Unlock()
 
@@ -89,10 +89,13 @@ func (h *Hub) Run() {
 
 // HandleConnection handles a new WebSocket connection.
 func (h *Hub) HandleConnection(conn *websocket.Conn) {
+	ctx, cancel := context.WithCancel(context.Background())
 	client := &Client{
-		hub:  h,
-		conn: conn,
-		send: make(chan daemonws.Message, sendBuffer),
+		hub:    h,
+		conn:   conn,
+		send:   make(chan daemonws.Message, sendBuffer),
+		ctx:    ctx,
+		cancel: cancel,
 	}
 	h.register <- client
 
@@ -113,7 +116,8 @@ func (h *Hub) SendEvent(msg daemonws.Message) {
 	}
 }
 
-func (c *Client) closeSend() {
+// DoCloseSend closes the send channel exactly once. Safe to call from multiple goroutines.
+func (c *Client) DoCloseSend() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.closed {
@@ -124,13 +128,14 @@ func (c *Client) closeSend() {
 
 func (c *Client) readPump() {
 	defer func() {
+		c.cancel()
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()
 
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.conn.SetReadDeadline(time.Now().Add(wsutil.PongWait))
 	c.conn.SetPongHandler(func(string) error {
-		c.conn.SetReadDeadline(time.Now().Add(pongWait))
+		c.conn.SetReadDeadline(time.Now().Add(wsutil.PongWait))
 		return nil
 	})
 
@@ -163,7 +168,7 @@ func (c *Client) readPump() {
 			continue
 		}
 
-		resp, err := handler(context.Background(), msg)
+		resp, err := handler(c.ctx, msg)
 		if err != nil {
 			resp = daemonws.Message{
 				Type:      daemonws.TypeError,
@@ -183,29 +188,7 @@ func (c *Client) readPump() {
 }
 
 func (c *Client) writePump() {
-	ticker := time.NewTicker(pingPeriod)
-	defer func() {
-		ticker.Stop()
-		c.conn.Close()
-	}()
-
-	for {
-		select {
-		case msg, ok := <-c.send:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if !ok {
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
-			if err := c.conn.WriteJSON(msg); err != nil {
-				return
-			}
-
-		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				return
-			}
-		}
-	}
+	wsutil.RunWritePump(c.conn, c.send, func(conn *websocket.Conn, msg daemonws.Message) error {
+		return conn.WriteJSON(msg)
+	}, c.hub.logger)
 }

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/JLugagne/agach-mcp/internal/agachconfig"
 	"gopkg.in/yaml.v3"
 )
 
@@ -13,7 +14,6 @@ const (
 	DefaultConfigFileName = ".agach-daemon.yml"
 	EnvOnboardingCode     = "AGACH_ONBOARDING_CODE"
 	EnvServerURL          = "AGACH_SERVER_URL"
-	maxWalkDepth          = 5
 )
 
 // Config holds daemon configuration.
@@ -78,7 +78,7 @@ func Load(dir string) (*Config, error) {
 
 	cfg := &Config{}
 
-	configPath := findConfigFile(dir)
+	configPath := agachconfig.FindConfigFile(dir, DefaultConfigFileName, 5)
 	if configPath == "" {
 		if defaultPath, err := DefaultConfigPath(); err == nil {
 			if _, err := os.Stat(defaultPath); err == nil {
@@ -87,7 +87,7 @@ func Load(dir string) (*Config, error) {
 		}
 	}
 	if configPath != "" {
-		if err := loadFromFile(configPath, cfg); err != nil {
+		if err := agachconfig.LoadSecureYAML(configPath, cfg); err != nil {
 			return nil, err
 		}
 	}
@@ -101,60 +101,14 @@ func Load(dir string) (*Config, error) {
 	return cfg, nil
 }
 
-func findConfigFile(dir string) string {
-	current := dir
-	for depth := 0; depth < maxWalkDepth; depth++ {
-		candidate := filepath.Join(current, DefaultConfigFileName)
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-
-		parent := filepath.Dir(current)
-		if parent == current {
-			break
-		}
-		current = parent
-	}
-	return ""
-}
-
-func loadFromFile(path string, cfg *Config) error {
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("stat config file: %w", err)
-	}
-	mode := info.Mode().Perm()
-	if mode&0o177 != 0 {
-		return fmt.Errorf("config file %q has unsafe permissions (mode %04o): must be 0600 or stricter", path, mode)
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("read config file: %w", err)
-	}
-
-	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return fmt.Errorf("parse config file: %w", err)
-	}
-
-	return nil
-}
-
 // Validate checks that all required configuration is present.
 func (c *Config) Validate() error {
-	if c.BaseURL == "" {
-		return fmt.Errorf("base_url is required (set in %s or %s env var)", DefaultConfigFileName, EnvServerURL)
-	}
-
-	if strings.HasPrefix(c.BaseURL, "http://") {
-		host := strings.TrimPrefix(c.BaseURL, "http://")
-		host = strings.SplitN(host, "/", 2)[0]
-		host = strings.SplitN(host, ":", 2)[0]
-		if host != "localhost" && host != "127.0.0.1" {
-			return fmt.Errorf("base_url uses insecure http:// for remote host %q — use https:// for production", host)
+	if err := agachconfig.ValidateBaseURL(c.BaseURL); err != nil {
+		if c.BaseURL == "" {
+			return fmt.Errorf("base_url is required (set in %s or %s env var)", DefaultConfigFileName, EnvServerURL)
 		}
+		return err
 	}
-
 	return nil
 }
 

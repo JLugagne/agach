@@ -8,21 +8,14 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/JLugagne/agach-mcp/internal/daemon/domain"
 )
 
 const (
 	onboardingEndpoint = "/api/onboarding/complete"
 	defaultTimeout     = 30 * time.Second
 )
-
-// OnboardingResult contains the tokens received after successful onboarding.
-type OnboardingResult struct {
-	AccessToken  string
-	RefreshToken string
-	NodeID       string
-	NodeName     string
-	Mode         string
-}
 
 // OnboardingClient handles the daemon onboarding HTTP flow.
 type OnboardingClient struct {
@@ -41,7 +34,7 @@ func NewOnboardingClient(baseURL string) *OnboardingClient {
 }
 
 // CompleteOnboarding sends the onboarding code to the server and receives tokens.
-func (c *OnboardingClient) CompleteOnboarding(ctx context.Context, code, nodeName string) (*OnboardingResult, error) {
+func (c *OnboardingClient) CompleteOnboarding(ctx context.Context, code, nodeName string) (*domain.OnboardingResult, error) {
 	reqBody := map[string]string{
 		"code":      code,
 		"node_name": nodeName,
@@ -78,7 +71,7 @@ func (c *OnboardingClient) CompleteOnboarding(ctx context.Context, code, nodeNam
 	return c.parseSuccess(body)
 }
 
-func (c *OnboardingClient) parseSuccess(body []byte) (*OnboardingResult, error) {
+func (c *OnboardingClient) parseSuccess(body []byte) (*domain.OnboardingResult, error) {
 	var resp struct {
 		Status string `json:"status"`
 		Data   struct {
@@ -100,7 +93,7 @@ func (c *OnboardingClient) parseSuccess(body []byte) (*OnboardingResult, error) 
 		return nil, fmt.Errorf("unexpected status: %s", resp.Status)
 	}
 
-	return &OnboardingResult{
+	return &domain.OnboardingResult{
 		AccessToken:  resp.Data.AccessToken,
 		RefreshToken: resp.Data.RefreshToken,
 		NodeID:       resp.Data.Node.ID,

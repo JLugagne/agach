@@ -18,15 +18,15 @@ import (
 )
 
 const (
-	bcryptCost        = 12
-	minPasswordLen    = 8
-	minSecretLen      = 32
-	accessTokenTTL    = 15 * time.Minute
-	refreshTokenTTL         = 7 * 24 * time.Hour
-	refreshTokenTTLRemember = 30 * 24 * time.Hour
-	jwtClaimTokenType = "token_type"
-	tokenTypeAccess   = "access"
-	tokenTypeRefresh  = "refresh"
+	bcryptCost              = 12
+	minPasswordLen          = 8
+	minSecretLen            = 32
+	accessTokenTTL          = 15 * time.Minute
+	refreshTokenTTL         = domain.DefaultRefreshTokenTTL
+	refreshTokenTTLRemember = domain.DefaultRememberMeTokenTTL
+	jwtClaimTokenType       = "token_type"
+	tokenTypeAccess         = "access"
+	tokenTypeRefresh        = "refresh"
 )
 
 var tokenBlocklist sync.Map
@@ -394,4 +394,3 @@ func (s *authService) parseToken(tokenStr string) (jwt.MapClaims, error) {
 	}
 	return claims, nil
 }
-

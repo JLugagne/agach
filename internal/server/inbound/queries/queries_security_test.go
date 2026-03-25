@@ -24,8 +24,9 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/tasks"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service/servicetest"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/queries"
-	"github.com/JLugagne/agach-mcp/pkg/sse"
+	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
 	"github.com/gorilla/mux"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -220,7 +221,7 @@ func TestSecurity_GREEN_ListTasks_IncludeChildrenErrorPropagated(t *testing.T) {
 
 // GREEN — after fixing, a non-UUID projectID must be rejected with 400.
 func TestSecurity_GREEN_SSE_InvalidProjectIDRejected(t *testing.T) {
-	hub := sse.NewHub()
+	hub := sse.NewHub(logrus.New())
 	router := newSSERouter(hub)
 
 	ctx, cancel := makeQuickContext()
@@ -259,7 +260,7 @@ func makeQuickContext() (context.Context, context.CancelFunc) {
 // GREEN — after fixing, either the header is absent or set to a specific
 // trusted origin (never the wildcard).
 func TestSecurity_GREEN_SSE_NoCORSWildcard(t *testing.T) {
-	hub := sse.NewHub()
+	hub := sse.NewHub(logrus.New())
 	router := newSSERouter(hub)
 
 	ctx, cancel := makeQuickContext()

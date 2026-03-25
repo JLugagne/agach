@@ -16,9 +16,5 @@ func ToPublicToolUsageStat(stat domain.ToolUsageStat) pkgserver.ToolUsageStatRes
 
 // ToPublicToolUsageStats converts []domain.ToolUsageStat to []pkgserver.ToolUsageStatResponse
 func ToPublicToolUsageStats(stats []domain.ToolUsageStat) []pkgserver.ToolUsageStatResponse {
-	result := make([]pkgserver.ToolUsageStatResponse, len(stats))
-	for i, s := range stats {
-		result[i] = ToPublicToolUsageStat(s)
-	}
-	return result
+	return MapSlice(stats, ToPublicToolUsageStat)
 }

@@ -5,17 +5,27 @@ import (
 	"net/http"
 
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
-	"github.com/JLugagne/agach-mcp/pkg/sse"
+	"github.com/JLugagne/agach-mcp/internal/pkg/apierror"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
 	"github.com/gorilla/mux"
+	"github.com/sirupsen/logrus"
 )
 
 // SSEHandler serves Server-Sent Events for project task notifications
 type SSEHandler struct {
-	sseHub *sse.Hub
+	sseHub     *sse.Hub
+	controller *controller.Controller
 }
 
-func NewSSEHandler(sseHub *sse.Hub) *SSEHandler {
-	return &SSEHandler{sseHub: sseHub}
+func NewSSEHandler(sseHub *sse.Hub, ctrl ...*controller.Controller) *SSEHandler {
+	h := &SSEHandler{sseHub: sseHub}
+	if len(ctrl) > 0 && ctrl[0] != nil {
+		h.controller = ctrl[0]
+	} else {
+		h.controller = controller.NewController(logrus.New())
+	}
+	return h
 }
 
 func (h *SSEHandler) RegisterRoutes(router *mux.Router) {
@@ -26,7 +36,7 @@ func (h *SSEHandler) ServeSSE(w http.ResponseWriter, r *http.Request) {
 	rawID := mux.Vars(r)["id"]
 	projectID, err := domain.ParseProjectID(rawID)
 	if err != nil {
-		http.Error(w, `{"status":"fail","data":{"error":"invalid project ID"}}`, http.StatusBadRequest)
+		h.controller.SendFail(w, r, nil, &apierror.Error{Code: "INVALID_PROJECT_ID", Message: "invalid project ID"})
 		return
 	}
 
@@ -36,7 +46,7 @@ func (h *SSEHandler) ServeSSE(w http.ResponseWriter, r *http.Request) {
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "SSE not supported", http.StatusInternalServerError)
+		h.controller.SendError(w, r, fmt.Errorf("response writer does not support flushing"))
 		return
 	}
 

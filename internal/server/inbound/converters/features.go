@@ -32,9 +32,5 @@ func ToPublicFeatureWithSummary(f domain.FeatureWithTaskSummary) pkgserver.Featu
 
 // ToPublicFeaturesWithSummary converts []domain.FeatureWithTaskSummary to []pkgserver.FeatureWithSummaryResponse
 func ToPublicFeaturesWithSummary(fs []domain.FeatureWithTaskSummary) []pkgserver.FeatureWithSummaryResponse {
-	result := make([]pkgserver.FeatureWithSummaryResponse, len(fs))
-	for i, f := range fs {
-		result[i] = ToPublicFeatureWithSummary(f)
-	}
-	return result
+	return MapSlice(fs, ToPublicFeatureWithSummary)
 }

@@ -12,6 +12,8 @@ import (
 type skillRepository struct{ *baseRepository }
 
 func (r *skillRepository) Create(ctx context.Context, skill domain.Skill) error {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO skills (id, slug, name, description, content, icon, color, sort_order, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)`,
@@ -28,6 +30,8 @@ func (r *skillRepository) Create(ctx context.Context, skill domain.Skill) error 
 }
 
 func (r *skillRepository) FindByID(ctx context.Context, id domain.SkillID) (*domain.Skill, error) {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	row := r.pool.QueryRow(ctx, `
 		SELECT id, slug, name, description, content, icon, color, sort_order, created_at, updated_at
 		FROM skills WHERE id = $1`, string(id))
@@ -35,6 +39,8 @@ func (r *skillRepository) FindByID(ctx context.Context, id domain.SkillID) (*dom
 }
 
 func (r *skillRepository) FindBySlug(ctx context.Context, slug string) (*domain.Skill, error) {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	row := r.pool.QueryRow(ctx, `
 		SELECT id, slug, name, description, content, icon, color, sort_order, created_at, updated_at
 		FROM skills WHERE slug = $1`, slug)
@@ -46,6 +52,8 @@ func (r *skillRepository) FindBySlug(ctx context.Context, slug string) (*domain.
 }
 
 func (r *skillRepository) List(ctx context.Context) ([]domain.Skill, error) {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, slug, name, description, content, icon, color, sort_order, created_at, updated_at
 		FROM skills ORDER BY sort_order ASC, name ASC`)
@@ -57,6 +65,8 @@ func (r *skillRepository) List(ctx context.Context) ([]domain.Skill, error) {
 }
 
 func (r *skillRepository) Update(ctx context.Context, skill domain.Skill) error {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE skills
 		SET slug=$2, name=$3, description=$4, content=$5, icon=$6, color=$7, sort_order=$8, updated_at=NOW()
@@ -74,6 +84,8 @@ func (r *skillRepository) Update(ctx context.Context, skill domain.Skill) error 
 }
 
 func (r *skillRepository) Delete(ctx context.Context, id domain.SkillID) error {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	inUse, err := r.IsInUse(ctx, id)
 	if err != nil {
 		return err
@@ -89,6 +101,8 @@ func (r *skillRepository) Delete(ctx context.Context, id domain.SkillID) error {
 }
 
 func (r *skillRepository) IsInUse(ctx context.Context, id domain.SkillID) (bool, error) {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	var exists bool
 	err := r.pool.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM agent_skills WHERE skill_id = $1)`, string(id)).Scan(&exists)
@@ -98,13 +112,15 @@ func (r *skillRepository) IsInUse(ctx context.Context, id domain.SkillID) (bool,
 	return exists, nil
 }
 
-func (r *skillRepository) ListByAgent(ctx context.Context, roleID domain.RoleID) ([]domain.Skill, error) {
+func (r *skillRepository) ListByAgent(ctx context.Context, agentID domain.AgentID) ([]domain.Skill, error) {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	rows, err := r.pool.Query(ctx, `
 		SELECT s.id, s.slug, s.name, s.description, s.content, s.icon, s.color, s.sort_order, s.created_at, s.updated_at
 		FROM skills s
 		JOIN agent_skills a ON a.skill_id = s.id
 		WHERE a.role_id = $1
-		ORDER BY a.sort_order ASC, s.name ASC`, string(roleID))
+		ORDER BY a.sort_order ASC, s.name ASC`, string(agentID))
 	if err != nil {
 		return nil, fmt.Errorf("list skills by agent: %w", err)
 	}
@@ -112,13 +128,15 @@ func (r *skillRepository) ListByAgent(ctx context.Context, roleID domain.RoleID)
 	return scanSkills(rows)
 }
 
-func (r *skillRepository) AssignToAgent(ctx context.Context, roleID domain.RoleID, skillID domain.SkillID) error {
+func (r *skillRepository) AssignToAgent(ctx context.Context, agentID domain.AgentID, skillID domain.SkillID) error {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	id := newID()
 	tag, err := r.pool.Exec(ctx, `
 		INSERT INTO agent_skills (id, role_id, skill_id)
 		VALUES ($1, $2, $3)
 		ON CONFLICT DO NOTHING`,
-		id, string(roleID), string(skillID),
+		id, string(agentID), string(skillID),
 	)
 	if err != nil {
 		return fmt.Errorf("assign skill to agent: %w", err)
@@ -129,10 +147,12 @@ func (r *skillRepository) AssignToAgent(ctx context.Context, roleID domain.RoleI
 	return nil
 }
 
-func (r *skillRepository) RemoveFromAgent(ctx context.Context, roleID domain.RoleID, skillID domain.SkillID) error {
+func (r *skillRepository) RemoveFromAgent(ctx context.Context, agentID domain.AgentID, skillID domain.SkillID) error {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	tag, err := r.pool.Exec(ctx, `
 		DELETE FROM agent_skills WHERE role_id = $1 AND skill_id = $2`,
-		string(roleID), string(skillID),
+		string(agentID), string(skillID),
 	)
 	if err != nil {
 		return fmt.Errorf("remove skill from agent: %w", err)

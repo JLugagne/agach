@@ -23,8 +23,8 @@ func clampInt(n int) int {
 	return n
 }
 
-// ToPublicColdStartStat converts domain.RoleColdStartStat to pkgserver.ColdStartStatResponse
-func ToPublicColdStartStat(stat domain.RoleColdStartStat) pkgserver.ColdStartStatResponse {
+// ToPublicColdStartStat converts domain.AgentColdStartStat to pkgserver.ColdStartStatResponse
+func ToPublicColdStartStat(stat domain.AgentColdStartStat) pkgserver.ColdStartStatResponse {
 	return pkgserver.ColdStartStatResponse{
 		AssignedRole:       stat.AssignedRole,
 		Count:              stat.Count,
@@ -40,11 +40,7 @@ func ToPublicColdStartStat(stat domain.RoleColdStartStat) pkgserver.ColdStartSta
 	}
 }
 
-// ToPublicColdStartStats converts []domain.RoleColdStartStat to []pkgserver.ColdStartStatResponse
-func ToPublicColdStartStats(stats []domain.RoleColdStartStat) []pkgserver.ColdStartStatResponse {
-	result := make([]pkgserver.ColdStartStatResponse, len(stats))
-	for i, s := range stats {
-		result[i] = ToPublicColdStartStat(s)
-	}
-	return result
+// ToPublicColdStartStats converts []domain.AgentColdStartStat to []pkgserver.ColdStartStatResponse
+func ToPublicColdStartStats(stats []domain.AgentColdStartStat) []pkgserver.ColdStartStatResponse {
+	return MapSlice(stats, ToPublicColdStartStat)
 }

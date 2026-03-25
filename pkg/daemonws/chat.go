@@ -14,8 +14,10 @@ const (
 )
 
 type ChatStartRequest struct {
+	SessionID       string `json:"session_id"`
 	FeatureID       string `json:"feature_id"`
 	ProjectID       string `json:"project_id"`
+	NodeID          string `json:"node_id,omitempty"`
 	ResumeSessionID string `json:"resume_session_id,omitempty"`
 }
 

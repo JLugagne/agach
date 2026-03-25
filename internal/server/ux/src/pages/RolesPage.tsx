@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Plus,
   X,
@@ -12,18 +12,21 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Bot,
 } from 'lucide-react';
 import {
   listAgents, createAgent, updateAgent, deleteAgent,
   listProjectAgents, createProjectAgent, updateProjectAgent, deleteProjectAgent,
   getProject, updateProject,
+  listSpecializedAgents,
 } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
-import type { AgentResponse, CreateAgentRequest, UpdateAgentRequest } from '../lib/types';
+import type { AgentResponse, CreateAgentRequest, UpdateAgentRequest, SpecializedAgentResponse } from '../lib/types';
 import MarkdownContent from '../components/ui/MarkdownContent';
 import CloneAgentDialog from '../components/CloneAgentDialog';
 import AgentSkillsPanel from '../components/AgentSkillsPanel';
+import EditSpecializedAgentDialog from '../components/EditSpecializedAgentDialog';
 
 const PRESET_COLORS = [
   '#7C3AED',
@@ -51,6 +54,7 @@ export default function RolesPage() {
   const [editingRole, setEditingRole] = useState<AgentResponse | null>(null);
   const [defaultRole, setDefaultRole] = useState<string>('');
   const [cloningRole, setCloningRole] = useState<AgentResponse | null>(null);
+  const [drawerRole, setDrawerRole] = useState<AgentResponse | null>(null);
 
   const fetchRoles = useCallback(async () => {
     try {
@@ -96,7 +100,10 @@ export default function RolesPage() {
           event.type === 'agent_created' ||
           event.type === 'agent_updated' ||
           event.type === 'agent_deleted' ||
-          event.type === 'agent_cloned'
+          event.type === 'agent_cloned' ||
+          event.type === 'specialized_agent_created' ||
+          event.type === 'specialized_agent_updated' ||
+          event.type === 'specialized_agent_deleted'
         ) {
           fetchRoles();
         }
@@ -110,7 +117,20 @@ export default function RolesPage() {
     setModalOpen(true);
   };
 
-  const openEdit = (role: AgentResponse) => {
+  const handleCardClick = (role: AgentResponse) => {
+    if (projectId) {
+      // In project mode, open the edit modal directly
+      setEditingRole(role);
+      setModalOpen(true);
+    } else {
+      // In global mode, open the drawer
+      setDrawerRole(role);
+    }
+  };
+
+  const openEditFromDrawer = () => {
+    const role = drawerRole;
+    setDrawerRole(null);
     setEditingRole(role);
     setModalOpen(true);
   };
@@ -184,13 +204,22 @@ export default function RolesPage() {
                 role={role}
                 isDefault={defaultRole === role.slug}
                 onSetDefault={projectId ? () => handleSetDefault(role.slug) : undefined}
-                onClick={() => openEdit(role)}
+                onClick={() => handleCardClick(role)}
                 onClone={() => setCloningRole(role)}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Agent Drawer */}
+      {drawerRole && (
+        <AgentDrawer
+          role={drawerRole}
+          onClose={() => setDrawerRole(null)}
+          onEdit={openEditFromDrawer}
+        />
+      )}
 
       {/* Role Modal */}
       {modalOpen && (
@@ -287,13 +316,206 @@ function RoleCard({
           <p className="text-xs text-[var(--text-muted)] mb-3 line-clamp-2">{role.description}</p>
         )}
 
-        {role.prompt_template && (
-          <span className="px-2 py-0.5 bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded text-[10px] font-mono text-[var(--text-muted)]">
-            has template
-          </span>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {role.prompt_template && (
+            <span className="px-2 py-0.5 bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded text-[10px] font-mono text-[var(--text-muted)]">
+              has template
+            </span>
+          )}
+          {(role.specialized_count ?? 0) > 0 && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[var(--primary)]/10 text-[var(--primary)]">
+              {role.specialized_count} specialized
+            </span>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+function AgentDrawer({
+  role,
+  onClose,
+  onEdit,
+}: {
+  role: AgentResponse;
+  onClose: () => void;
+  onEdit: () => void;
+}) {
+  const navigate = useNavigate();
+  const [specAgents, setSpecAgents] = useState<SpecializedAgentResponse[]>([]);
+  const [loadingSpec, setLoadingSpec] = useState(true);
+  const [hintExpanded, setHintExpanded] = useState(false);
+  const [createSpecOpen, setCreateSpecOpen] = useState(false);
+
+  const fetchSpecialized = useCallback(async () => {
+    try {
+      const data = await listSpecializedAgents(role.slug);
+      setSpecAgents(data ?? []);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingSpec(false);
+    }
+  }, [role.slug]);
+
+  useEffect(() => { fetchSpecialized(); }, [fetchSpecialized]);
+
+  useWebSocket(useCallback((event) => {
+    if (
+      event.type === 'specialized_agent_created' ||
+      event.type === 'specialized_agent_updated' ||
+      event.type === 'specialized_agent_deleted'
+    ) {
+      fetchSpecialized();
+    }
+  }, [fetchSpecialized]));
+
+  const promptHint = role.prompt_hint || '';
+  const hintLines = promptHint.split('\n');
+  const HINT_COLLAPSED_LINES = 6;
+  const showToggle = hintLines.length > HINT_COLLAPSED_LINES;
+  const displayedHint = hintExpanded ? promptHint : hintLines.slice(0, HINT_COLLAPSED_LINES).join('\n');
+
+  return (
+    <>
+      <div className="fixed inset-0 z-50 flex">
+        <div className="flex-1 bg-black/50" onClick={onClose} />
+        <div className="w-[480px] h-full bg-[var(--bg-primary)] border-l border-[var(--border-primary)] flex flex-col animate-[slide-in-right_0.2s_ease-out]">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--border-primary)]">
+            <div className="flex items-center gap-3">
+              {role.icon && <span className="text-xl">{role.icon}</span>}
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+                {role.name}
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onEdit}
+                data-qa="agent-drawer-edit-btn"
+                className="p-1.5 rounded text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
+                title="Edit agent"
+              >
+                <Pencil size={16} />
+              </button>
+              <button
+                onClick={onClose}
+                data-qa="agent-drawer-close-btn"
+                className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+            {/* Description */}
+            <div>
+              <label className="text-xs font-mono text-[var(--text-dim)] mb-2 block">Description</label>
+              {role.description ? (
+                <p className="text-sm text-[var(--text-muted)] leading-relaxed">{role.description}</p>
+              ) : (
+                <p className="text-sm text-[var(--text-dim)] italic">No description</p>
+              )}
+            </div>
+
+            {/* Prompt Hint */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <label className="text-xs font-mono text-[var(--text-dim)]">Prompt Hint</label>
+                {promptHint && (
+                  <span className="text-[10px] font-mono text-[var(--text-dim)]">
+                    {hintLines.length} line{hintLines.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              {promptHint ? (
+                <div>
+                  <div className="rounded-md bg-[#0D0D0D] border border-[#1A1A1A] px-3 py-2.5">
+                    <pre className="text-xs font-mono text-[var(--text-muted)] whitespace-pre-wrap break-words leading-relaxed">
+                      {displayedHint}
+                    </pre>
+                  </div>
+                  {showToggle && (
+                    <button
+                      onClick={() => setHintExpanded(!hintExpanded)}
+                      className="flex items-center gap-1 mt-2 text-xs text-[var(--primary)] hover:text-[var(--primary)]/80 transition-colors"
+                    >
+                      {hintExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                      {hintExpanded ? 'Show less' : 'Show more'}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-[var(--text-dim)] italic">No prompt hint</p>
+              )}
+            </div>
+
+            {/* Specialized Agents */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-xs font-mono text-[var(--text-dim)]">Specialized Agents</label>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--primary)]/10 text-[var(--primary)]">
+                  {specAgents.length}
+                </span>
+              </div>
+
+              {loadingSpec ? (
+                <div className="flex items-center gap-2 py-3">
+                  <Loader2 size={14} className="animate-spin text-[var(--text-dim)]" />
+                  <span className="text-sm text-[var(--text-dim)]">Loading...</span>
+                </div>
+              ) : (
+                <>
+                  {specAgents.length > 0 && (
+                    <div className="space-y-1 mb-3">
+                      {specAgents.map(spec => (
+                        <button
+                          key={spec.id}
+                          onClick={() => navigate(`/agents/${role.slug}/specialized/${spec.slug}`)}
+                          data-qa="agent-drawer-specialized-item"
+                          className="w-full flex items-center justify-between px-3 py-2.5 rounded-md hover:bg-[var(--bg-secondary)] transition-colors text-left"
+                        >
+                          <div>
+                            <p className="text-sm text-[var(--text-primary)]">{spec.name}</p>
+                            <p className="text-[11px] text-[var(--text-dim)]">{spec.skill_count} skill{spec.skill_count !== 1 ? 's' : ''}</p>
+                          </div>
+                          <ChevronRight size={16} className="text-[var(--text-dim)]" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setCreateSpecOpen(true)}
+                    data-qa="agent-drawer-add-specialized-btn"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary)]/10 transition-colors w-full justify-center"
+                    style={{ fontFamily: 'Inter, sans-serif' }}
+                  >
+                    <Plus size={14} />
+                    Add Specialized Agent
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Create Specialized Agent Dialog */}
+      {createSpecOpen && (
+        <EditSpecializedAgentDialog
+          parentSlug={role.slug}
+          onClose={() => setCreateSpecOpen(false)}
+          onSaved={() => {
+            setCreateSpecOpen(false);
+            fetchSpecialized();
+          }}
+        />
+      )}
+    </>
   );
 }
 

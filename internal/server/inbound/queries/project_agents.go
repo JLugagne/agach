@@ -6,7 +6,8 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/converters"
-	"github.com/JLugagne/agach-mcp/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
 	"github.com/gorilla/mux"
 )
 
@@ -45,5 +46,18 @@ func (h *ProjectAgentQueriesHandler) ListProjectAgents(w http.ResponseWriter, r 
 		return
 	}
 
-	h.controller.SendSuccess(w, r, converters.ToPublicAgents(roles))
+	result := make([]pkgserver.AgentResponse, len(roles))
+	for i, role := range roles {
+		skillCount := 0
+		if skills, err := h.queries.ListAgentSkills(r.Context(), role.Slug); err == nil {
+			skillCount = len(skills)
+		}
+		specializedCount := 0
+		if count, err := h.queries.CountSpecializedByParent(r.Context(), role.Slug); err == nil {
+			specializedCount = count
+		}
+		result[i] = converters.ToPublicAgentWithCount(role, skillCount, specializedCount)
+	}
+
+	h.controller.SendSuccess(w, r, result)
 }

@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/JLugagne/agach-mcp/internal/daemon/app"
 	"github.com/JLugagne/agach-mcp/internal/daemon/config"
+	"github.com/JLugagne/agach-mcp/internal/daemon/outbound/sqlite"
 	"github.com/sirupsen/logrus"
 )
 
@@ -48,7 +50,23 @@ func Run() error {
 
 	logger.WithField("server", cfg.BaseURL).Info("Configuration loaded")
 
-	daemon, err := app.New(cfg, logger)
+	dbPath := cfg.SQLitePath()
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
+		return fmt.Errorf("create db directory: %w", err)
+	}
+	db, err := sqlite.NewDB(dbPath)
+	if err != nil {
+		return fmt.Errorf("open sqlite: %w", err)
+	}
+	defer db.Close()
+
+	if err := sqlite.RunMigrations(db); err != nil {
+		return fmt.Errorf("run migrations: %w", err)
+	}
+
+	buildRepo := sqlite.NewBuildRepository(db)
+
+	daemon, err := app.New(cfg, logger, app.WithBuildRepository(buildRepo))
 	if err != nil {
 		return fmt.Errorf("init daemon: %w", err)
 	}

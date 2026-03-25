@@ -47,7 +47,7 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 type testRepos struct {
 	*pg.Repositories
 	projectID          domain.ProjectID
-	featureProjectID   domain.ProjectID
+	featureProjectID   domain.FeatureID
 	todoColumnID       domain.ColumnID
 	inProgressColumnID domain.ColumnID
 	doneColumnID       domain.ColumnID

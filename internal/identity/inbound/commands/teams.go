@@ -6,8 +6,8 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/service"
-	"github.com/JLugagne/agach-mcp/pkg/apierror"
-	"github.com/JLugagne/agach-mcp/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/apierror"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/gorilla/mux"
 )
 
@@ -51,7 +51,7 @@ type setUserRoleRequest struct {
 
 // ListTeams handles GET /api/identity/teams.
 func (h *TeamsHandler) ListTeams(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.actorFromRequest(w, r); !ok {
+	if _, ok := ActorFromRequest(w, r, h.ctrl, h.authQueries); !ok {
 		return
 	}
 	teams, err := h.queries.ListTeams(r.Context())
@@ -68,7 +68,7 @@ func (h *TeamsHandler) ListTeams(w http.ResponseWriter, r *http.Request) {
 
 // CreateTeam handles POST /api/identity/teams.
 func (h *TeamsHandler) CreateTeam(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.ctrl, h.authQueries)
 	if !ok {
 		return
 	}
@@ -100,7 +100,7 @@ func (h *TeamsHandler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 
 // DeleteTeam handles DELETE /api/identity/teams/{id}.
 func (h *TeamsHandler) DeleteTeam(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.ctrl, h.authQueries)
 	if !ok {
 		return
 	}
@@ -133,7 +133,7 @@ func (h *TeamsHandler) DeleteTeam(w http.ResponseWriter, r *http.Request) {
 
 // ListUsers handles GET /api/identity/users.
 func (h *TeamsHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.ctrl, h.authQueries)
 	if !ok {
 		return
 	}
@@ -151,7 +151,7 @@ func (h *TeamsHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 // SetUserTeam handles PUT /api/identity/users/{id}/team.
 func (h *TeamsHandler) SetUserTeam(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.ctrl, h.authQueries)
 	if !ok {
 		return
 	}
@@ -187,7 +187,7 @@ func (h *TeamsHandler) SetUserTeam(w http.ResponseWriter, r *http.Request) {
 
 // RemoveUserFromTeam handles DELETE /api/identity/users/{id}/team.
 func (h *TeamsHandler) RemoveUserFromTeam(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.ctrl, h.authQueries)
 	if !ok {
 		return
 	}
@@ -210,7 +210,7 @@ func (h *TeamsHandler) RemoveUserFromTeam(w http.ResponseWriter, r *http.Request
 
 // SetUserRole handles PUT /api/identity/users/{id}/role.
 func (h *TeamsHandler) SetUserRole(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.ctrl, h.authQueries)
 	if !ok {
 		return
 	}
@@ -235,29 +235,6 @@ func (h *TeamsHandler) SetUserRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *TeamsHandler) actorFromRequest(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {
-	authHeader := r.Header.Get("Authorization")
-	status := http.StatusUnauthorized
-
-	if authHeader != "" {
-		const prefix = "Bearer "
-		if len(authHeader) <= len(prefix) || authHeader[:len(prefix)] != prefix {
-			h.ctrl.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "authorization header must use Bearer scheme"})
-			return domain.Actor{}, false
-		}
-		token := authHeader[len(prefix):]
-		actor, err := h.authQueries.ValidateJWT(r.Context(), token)
-		if err != nil {
-			h.ctrl.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "invalid or expired token"})
-			return domain.Actor{}, false
-		}
-		return actor, true
-	}
-
-	h.ctrl.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "authentication required"})
-	return domain.Actor{}, false
 }
 
 func (h *TeamsHandler) handleTeamError(w http.ResponseWriter, r *http.Request, err error) {

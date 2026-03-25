@@ -8,10 +8,10 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/converters"
-	"github.com/JLugagne/agach-mcp/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
-	"github.com/JLugagne/agach-mcp/pkg/sse"
-	"github.com/JLugagne/agach-mcp/pkg/websocket"
+	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
+	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/gorilla/mux"
 )
 
@@ -61,10 +61,10 @@ func (h *TaskCommandsHandler) CreateTask(w http.ResponseWriter, r *http.Request)
 
 	priority := converters.ToDomainPriority(req.Priority)
 
-	var featureID *domain.ProjectID
+	var featureID *domain.FeatureID
 	if req.FeatureID != nil && *req.FeatureID != "" {
-		pid := domain.ProjectID(*req.FeatureID)
-		featureID = &pid
+		fid := domain.FeatureID(*req.FeatureID)
+		featureID = &fid
 	}
 
 	task, err := h.commands.CreateTask(
@@ -167,14 +167,14 @@ func (h *TaskCommandsHandler) UpdateTask(w http.ResponseWriter, r *http.Request)
 		tokenUsage = &tu
 	}
 
-	var featureID *domain.ProjectID
+	var featureID *domain.FeatureID
 	clearFeature := false
 	if req.FeatureID != nil {
 		if *req.FeatureID == "" {
 			clearFeature = true
 		} else {
-			pid := domain.ProjectID(*req.FeatureID)
-			featureID = &pid
+			fid := domain.FeatureID(*req.FeatureID)
+			featureID = &fid
 		}
 	}
 

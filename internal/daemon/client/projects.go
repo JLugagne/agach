@@ -6,13 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-)
 
-type ProjectInfo struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	GitURL string `json:"git_url"`
-}
+	"github.com/JLugagne/agach-mcp/internal/daemon/domain"
+)
 
 type ProjectClient struct {
 	baseURL    string
@@ -28,7 +24,7 @@ func NewProjectClient(baseURL string) *ProjectClient {
 	}
 }
 
-func (c *ProjectClient) GetProject(ctx context.Context, token, projectID string) (*ProjectInfo, error) {
+func (c *ProjectClient) GetProject(ctx context.Context, token, projectID string) (*domain.ProjectInfo, error) {
 	url := c.baseURL + "/api/projects/" + projectID
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -53,8 +49,8 @@ func (c *ProjectClient) GetProject(ctx context.Context, token, projectID string)
 	}
 
 	var result struct {
-		Status string      `json:"status"`
-		Data   ProjectInfo `json:"data"`
+		Status string           `json:"status"`
+		Data   domain.ProjectInfo `json:"data"`
 	}
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("parse response: %w", err)

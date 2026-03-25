@@ -177,27 +177,27 @@ func (c *Client) CreateProject(req pkgserver.CreateProjectRequest) (*pkgserver.P
 
 // Per-project roles
 
-func (c *Client) ListProjectRoles(projectID string) ([]pkgserver.RoleResponse, error) {
+func (c *Client) ListProjectRoles(projectID string) ([]pkgserver.AgentResponse, error) {
 	resp, err := c.do(http.MethodGet, "/api/projects/"+url.PathEscape(projectID)+"/agents", nil)
 	if err != nil {
 		return nil, err
 	}
-	return decodeResponse[[]pkgserver.RoleResponse](resp)
+	return decodeResponse[[]pkgserver.AgentResponse](resp)
 }
 
-func (c *Client) CreateProjectAgent(projectID string, req pkgserver.CreateRoleRequest) (*pkgserver.RoleResponse, error) {
+func (c *Client) CreateProjectAgent(projectID string, req pkgserver.CreateAgentRequest) (*pkgserver.AgentResponse, error) {
 	resp, err := c.do(http.MethodPost, "/api/projects/"+url.PathEscape(projectID)+"/agents", req)
 	if err != nil {
 		return nil, err
 	}
-	result, err := decodeResponse[pkgserver.RoleResponse](resp)
+	result, err := decodeResponse[pkgserver.AgentResponse](resp)
 	if err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (c *Client) UpdateProjectAgent(projectID, slug string, req pkgserver.UpdateRoleRequest) error {
+func (c *Client) UpdateProjectAgent(projectID, slug string, req pkgserver.UpdateAgentRequest) error {
 	resp, err := c.do(http.MethodPatch, "/api/projects/"+url.PathEscape(projectID)+"/agents/"+url.PathEscape(slug), req)
 	if err != nil {
 		return err

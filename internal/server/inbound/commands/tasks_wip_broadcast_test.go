@@ -25,8 +25,8 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service/servicetest"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/commands"
-	"github.com/JLugagne/agach-mcp/pkg/controller"
-	"github.com/JLugagne/agach-mcp/pkg/websocket"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 )
 
 // newTestTaskHandlerAndHub creates a TaskCommandsHandler together with its Hub,

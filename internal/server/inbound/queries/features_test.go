@@ -20,8 +20,8 @@ import (
 func TestListFeatures(t *testing.T) {
 	t.Run("returns all features when no filter is applied", func(t *testing.T) {
 		projectID := newValidProjectID()
-		feature1ID := newValidProjectID()
-		feature2ID := newValidProjectID()
+		feature1ID := domain.NewFeatureID()
+		feature2ID := domain.NewFeatureID()
 
 		mockQueries := &servicetest.MockQueries{
 			ListFeaturesFunc: func(ctx context.Context, pid domain.ProjectID, statuses []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error) {
@@ -102,7 +102,7 @@ func TestListFeatures(t *testing.T) {
 
 	t.Run("filters features by status", func(t *testing.T) {
 		projectID := newValidProjectID()
-		feature1ID := newValidProjectID()
+		feature1ID := domain.NewFeatureID()
 
 		mockQueries := &servicetest.MockQueries{
 			ListFeaturesFunc: func(ctx context.Context, pid domain.ProjectID, statuses []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error) {
@@ -148,7 +148,7 @@ func TestListFeatures(t *testing.T) {
 // TestGetFeature tests the GetFeature endpoint
 func TestGetFeature(t *testing.T) {
 	t.Run("returns a feature by ID", func(t *testing.T) {
-		featureID := newValidProjectID()
+		featureID := domain.NewFeatureID()
 		projectID := newValidProjectID()
 
 		mockQueries := &servicetest.MockQueries{

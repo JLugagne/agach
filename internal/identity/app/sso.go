@@ -18,19 +18,18 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/repositories/users"
-	identitysvrconfig "github.com/JLugagne/agach-mcp/internal/identity/svrconfig"
 	"github.com/golang-jwt/jwt/v5"
 )
 
 type SSOService struct {
-	cfg    identitysvrconfig.SsoConfig
+	cfg    domain.SsoConfig
 	users  users.UserRepository
 	secret []byte
 	http   *http.Client
 }
 
 // NewSSOService creates an SSO service backed by the provided config and user repository.
-func NewSSOService(cfg identitysvrconfig.SsoConfig, u users.UserRepository, secret []byte) *SSOService {
+func NewSSOService(cfg domain.SsoConfig, u users.UserRepository, secret []byte) *SSOService {
 	return &SSOService{
 		cfg:    cfg,
 		users:  u,
@@ -50,7 +49,7 @@ func (s *SSOService) LoginSSO(ctx context.Context, providerName, code, redirectU
 	return s.loginOIDC(ctx, providerName, prov.OIDC, code, redirectURI)
 }
 
-func (s *SSOService) findProvider(name string) *identitysvrconfig.SsoProvider {
+func (s *SSOService) findProvider(name string) *domain.SsoProvider {
 	for i := range s.cfg.Providers {
 		if s.cfg.Providers[i].Name == name {
 			return &s.cfg.Providers[i]
@@ -87,7 +86,7 @@ type tokenResponse struct {
 	Error   string `json:"error"`
 }
 
-func (s *SSOService) exchangeCode(tokenEndpoint, code, redirectURI string, cfg *identitysvrconfig.OIDCConfig) (string, error) {
+func (s *SSOService) exchangeCode(tokenEndpoint, code, redirectURI string, cfg *domain.OIDCConfig) (string, error) {
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
 		"code":          {code},
@@ -142,7 +141,7 @@ func (s *SSOService) fetchJWKS(jwksURI string) (*jwks, error) {
 	return &ks, nil
 }
 
-func (s *SSOService) validateIDToken(idToken string, disc *oidcDiscovery, cfg *identitysvrconfig.OIDCConfig) (jwt.MapClaims, error) {
+func (s *SSOService) validateIDToken(idToken string, disc *oidcDiscovery, cfg *domain.OIDCConfig) (jwt.MapClaims, error) {
 	unverified, _, err := jwt.NewParser().ParseUnverified(idToken, jwt.MapClaims{})
 	if err != nil {
 		return nil, &domain.Error{Code: "OIDC_INVALID_TOKEN", Message: "invalid id_token"}
@@ -226,7 +225,7 @@ func (s *SSOService) validateIDToken(idToken string, disc *oidcDiscovery, cfg *i
 	return claims, nil
 }
 
-func (s *SSOService) loginOIDC(ctx context.Context, providerName string, cfg *identitysvrconfig.OIDCConfig, code, redirectURI string) (string, string, error) {
+func (s *SSOService) loginOIDC(ctx context.Context, providerName string, cfg *domain.OIDCConfig, code, redirectURI string) (string, string, error) {
 	disc, err := s.discover(cfg.IssuerURL)
 	if err != nil {
 		return "", "", err

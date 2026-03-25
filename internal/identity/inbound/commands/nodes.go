@@ -7,8 +7,8 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/service"
-	"github.com/JLugagne/agach-mcp/pkg/apierror"
-	"github.com/JLugagne/agach-mcp/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/apierror"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/gorilla/mux"
 )
 
@@ -73,7 +73,7 @@ type updateAccessRequest struct {
 
 // ListNodes handles GET /api/nodes.
 func (h *NodesHandler) ListNodes(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.controller, h.authQueries)
 	if !ok {
 		return
 	}
@@ -94,7 +94,7 @@ func (h *NodesHandler) ListNodes(w http.ResponseWriter, r *http.Request) {
 
 // GetNode handles GET /api/nodes/{id}.
 func (h *NodesHandler) GetNode(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.controller, h.authQueries)
 	if !ok {
 		return
 	}
@@ -118,7 +118,7 @@ func (h *NodesHandler) GetNode(w http.ResponseWriter, r *http.Request) {
 
 // RevokeNode handles DELETE /api/nodes/{id}.
 func (h *NodesHandler) RevokeNode(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.controller, h.authQueries)
 	if !ok {
 		return
 	}
@@ -141,7 +141,7 @@ func (h *NodesHandler) RevokeNode(w http.ResponseWriter, r *http.Request) {
 
 // RenameNode handles PATCH /api/nodes/{id}/name.
 func (h *NodesHandler) RenameNode(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.controller, h.authQueries)
 	if !ok {
 		return
 	}
@@ -172,7 +172,7 @@ func (h *NodesHandler) RenameNode(w http.ResponseWriter, r *http.Request) {
 
 // UpdateAccess handles PUT /api/nodes/{id}/access.
 func (h *NodesHandler) UpdateAccess(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.controller, h.authQueries)
 	if !ok {
 		return
 	}
@@ -275,36 +275,4 @@ func (h *NodesHandler) handleNodeError(w http.ResponseWriter, r *http.Request, e
 	default:
 		h.controller.SendError(w, r, err)
 	}
-}
-
-func (h *NodesHandler) actorFromRequest(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {
-	actor, ok := h.extractAuthorizationToken(w, r)
-	return actor, ok
-}
-
-func (h *NodesHandler) extractAuthorizationToken(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		status := http.StatusUnauthorized
-		h.controller.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "authentication required"})
-		return domain.Actor{}, false
-	}
-
-	var token string
-	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-		token = authHeader[7:]
-	} else {
-		status := http.StatusUnauthorized
-		h.controller.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "invalid authorization format"})
-		return domain.Actor{}, false
-	}
-
-	actor, err := h.authQueries.ValidateJWT(r.Context(), token)
-	if err != nil {
-		status := http.StatusUnauthorized
-		h.controller.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "invalid or expired token"})
-		return domain.Actor{}, false
-	}
-
-	return actor, true
 }

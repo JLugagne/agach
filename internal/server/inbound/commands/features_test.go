@@ -13,7 +13,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service/servicetest"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/commands"
 	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
-	"github.com/JLugagne/agach-mcp/pkg/websocket"
+	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +24,7 @@ import (
 func TestCreateFeature(t *testing.T) {
 	t.Run("creates a new feature", func(t *testing.T) {
 		projectID := newValidProjectID()
-		featureID := newValidProjectID()
+		featureID := domain.NewFeatureID()
 
 		mockCommands := &servicetest.MockCommands{
 			CreateFeatureFunc: func(ctx context.Context, pid domain.ProjectID, name, description, createdByRole, createdByAgent string) (domain.Feature, error) {
@@ -80,7 +80,7 @@ func TestCreateFeature(t *testing.T) {
 // TestUpdateFeature tests the UpdateFeature endpoint
 func TestUpdateFeature(t *testing.T) {
 	t.Run("updates a feature", func(t *testing.T) {
-		featureID := newValidProjectID()
+		featureID := domain.NewFeatureID()
 
 		mockCommands := &servicetest.MockCommands{
 			UpdateFeatureFunc: func(ctx context.Context, fid domain.FeatureID, name, description string) error {
@@ -122,7 +122,7 @@ func TestUpdateFeature(t *testing.T) {
 // TestUpdateFeatureStatus tests the UpdateFeatureStatus endpoint
 func TestUpdateFeatureStatus(t *testing.T) {
 	t.Run("updates feature status", func(t *testing.T) {
-		featureID := newValidProjectID()
+		featureID := domain.NewFeatureID()
 
 		mockCommands := &servicetest.MockCommands{
 			UpdateFeatureStatusFunc: func(ctx context.Context, fid domain.FeatureID, status domain.FeatureStatus) error {
@@ -163,7 +163,7 @@ func TestUpdateFeatureStatus(t *testing.T) {
 // TestDeleteFeature tests the DeleteFeature endpoint
 func TestDeleteFeature(t *testing.T) {
 	t.Run("deletes a feature", func(t *testing.T) {
-		featureID := newValidProjectID()
+		featureID := domain.NewFeatureID()
 
 		mockCommands := &servicetest.MockCommands{
 			DeleteFeatureFunc: func(ctx context.Context, fid domain.FeatureID) error {

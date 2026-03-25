@@ -2,19 +2,20 @@ package app
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/JLugagne/agach-mcp/internal/daemon/client"
 	"github.com/JLugagne/agach-mcp/internal/daemon/config"
-	"github.com/JLugagne/agach-mcp/internal/daemon/outbound/sqlite"
+	"github.com/JLugagne/agach-mcp/internal/daemon/domain"
+	"github.com/JLugagne/agach-mcp/internal/daemon/domain/repositories/builds"
 	"github.com/JLugagne/agach-mcp/pkg/daemonws"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/sirupsen/logrus"
 )
+
+var errDockerServiceNotInit = errors.New("docker service not initialized")
 
 type State int
 
@@ -43,38 +44,55 @@ func (s State) String() string {
 	}
 }
 
+// Option configures an App instance.
+type Option func(*App)
+
+// WithBuildRepository injects a pre-built DockerBuildRepository.
+// When provided, initDockerService will not create its own SQLite database.
+func WithBuildRepository(repo builds.DockerBuildRepository) Option {
+	return func(a *App) {
+		a.buildRepo = repo
+	}
+}
+
 type App struct {
 	cfg           *config.Config
 	logger        *logrus.Logger
 	tokenStore    *TokenStore
 	tokens        *Tokens
 	state         State
-	wsClient      *client.WSClient
-	onboarding    *client.OnboardingClient
-	authClient    *client.AuthClient
+	ctx           context.Context
+	wsClient      domain.ServerConnection
+	onboarding    domain.ServerOnboarding
+	authClient    domain.ServerAuth
 	dockerService *DockerService
-	db            *sql.DB
+	buildRepo     builds.DockerBuildRepository
 	gitService    *GitService
-	projectClient *client.ProjectClient
+	projectClient domain.ProjectFetcher
 	chatManager   *ChatManager
 }
 
-func New(cfg *config.Config, logger *logrus.Logger) (*App, error) {
+func New(cfg *config.Config, logger *logrus.Logger, opts ...Option) (*App, error) {
 	tokenStore, err := NewTokenStore()
 	if err != nil {
 		return nil, fmt.Errorf("init token store: %w", err)
 	}
-	return &App{
+	a := &App{
 		cfg:        cfg,
 		logger:     logger,
 		tokenStore: tokenStore,
 		onboarding: client.NewOnboardingClient(cfg.BaseURL),
 		authClient: client.NewAuthClient(cfg.BaseURL),
 		state:      StateInit,
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(a)
+	}
+	return a, nil
 }
 
 func (a *App) Run(ctx context.Context) error {
+	a.ctx = ctx
 	a.logger.Info("Starting daemon")
 
 	tokens, err := a.tokenStore.Load()
@@ -121,29 +139,12 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 func (a *App) initDockerService(ctx context.Context) error {
-	dbPath := a.cfg.SQLitePath()
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
-		return fmt.Errorf("create db directory: %w", err)
-	}
-
-	db, err := sqlite.NewDB(dbPath)
-	if err != nil {
-		return fmt.Errorf("open sqlite: %w", err)
-	}
-	a.db = db
-
-	if err := sqlite.RunMigrations(db); err != nil {
-		return fmt.Errorf("run migrations: %w", err)
-	}
-
-	repo := sqlite.NewBuildRepository(db)
-
 	docker, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
 	if err != nil {
 		a.logger.WithError(err).Warn("Docker client unavailable, builds will fail")
-		a.dockerService = NewDockerService(repo, nil, a.logger)
+		a.dockerService = NewDockerService(a.buildRepo, nil, a.logger)
 	} else {
-		a.dockerService = NewDockerService(repo, docker, a.logger)
+		a.dockerService = NewDockerService(a.buildRepo, docker, a.logger)
 	}
 
 	a.logger.Info("Docker service initialized")
@@ -195,11 +196,13 @@ func (a *App) refreshAccessToken(ctx context.Context) error {
 	return nil
 }
 
-func (a *App) handleWSEvent(event client.WSEvent) {
+func (a *App) handleWSEvent(event domain.WSEvent) {
 	a.logger.WithFields(logrus.Fields{
 		"type":       event.Type,
+		"request_id": event.RequestID,
 		"project_id": event.ProjectID,
-	}).Debug("Received WebSocket event")
+		"data_len":   len(event.Data),
+	}).Info("Received WebSocket event")
 
 	// Handle daemon-targeted docker messages
 	switch event.Type {
@@ -222,12 +225,12 @@ func (a *App) handleWSEvent(event client.WSEvent) {
 	}
 }
 
-func (a *App) handleDockerList(event client.WSEvent) {
+func (a *App) handleDockerList(event domain.WSEvent) {
 	if a.dockerService == nil {
-		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "docker service not initialized"})
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: errDockerServiceNotInit.Error()})
 		return
 	}
-	images, err := a.dockerService.ListImages(context.Background())
+	images, err := a.dockerService.ListImages(a.ctx)
 	if err != nil {
 		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: err.Error()})
 		return
@@ -274,9 +277,9 @@ func (a *App) handleDockerList(event client.WSEvent) {
 	a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeDockerList, Payload: payload})
 }
 
-func (a *App) handleDockerRebuild(event client.WSEvent) {
+func (a *App) handleDockerRebuild(event domain.WSEvent) {
 	if a.dockerService == nil {
-		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "docker service not initialized"})
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: errDockerServiceNotInit.Error()})
 		return
 	}
 	var req struct {
@@ -307,9 +310,9 @@ func (a *App) handleDockerRebuild(event client.WSEvent) {
 	}()
 }
 
-func (a *App) handleDockerLogs(event client.WSEvent) {
+func (a *App) handleDockerLogs(event domain.WSEvent) {
 	if a.dockerService == nil {
-		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "docker service not initialized"})
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: errDockerServiceNotInit.Error()})
 		return
 	}
 	var req struct {
@@ -319,7 +322,7 @@ func (a *App) handleDockerLogs(event client.WSEvent) {
 		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "build_id is required"})
 		return
 	}
-	result, err := a.dockerService.GetBuildLogs(context.Background(), req.BuildID)
+	result, err := a.dockerService.GetBuildLogs(a.ctx, req.BuildID)
 	if err != nil {
 		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: err.Error()})
 		return
@@ -332,9 +335,9 @@ func (a *App) handleDockerLogs(event client.WSEvent) {
 	a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeDockerLogs, Payload: payload})
 }
 
-func (a *App) handleDockerPrune(event client.WSEvent) {
+func (a *App) handleDockerPrune(event domain.WSEvent) {
 	if a.dockerService == nil {
-		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "docker service not initialized"})
+		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: errDockerServiceNotInit.Error()})
 		return
 	}
 
@@ -359,24 +362,34 @@ func (a *App) handleDockerPrune(event client.WSEvent) {
 	}()
 }
 
-func (a *App) handleChatStart(event client.WSEvent) {
+func (a *App) handleChatStart(event domain.WSEvent) {
+	a.logger.WithField("raw_data", string(event.Data)).Info("handleChatStart: received")
 	if a.chatManager == nil {
+		a.logger.Error("handleChatStart: chat manager not initialized")
 		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "chat manager not initialized"})
 		return
 	}
 	var req daemonws.ChatStartRequest
 	if err := json.Unmarshal(event.Data, &req); err != nil {
+		a.logger.WithError(err).WithField("raw_data", string(event.Data)).Error("handleChatStart: failed to unmarshal payload")
 		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "invalid chat.start payload"})
 		return
 	}
+	a.logger.WithFields(logrus.Fields{
+		"project_id":        req.ProjectID,
+		"feature_id":        req.FeatureID,
+		"node_id":           req.NodeID,
+		"resume_session_id": req.ResumeSessionID,
+	}).Info("handleChatStart: parsed request, starting session")
 	if req.ProjectID == "" || req.FeatureID == "" {
+		a.logger.Error("handleChatStart: project_id and feature_id are required")
 		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "project_id and feature_id are required"})
 		return
 	}
 	go a.chatManager.StartSession(context.Background(), event.RequestID, req)
 }
 
-func (a *App) handleChatUserMsg(event client.WSEvent) {
+func (a *App) handleChatUserMsg(event domain.WSEvent) {
 	if a.chatManager == nil {
 		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "chat manager not initialized"})
 		return
@@ -395,7 +408,7 @@ func (a *App) handleChatUserMsg(event client.WSEvent) {
 	}
 }
 
-func (a *App) handleChatEndRequest(event client.WSEvent) {
+func (a *App) handleChatEndRequest(event domain.WSEvent) {
 	if a.chatManager == nil {
 		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "chat manager not initialized"})
 		return
@@ -410,7 +423,7 @@ func (a *App) handleChatEndRequest(event client.WSEvent) {
 	a.chatManager.EndSession(req.SessionID, "user_ended")
 }
 
-func (a *App) handleChatPing(event client.WSEvent) {
+func (a *App) handleChatPing(event domain.WSEvent) {
 	if a.chatManager == nil {
 		a.sendWSResponse(event, daemonws.Message{Type: daemonws.TypeError, Error: "chat manager not initialized"})
 		return
@@ -427,7 +440,7 @@ func (a *App) handleChatPing(event client.WSEvent) {
 	}
 }
 
-func (a *App) sendWSResponse(event client.WSEvent, msg daemonws.Message) {
+func (a *App) sendWSResponse(event domain.WSEvent, msg daemonws.Message) {
 	if msg.RequestID == "" {
 		msg.RequestID = event.RequestID
 	}

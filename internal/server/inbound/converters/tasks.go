@@ -91,11 +91,7 @@ func ToPublicTask(task domain.Task) pkgserver.TaskResponse {
 
 // ToPublicTasks converts []domain.Task to []pkgserver.TaskResponse
 func ToPublicTasks(ts []domain.Task) []pkgserver.TaskResponse {
-	result := make([]pkgserver.TaskResponse, len(ts))
-	for i, t := range ts {
-		result[i] = ToPublicTask(t)
-	}
-	return result
+	return MapSlice(ts, ToPublicTask)
 }
 
 // ToPublicTaskWithDetails converts domain.TaskWithDetails to pkgserver.TaskWithDetailsResponse
@@ -109,11 +105,7 @@ func ToPublicTaskWithDetails(task domain.TaskWithDetails) pkgserver.TaskWithDeta
 
 // ToPublicTasksWithDetails converts []domain.TaskWithDetails to []pkgserver.TaskWithDetailsResponse
 func ToPublicTasksWithDetails(tasks []domain.TaskWithDetails) []pkgserver.TaskWithDetailsResponse {
-	result := make([]pkgserver.TaskWithDetailsResponse, len(tasks))
-	for i, t := range tasks {
-		result[i] = ToPublicTaskWithDetails(t)
-	}
-	return result
+	return MapSlice(tasks, ToPublicTaskWithDetails)
 }
 
 // ToPublicDependencyContext converts domain.DependencyContext to pkgserver.DependencyContextResponse
@@ -128,9 +120,5 @@ func ToPublicDependencyContext(ctx domain.DependencyContext) pkgserver.Dependenc
 
 // ToPublicDependencyContexts converts []domain.DependencyContext to []pkgserver.DependencyContextResponse
 func ToPublicDependencyContexts(contexts []domain.DependencyContext) []pkgserver.DependencyContextResponse {
-	result := make([]pkgserver.DependencyContextResponse, len(contexts))
-	for i, c := range contexts {
-		result[i] = ToPublicDependencyContext(c)
-	}
-	return result
+	return MapSlice(contexts, ToPublicDependencyContext)
 }

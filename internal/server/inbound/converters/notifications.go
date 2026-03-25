@@ -37,9 +37,5 @@ func ToPublicNotification(n domain.Notification) pkgserver.NotificationResponse 
 
 // ToPublicNotifications converts []domain.Notification to []pkgserver.NotificationResponse
 func ToPublicNotifications(ns []domain.Notification) []pkgserver.NotificationResponse {
-	result := make([]pkgserver.NotificationResponse, len(ns))
-	for i, n := range ns {
-		result[i] = ToPublicNotification(n)
-	}
-	return result
+	return MapSlice(ns, ToPublicNotification)
 }

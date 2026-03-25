@@ -84,3 +84,28 @@ Simple 4-level system only:
 - `author_type` field: "agent" or "human"
 - No comment types/categories
 - Auto-comments for system actions (blocking, won't-do, etc.)
+
+## Chat Sessions
+- Feature-scoped chat sessions that spawn Claude CLI processes on the daemon
+- State: active → ended / timeout
+- 30-minute idle TTL with 25-minute warning
+- Token usage tracked per session (input/output/cache_read/cache_write)
+- JSONL capture of full conversation, uploaded to server on session end
+
+## Agent/Role System
+- Global agents (roles) with slugs, icons, colors, tech stacks, prompt templates
+- Project-scoped agent assignment via `project_agents`
+- Specialized agents: variants under a parent agent with specific skill sets
+- Skills: global definitions assignable to agents and specialized agents
+- Agent cloning: duplicate an existing agent with new slug/name
+
+## Notification Triggers
+| Trigger                        | Scope     | Severity  |
+|--------------------------------|-----------|-----------|
+| Feature status → `done`        | project   | `success` |
+| Feature status → `blocked`     | project   | `warning` |
+| Task blocked                   | project   | `warning` |
+| Task won't-do requested        | project   | `warning` |
+| All feature tasks completed    | project   | `success` |
+| Agent build failure            | agent     | `error`   |
+| System maintenance             | global    | `info`    |

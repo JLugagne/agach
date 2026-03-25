@@ -16,10 +16,9 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/identity"
 	service "github.com/JLugagne/agach-mcp/internal/identity/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server"
-	"github.com/JLugagne/agach-mcp/internal/svrconfig"
-	"github.com/JLugagne/agach-mcp/pkg/controller"
-	"github.com/JLugagne/agach-mcp/pkg/middleware"
 	"github.com/JLugagne/agach-mcp/internal/server/ux"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/middleware"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -37,14 +36,14 @@ func main() {
 	})
 
 	if *initConfig {
-		if err := svrconfig.WriteDefault(*configPath); err != nil {
+		if err := writeDefaultConfig(*configPath); err != nil {
 			logger.WithError(err).Fatal("Failed to create config file")
 		}
 		logger.WithField("path", *configPath).Info("Config file created")
 		return
 	}
 
-	cfg, err := svrconfig.Load(*configPath)
+	cfg, err := loadConfig(*configPath)
 	if err != nil {
 		logger.WithError(err).Fatal("Failed to load server config")
 	}
@@ -68,7 +67,7 @@ func main() {
 	runHTTP(logger, pool, cfg, jwtSecret)
 }
 
-func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *svrconfig.Config, jwtSecret []byte) {
+func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *serverConfig, jwtSecret []byte) {
 	httpHost := getEnv("AGACH_HOST", "127.0.0.1")
 	httpPort := getEnv("AGACH_PORT", "8322")
 
@@ -202,7 +201,12 @@ type authValidatorAdapter struct {
 }
 
 func (a *authValidatorAdapter) ValidateJWT(ctx context.Context, token string) (any, error) {
-	return a.q.ValidateJWT(ctx, token)
+	actor, err := a.q.ValidateJWT(ctx, token)
+	if err == nil {
+		return actor, nil
+	}
+	// Fall back to daemon JWT so daemons can call REST APIs
+	return a.q.ValidateDaemonJWT(ctx, token)
 }
 
 func getEnv(key, defaultValue string) string {

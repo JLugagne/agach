@@ -23,9 +23,5 @@ func ToPublicDockerfile(d domain.Dockerfile) pkgserver.DockerfileResponse {
 
 // ToPublicDockerfiles converts a slice of domain Dockerfiles to public API responses.
 func ToPublicDockerfiles(ds []domain.Dockerfile) []pkgserver.DockerfileResponse {
-	result := make([]pkgserver.DockerfileResponse, len(ds))
-	for i, d := range ds {
-		result[i] = ToPublicDockerfile(d)
-	}
-	return result
+	return MapSlice(ds, ToPublicDockerfile)
 }

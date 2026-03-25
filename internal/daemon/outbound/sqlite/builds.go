@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/daemon/domain"
@@ -42,7 +43,7 @@ func (r *buildRepository) FindByID(ctx context.Context, id domain.BuildID) (*dom
 		`SELECT id, dockerfile_slug, version, image_hash, image_size, status, build_log, created_at, completed_at
 		 FROM builds WHERE id = ?`, string(id))
 	b, err := scanBuild(row)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {

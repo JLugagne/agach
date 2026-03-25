@@ -3,7 +3,7 @@ package server
 import (
 	"time"
 
-	"github.com/JLugagne/agach-mcp/pkg/apierror"
+	"github.com/JLugagne/agach-mcp/internal/pkg/apierror"
 )
 
 // CreateProjectRequest represents a request to create a project
@@ -77,25 +77,49 @@ type UpdateAgentRequest struct {
 
 // AgentResponse represents an agent in API responses
 type AgentResponse struct {
-	ID             string    `json:"id"`
-	Slug           string    `json:"slug"`
-	Name           string    `json:"name"`
-	Icon           string    `json:"icon"`
-	Color          string    `json:"color"`
-	Description    string    `json:"description"`
-	TechStack      []string  `json:"tech_stack"`
-	PromptHint     string    `json:"prompt_hint"`
-	PromptTemplate string    `json:"prompt_template"`
-	Content        string    `json:"content"`
-	SkillCount     int       `json:"skill_count"`
-	SortOrder      int       `json:"sort_order"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID               string    `json:"id"`
+	Slug             string    `json:"slug"`
+	Name             string    `json:"name"`
+	Icon             string    `json:"icon"`
+	Color            string    `json:"color"`
+	Description      string    `json:"description"`
+	TechStack        []string  `json:"tech_stack"`
+	PromptHint       string    `json:"prompt_hint"`
+	PromptTemplate   string    `json:"prompt_template"`
+	Content          string    `json:"content"`
+	SkillCount       int       `json:"skill_count"`
+	SpecializedCount int       `json:"specialized_count"`
+	SortOrder        int       `json:"sort_order"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
-// Backward compatibility aliases
-type CreateRoleRequest = CreateAgentRequest
-type UpdateRoleRequest = UpdateAgentRequest
-type RoleResponse = AgentResponse
+// SpecializedAgentResponse represents a specialized agent in API responses
+type SpecializedAgentResponse struct {
+	ID            string    `json:"id"`
+	ParentAgentID string    `json:"parent_agent_id"`
+	ParentSlug    string    `json:"parent_slug"`
+	Slug          string    `json:"slug"`
+	Name          string    `json:"name"`
+	SkillCount    int       `json:"skill_count"`
+	SortOrder     int       `json:"sort_order"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// CreateSpecializedAgentRequest represents a request to create a specialized agent
+type CreateSpecializedAgentRequest struct {
+	Slug       string   `json:"slug" validate:"required,min=1,max=50,slug"`
+	Name       string   `json:"name" validate:"required,min=1,max=100"`
+	SkillSlugs []string `json:"skill_slugs" validate:"max=100,dive,max=50"`
+	SortOrder  int      `json:"sort_order"`
+}
+
+// UpdateSpecializedAgentRequest represents a request to update a specialized agent
+type UpdateSpecializedAgentRequest struct {
+	Name       *string   `json:"name" validate:"omitempty,min=1,max=100"`
+	SkillSlugs *[]string `json:"skill_slugs" validate:"omitempty,max=100,dive,max=50"`
+	SortOrder  *int      `json:"sort_order"`
+}
 
 // CreateSkillRequest represents a request to create a skill
 type CreateSkillRequest struct {
@@ -376,9 +400,6 @@ type CloneAgentRequest struct {
 	NewName string `json:"new_name" validate:"omitempty,max=100"`
 }
 
-// CloneRoleRequest is an alias for backward compatibility
-type CloneRoleRequest = CloneAgentRequest
-
 // AssignAgentToProjectRequest represents a request to assign an agent to a project
 type AssignAgentToProjectRequest struct {
 	AgentSlug string `json:"agent_slug" validate:"required,min=1,max=50"`
@@ -509,12 +530,14 @@ type FeatureWithSummaryResponse struct {
 
 type StartChatSessionRequest struct {
 	ResumeSessionID *string `json:"resume_session_id" validate:"omitempty,entity_id"`
+	NodeID          string  `json:"node_id" validate:"omitempty,max=100"`
 }
 
 type ChatSessionResponse struct {
 	ID               string     `json:"id"`
 	FeatureID        string     `json:"feature_id"`
 	ProjectID        string     `json:"project_id"`
+	NodeID           string     `json:"node_id,omitempty"`
 	State            string     `json:"state"`
 	ClaudeSessionID  string     `json:"claude_session_id,omitempty"`
 	JSONLPath        string     `json:"jsonl_path,omitempty"`
@@ -538,8 +561,6 @@ var (
 		Code:    "INVALID_AGENT_REQUEST",
 		Message: "invalid agent request data",
 	}
-	// Backward compatibility
-	ErrInvalidRoleRequest = ErrInvalidAgentRequest
 	ErrInvalidTaskRequest = &apierror.Error{
 		Code:    "INVALID_TASK_REQUEST",
 		Message: "invalid task request data",
@@ -579,5 +600,9 @@ var (
 	ErrInvalidChatSessionRequest = &apierror.Error{
 		Code:    "INVALID_CHAT_SESSION_REQUEST",
 		Message: "invalid chat session request data",
+	}
+	ErrInvalidSpecializedAgentRequest = &apierror.Error{
+		Code:    "INVALID_SPECIALIZED_AGENT_REQUEST",
+		Message: "invalid specialized agent request data",
 	}
 )

@@ -7,27 +7,30 @@ import (
 
 // ToPublicAgent converts domain.Agent to pkgserver.AgentResponse
 func ToPublicAgent(agent domain.Agent) pkgserver.AgentResponse {
+	return ToPublicAgentWithCount(agent, 0, 0)
+}
+
+// ToPublicAgentWithCount converts domain.Agent to pkgserver.AgentResponse with counts
+func ToPublicAgentWithCount(agent domain.Agent, skillCount, specializedCount int) pkgserver.AgentResponse {
 	return pkgserver.AgentResponse{
-		ID:             string(agent.ID),
-		Slug:           agent.Slug,
-		Name:           agent.Name,
-		Icon:           agent.Icon,
-		Color:          agent.Color,
-		Description:    agent.Description,
-		TechStack:      agent.TechStack,
-		PromptHint:     agent.PromptHint,
-		PromptTemplate: agent.PromptTemplate,
-		Content:        agent.Content,
-		SortOrder:      agent.SortOrder,
-		CreatedAt:      agent.CreatedAt,
+		ID:               string(agent.ID),
+		Slug:             agent.Slug,
+		Name:             agent.Name,
+		Icon:             agent.Icon,
+		Color:            agent.Color,
+		Description:      agent.Description,
+		TechStack:        agent.TechStack,
+		PromptHint:       agent.PromptHint,
+		PromptTemplate:   agent.PromptTemplate,
+		Content:          agent.Content,
+		SkillCount:       skillCount,
+		SpecializedCount: specializedCount,
+		SortOrder:        agent.SortOrder,
+		CreatedAt:        agent.CreatedAt,
 	}
 }
 
 // ToPublicAgents converts []domain.Agent to []pkgserver.AgentResponse
 func ToPublicAgents(agents []domain.Agent) []pkgserver.AgentResponse {
-	result := make([]pkgserver.AgentResponse, len(agents))
-	for i, a := range agents {
-		result[i] = ToPublicAgent(a)
-	}
-	return result
+	return MapSlice(agents, ToPublicAgent)
 }

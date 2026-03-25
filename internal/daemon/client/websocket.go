@@ -10,41 +10,35 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
+
+	"github.com/JLugagne/agach-mcp/internal/daemon/domain"
+	wsutil "github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 )
 
 const (
-	writeWait      = 10 * time.Second
-	pongWait       = 60 * time.Second
-	pingPeriod     = (pongWait * 9) / 10
-	maxMessageSize = 4 * 1024
-	reconnectMin   = 1 * time.Second
-	reconnectMax   = 30 * time.Second
+	reconnectMin = 1 * time.Second
+	reconnectMax = 30 * time.Second
 )
 
-type WSEvent struct {
-	Type      string          `json:"type"`
-	RequestID string          `json:"request_id,omitempty"`
-	ProjectID string          `json:"project_id,omitempty"`
-	Data      json.RawMessage `json:"data"`
-}
-
-type WSEventHandler func(event WSEvent)
+type WSEvent = domain.WSEvent
+type WSEventHandler = domain.WSEventHandler
 
 type WSClient struct {
 	wsURL   string
 	token   string
 	logger  *logrus.Logger
-	handler WSEventHandler
+	handler domain.WSEventHandler
 
 	conn       *websocket.Conn
 	connMu     sync.Mutex
+	writeMu    sync.Mutex // protects all conn writes
 	connected  bool
 	doneCh     chan struct{}
 	stopCh     chan struct{}
 	reconnects int
 }
 
-func NewWSClient(wsURL, token string, logger *logrus.Logger, handler WSEventHandler) *WSClient {
+func NewWSClient(wsURL, token string, logger *logrus.Logger, handler domain.WSEventHandler) *WSClient {
 	return &WSClient{
 		wsURL:   wsURL,
 		token:   token,
@@ -120,7 +114,9 @@ func (c *WSClient) Send(msg interface{}) error {
 	if !connected || conn == nil {
 		return fmt.Errorf("not connected")
 	}
-	_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	_ = conn.SetWriteDeadline(time.Now().Add(wsutil.WriteWait))
 	return conn.WriteJSON(msg)
 }
 
@@ -152,10 +148,10 @@ func (c *WSClient) readPump() {
 	stopCh := c.stopCh
 	c.connMu.Unlock()
 
-	conn.SetReadLimit(maxMessageSize)
-	_ = conn.SetReadDeadline(time.Now().Add(pongWait))
+	conn.SetReadLimit(wsutil.MaxMessageSize)
+	_ = conn.SetReadDeadline(time.Now().Add(wsutil.PongWait))
 	conn.SetPongHandler(func(string) error {
-		return conn.SetReadDeadline(time.Now().Add(pongWait))
+		return conn.SetReadDeadline(time.Now().Add(wsutil.PongWait))
 	})
 
 	for {
@@ -170,16 +166,26 @@ func (c *WSClient) readPump() {
 			select {
 			case <-stopCh:
 			default:
-				c.logger.WithError(err).Debug("websocket read error")
+				c.logger.WithError(err).Warn("websocket read error")
 			}
 			return
 		}
 
-		var event WSEvent
+		c.logger.WithFields(logrus.Fields{
+			"raw_msg": string(msg),
+			"msg_len": len(msg),
+		}).Info("readPump: received message")
+
+		var event domain.WSEvent
 		if err := json.Unmarshal(msg, &event); err != nil {
-			c.logger.WithError(err).Warn("failed to parse ws event")
+			c.logger.WithError(err).WithField("raw_msg", string(msg)).Warn("failed to parse ws event")
 			continue
 		}
+
+		c.logger.WithFields(logrus.Fields{
+			"type":     event.Type,
+			"data_len": len(event.Data),
+		}).Info("readPump: parsed event, dispatching to handler")
 
 		if c.handler != nil {
 			c.handler(event)
@@ -193,20 +199,25 @@ func (c *WSClient) writePump(readDone <-chan struct{}) {
 	stopCh := c.stopCh
 	c.connMu.Unlock()
 
-	ticker := time.NewTicker(pingPeriod)
+	ticker := time.NewTicker(wsutil.PingPeriod)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-stopCh:
-			_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
+			c.writeMu.Lock()
+			_ = conn.SetWriteDeadline(time.Now().Add(wsutil.WriteWait))
 			_ = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			c.writeMu.Unlock()
 			return
 		case <-readDone:
 			return
 		case <-ticker.C:
-			_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			c.writeMu.Lock()
+			_ = conn.SetWriteDeadline(time.Now().Add(wsutil.WriteWait))
+			err := conn.WriteMessage(websocket.PingMessage, nil)
+			c.writeMu.Unlock()
+			if err != nil {
 				c.logger.WithError(err).Debug("websocket ping error")
 				return
 			}

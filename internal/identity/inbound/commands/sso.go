@@ -12,9 +12,8 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/service"
-	identitysvrconfig "github.com/JLugagne/agach-mcp/internal/identity/svrconfig"
-	"github.com/JLugagne/agach-mcp/pkg/apierror"
-	"github.com/JLugagne/agach-mcp/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/apierror"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/gorilla/mux"
 )
 
@@ -23,7 +22,7 @@ type SSOCommandsHandler struct {
 	commands service.AuthCommands
 	queries  service.AuthQueries
 	ctrl     *controller.Controller
-	cfg      identitysvrconfig.SsoConfig
+	cfg      domain.SsoConfig
 	secret   []byte
 }
 
@@ -32,7 +31,7 @@ func NewSSOCommandsHandler(
 	cmds service.AuthCommands,
 	qrs service.AuthQueries,
 	ctrl *controller.Controller,
-	cfg identitysvrconfig.SsoConfig,
+	cfg domain.SsoConfig,
 	secret []byte,
 ) *SSOCommandsHandler {
 	return &SSOCommandsHandler{
@@ -185,7 +184,7 @@ func (h *SSOCommandsHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/#sso_token="+accessToken, http.StatusFound)
 }
 
-func (h *SSOCommandsHandler) findProvider(name string) *identitysvrconfig.SsoProvider {
+func (h *SSOCommandsHandler) findProvider(name string) *domain.SsoProvider {
 	for i := range h.cfg.Providers {
 		if h.cfg.Providers[i].Name == name {
 			return &h.cfg.Providers[i]

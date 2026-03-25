@@ -1,36 +1,13 @@
 package domain
 
-import "errors"
+import "github.com/JLugagne/agach-mcp/pkg/domainerror"
 
-// Error represents a domain error with a code and message
-type Error struct {
-	Code    string
-	Message string
-	Err     error
-}
+// Error is the domain error type, shared via domainerror.
+type Error = domainerror.Error
 
-func (e *Error) Error() string {
-	return e.Message
-}
-
-func (e *Error) Unwrap() error {
-	return e.Err
-}
-
-// ErrorCode returns the domain error code, satisfying controller.CodedError.
-func (e *Error) ErrorCode() string {
-	return e.Code
-}
-
-// ErrorMessage returns the domain error message, satisfying controller.CodedError.
-func (e *Error) ErrorMessage() string {
-	return e.Message
-}
-
-// IsDomainError checks if an error is a domain error
+// IsDomainError checks if an error is a domain error.
 func IsDomainError(err error) bool {
-	var domainErr *Error
-	return errors.As(err, &domainErr)
+	return domainerror.IsDomainError(err)
 }
 
 // Common domain errors
@@ -79,13 +56,13 @@ var (
 		Message: "agent name is required",
 	}
 
-	// Backward compatibility aliases
-	ErrRoleNotFound     = ErrAgentNotFound
+	// Aliases for backward compatibility — kept until _test.go files are updated.
+	ErrRoleNotFound      = ErrAgentNotFound
 	ErrRoleAlreadyExists = ErrAgentAlreadyExists
-	ErrRoleInUse        = ErrAgentInUse
-	ErrInvalidRoleData  = ErrInvalidAgentData
-	ErrRoleSlugRequired = ErrAgentSlugRequired
-	ErrRoleNameRequired = ErrAgentNameRequired
+	ErrRoleInUse         = ErrAgentInUse
+	ErrInvalidRoleData   = ErrInvalidAgentData
+	ErrRoleSlugRequired  = ErrAgentSlugRequired
+	ErrRoleNameRequired  = ErrAgentNameRequired
 
 	// Task errors
 	ErrTaskNotFound = &Error{
@@ -254,6 +231,24 @@ var (
 	ErrFeatureNotInProject = &Error{
 		Code:    "FEATURE_NOT_IN_PROJECT",
 		Message: "feature does not belong to this project",
+	}
+
+	// Specialized agent errors
+	ErrSpecializedAgentNotFound = &Error{
+		Code:    "SPECIALIZED_AGENT_NOT_FOUND",
+		Message: "specialized agent not found",
+	}
+	ErrSpecializedAgentAlreadyExists = &Error{
+		Code:    "SPECIALIZED_AGENT_ALREADY_EXISTS",
+		Message: "specialized agent already exists with this slug",
+	}
+	ErrSpecializedAgentSlugRequired = &Error{
+		Code:    "SPECIALIZED_AGENT_SLUG_REQUIRED",
+		Message: "specialized agent slug is required",
+	}
+	ErrSpecializedAgentNameRequired = &Error{
+		Code:    "SPECIALIZED_AGENT_NAME_REQUIRED",
+		Message: "specialized agent name is required",
 	}
 
 	// Dockerfile errors

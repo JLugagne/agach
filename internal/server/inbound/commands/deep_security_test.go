@@ -43,9 +43,9 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service/servicetest"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/commands"
-	"github.com/JLugagne/agach-mcp/pkg/controller"
-	"github.com/JLugagne/agach-mcp/pkg/sse"
-	"github.com/JLugagne/agach-mcp/pkg/websocket"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
+	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -66,7 +66,7 @@ func newDeepSecurityRouter(t *testing.T, app commands.App) *mux.Router {
 	ctrl := controller.NewController(logger)
 	hub := websocket.NewHub(logger)
 	go hub.Run()
-	sseHub := sse.NewHub()
+	sseHub := sse.NewHub(logrus.New())
 
 	router := mux.NewRouter()
 	commands.NewRouter(router, app, ctrl, hub, sseHub, "")
@@ -359,7 +359,7 @@ func TestSecurity_SEC03_PromptTemplateBoundedByBodyLimit_GREEN(t *testing.T) {
 	ctrl := controller.NewController(logger)
 	hub := websocket.NewHub(logger)
 	go hub.Run()
-	sseHub := sse.NewHub()
+	sseHub := sse.NewHub(logrus.New())
 	router := mux.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -416,7 +416,7 @@ func TestSecurity_SEC04_UnboundedArraysPassValidation_RED(t *testing.T) {
 	var receivedTagsCount int
 
 	cmds := &servicetest.MockCommands{
-		CreateTaskFunc: func(ctx context.Context, pID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.ProjectID) (domain.Task, error) {
+		CreateTaskFunc: func(ctx context.Context, pID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.FeatureID) (domain.Task, error) {
 			createCalled = true
 			receivedContextFilesCount = len(contextFiles)
 			receivedTagsCount = len(tags)
@@ -474,7 +474,7 @@ func TestSecurity_SEC04_UnboundedArraysPassValidation_RED(t *testing.T) {
 func TestSecurity_SEC04_ReasonableSizedArraysAccepted_GREEN(t *testing.T) {
 	createCalled := false
 	cmds := &servicetest.MockCommands{
-		CreateTaskFunc: func(ctx context.Context, pID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.ProjectID) (domain.Task, error) {
+		CreateTaskFunc: func(ctx context.Context, pID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.FeatureID) (domain.Task, error) {
 			createCalled = true
 			return domain.Task{ID: domain.NewTaskID(), Title: title}, nil
 		},
@@ -527,7 +527,7 @@ func TestSecurity_SEC05_NegativeTokenCountsAccepted_RED(t *testing.T) {
 	var receivedTokenUsage *domain.TokenUsage
 
 	cmds := &servicetest.MockCommands{
-		UpdateTaskFunc: func(ctx context.Context, pID domain.ProjectID, tID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.ProjectID, clearFeature bool) error {
+		UpdateTaskFunc: func(ctx context.Context, pID domain.ProjectID, tID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.FeatureID, clearFeature bool) error {
 			updateCalled = true
 			receivedTokenUsage = tokenUsage
 			return nil
@@ -574,7 +574,7 @@ func TestSecurity_SEC05_NegativeTokenCountsAccepted_RED(t *testing.T) {
 func TestSecurity_SEC05_PositiveTokenCountsAccepted_GREEN(t *testing.T) {
 	updateCalled := false
 	cmds := &servicetest.MockCommands{
-		UpdateTaskFunc: func(ctx context.Context, pID domain.ProjectID, tID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.ProjectID, clearFeature bool) error {
+		UpdateTaskFunc: func(ctx context.Context, pID domain.ProjectID, tID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.FeatureID, clearFeature bool) error {
 			updateCalled = true
 			return nil
 		},
@@ -744,7 +744,7 @@ func TestSecurity_SEC08_ModelFieldUnbounded_RED(t *testing.T) {
 	var receivedModelLen int
 
 	cmds := &servicetest.MockCommands{
-		UpdateTaskFunc: func(ctx context.Context, pID domain.ProjectID, tID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.ProjectID, clearFeature bool) error {
+		UpdateTaskFunc: func(ctx context.Context, pID domain.ProjectID, tID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.FeatureID, clearFeature bool) error {
 			updateCalled = true
 			if tokenUsage != nil {
 				receivedModelLen = len(tokenUsage.Model)
@@ -791,7 +791,7 @@ func TestSecurity_SEC08_ModelFieldUnbounded_RED(t *testing.T) {
 func TestSecurity_SEC08_ReasonableModelNameAccepted_GREEN(t *testing.T) {
 	updateCalled := false
 	cmds := &servicetest.MockCommands{
-		UpdateTaskFunc: func(ctx context.Context, pID domain.ProjectID, tID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.ProjectID, clearFeature bool) error {
+		UpdateTaskFunc: func(ctx context.Context, pID domain.ProjectID, tID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.FeatureID, clearFeature bool) error {
 			updateCalled = true
 			return nil
 		},
@@ -966,7 +966,7 @@ func TestSecurity_SEC10_CompleteTaskSwallowsHumanEstimateError_RED(t *testing.T)
 			completeCalled = true
 			return nil // CompleteTask itself succeeds.
 		},
-		UpdateTaskFunc: func(ctx context.Context, pID domain.ProjectID, tID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.ProjectID, clearFeature bool) error {
+		UpdateTaskFunc: func(ctx context.Context, pID domain.ProjectID, tID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.FeatureID, clearFeature bool) error {
 			updateCalled = true
 			return updateErr // Saving the estimate fails.
 		},
@@ -1024,7 +1024,7 @@ func TestSecurity_SEC10_CompleteTaskWithoutHumanEstimate_GREEN(t *testing.T) {
 			completeCalled = true
 			return nil
 		},
-		UpdateTaskFunc: func(ctx context.Context, pID domain.ProjectID, tID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.ProjectID, clearFeature bool) error {
+		UpdateTaskFunc: func(ctx context.Context, pID domain.ProjectID, tID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.FeatureID, clearFeature bool) error {
 			updateCalled = true
 			return nil
 		},

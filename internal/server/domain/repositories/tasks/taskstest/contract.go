@@ -43,7 +43,7 @@ type MockTaskRepository struct {
 	ReorderTaskFunc               func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error
 	GetTimelineFunc               func(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error)
 	UpdateSessionIDFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
-	GetColdStartStatsFunc         func(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error)
+	GetColdStartStatsFunc         func(ctx context.Context, projectID domain.ProjectID) ([]domain.AgentColdStartStat, error)
 	GetModelTokenStatsFunc        func(ctx context.Context, projectID domain.ProjectID) ([]domain.ModelTokenStat, error)
 }
 
@@ -173,7 +173,7 @@ func (m *MockTaskRepository) UpdateSessionID(ctx context.Context, projectID doma
 	return m.UpdateSessionIDFunc(ctx, projectID, taskID, sessionID)
 }
 
-func (m *MockTaskRepository) GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.RoleColdStartStat, error) {
+func (m *MockTaskRepository) GetColdStartStats(ctx context.Context, projectID domain.ProjectID) ([]domain.AgentColdStartStat, error) {
 	if m.GetColdStartStatsFunc == nil {
 		panic("called not defined GetColdStartStatsFunc")
 	}

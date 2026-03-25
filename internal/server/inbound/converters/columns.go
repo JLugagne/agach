@@ -30,9 +30,5 @@ func ToPublicColumn(column domain.Column) pkgserver.ColumnResponse {
 
 // ToPublicColumns converts []domain.Column to []pkgserver.ColumnResponse
 func ToPublicColumns(columns []domain.Column) []pkgserver.ColumnResponse {
-	result := make([]pkgserver.ColumnResponse, len(columns))
-	for i, c := range columns {
-		result[i] = ToPublicColumn(c)
-	}
-	return result
+	return MapSlice(columns, ToPublicColumn)
 }

@@ -45,16 +45,13 @@ func ToPublicProject(project domain.Project) pkgserver.ProjectResponse {
 
 // ToPublicProjects converts []domain.Project to []pkgserver.ProjectResponse
 func ToPublicProjects(projects []domain.Project) []pkgserver.ProjectResponse {
-	result := make([]pkgserver.ProjectResponse, len(projects))
-	for i, p := range projects {
-		result[i] = ToPublicProject(p)
-	}
-	return result
+	return MapSlice(projects, ToPublicProject)
 }
 
 // ToPublicProjectSummary converts domain.ProjectSummary to pkgserver.ProjectSummaryResponse
 func ToPublicProjectSummary(summary domain.ProjectSummary) pkgserver.ProjectSummaryResponse {
 	return pkgserver.ProjectSummaryResponse{
+		BacklogCount:    summary.BacklogCount,
 		TodoCount:       summary.TodoCount,
 		InProgressCount: summary.InProgressCount,
 		DoneCount:       summary.DoneCount,

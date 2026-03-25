@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { listAgents, assignAgentToProject } from '../lib/api';
-import type { AgentResponse } from '../lib/types';
+import { listAgents, listSpecializedAgents, assignAgentToProject } from '../lib/api';
+import type { AgentResponse, SpecializedAgentResponse } from '../lib/types';
+
+interface AgentOption {
+  slug: string;
+  label: string;
+  groupLabel?: string;
+}
 
 interface AddAgentToProjectDialogProps {
   projectId: string;
@@ -11,17 +17,54 @@ interface AddAgentToProjectDialogProps {
 }
 
 export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onClose, onSuccess }: AddAgentToProjectDialogProps) {
-  const [allRoles, setAllRoles] = useState<AgentResponse[]>([]);
+  const [options, setOptions] = useState<AgentOption[]>([]);
   const [selectedSlug, setSelectedSlug] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    listAgents().then(data => {
-      setAllRoles((data ?? []).filter(r => !assignedSlugs.has(r.slug)));
-      setLoading(false);
-    });
+    (async () => {
+      try {
+        const agents = (await listAgents()) ?? [];
+        const available = agents.filter(r => !assignedSlugs.has(r.slug));
+
+        // Fetch specialized agents for each parent
+        const specResults = await Promise.all(
+          available.map(async (agent): Promise<{ agent: AgentResponse; specs: SpecializedAgentResponse[] }> => {
+            try {
+              const specs = await listSpecializedAgents(agent.slug);
+              return { agent, specs: specs ?? [] };
+            } catch {
+              return { agent, specs: [] };
+            }
+          })
+        );
+
+        const opts: AgentOption[] = [];
+        for (const { agent, specs } of specResults) {
+          if (specs.length === 0) {
+            // No specializations -- list the base agent directly
+            opts.push({ slug: agent.slug, label: agent.name });
+          } else {
+            // Has specializations -- group them under the parent name
+            for (const spec of specs) {
+              opts.push({
+                slug: spec.slug,
+                label: `${agent.name} > ${spec.name}`,
+                groupLabel: agent.name,
+              });
+            }
+          }
+        }
+
+        setOptions(opts);
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [assignedSlugs]);
 
   const handleAdd = async () => {
@@ -49,7 +92,7 @@ export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onCl
           <div className="flex justify-center py-6">
             <Loader2 className="animate-spin text-[var(--text-dim)]" size={20} />
           </div>
-        ) : allRoles.length === 0 ? (
+        ) : options.length === 0 ? (
           <p className="text-sm text-[var(--text-muted)] mb-4">
             All global agents are already assigned to this project.
           </p>
@@ -63,8 +106,8 @@ export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onCl
               className="w-full bg-[var(--bg-primary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]/50"
             >
               <option value="">Select an agent...</option>
-              {allRoles.map(r => (
-                <option key={r.slug} value={r.slug}>{r.name}</option>
+              {options.map(opt => (
+                <option key={opt.slug} value={opt.slug}>{opt.label}</option>
               ))}
             </select>
           </div>
@@ -82,7 +125,7 @@ export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onCl
           >
             Cancel
           </button>
-          {allRoles.length > 0 && (
+          {options.length > 0 && (
             <button
               onClick={handleAdd}
               disabled={!selectedSlug || saving}

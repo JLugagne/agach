@@ -3,13 +3,12 @@ package commands
 import (
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/service"
-	"github.com/JLugagne/agach-mcp/pkg/apierror"
-	"github.com/JLugagne/agach-mcp/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/apierror"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/gorilla/mux"
 )
 
@@ -56,7 +55,7 @@ type generateCodeResponse struct {
 // GenerateCode handles POST /api/onboarding/codes
 func (h *OnboardingHandler) GenerateCode(w http.ResponseWriter, r *http.Request) {
 	// Require authentication
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.controller, h.authQueries)
 	if !ok {
 		return
 	}
@@ -181,21 +180,3 @@ func (h *OnboardingHandler) RefreshDaemonToken(w http.ResponseWriter, r *http.Re
 	})
 }
 
-func (h *OnboardingHandler) actorFromRequest(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {
-	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
-	if authHeader == "" {
-		status := http.StatusUnauthorized
-		h.controller.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "authentication required"})
-		return domain.Actor{}, false
-	}
-
-	token := strings.TrimPrefix(authHeader, "Bearer ")
-	actor, err := h.authQueries.ValidateJWT(r.Context(), token)
-	if err != nil {
-		status := http.StatusUnauthorized
-		h.controller.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "invalid or expired token"})
-		return domain.Actor{}, false
-	}
-
-	return actor, true
-}

@@ -3,6 +3,7 @@ package pg
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
@@ -53,9 +54,14 @@ func (r *pgOnboardingCodeRepository) MarkUsed(ctx context.Context, codeID domain
 	qCtx, cancel := r.ctx(ctx)
 	defer cancel()
 
-	// Fetch the code to check state
-	row := r.pool.QueryRow(qCtx, `
-		SELECT id, used_at, expires_at FROM onboarding_codes WHERE id = $1`,
+	tx, err := r.pool.Begin(qCtx)
+	if err != nil {
+		return fmt.Errorf("mark used: begin tx: %w", err)
+	}
+	defer tx.Rollback(qCtx) //nolint:errcheck
+
+	row := tx.QueryRow(qCtx, `
+		SELECT id, used_at, expires_at FROM onboarding_codes WHERE id = $1 FOR UPDATE`,
 		uuid.UUID(codeID),
 	)
 	var (
@@ -78,13 +84,16 @@ func (r *pgOnboardingCodeRepository) MarkUsed(ctx context.Context, codeID domain
 
 	now := time.Now()
 	nid := uuid.UUID(nodeID)
-	_, err := r.pool.Exec(qCtx, `
+	_, err = tx.Exec(qCtx, `
 		UPDATE onboarding_codes SET used_at = $2, used_by_node_id = $3 WHERE id = $1`,
 		uuid.UUID(codeID),
 		now,
 		nid,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return tx.Commit(qCtx)
 }
 
 func (r *pgOnboardingCodeRepository) DeleteExpired(ctx context.Context) (int64, error) {

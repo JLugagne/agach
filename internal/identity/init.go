@@ -8,11 +8,10 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/identity/app"
 	identitydomain "github.com/JLugagne/agach-mcp/internal/identity/domain"
-	identitycmds "github.com/JLugagne/agach-mcp/internal/identity/inbound/commands"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/service"
+	identitycmds "github.com/JLugagne/agach-mcp/internal/identity/inbound/commands"
 	"github.com/JLugagne/agach-mcp/internal/identity/outbound/pg"
-	identitysvrconfig "github.com/JLugagne/agach-mcp/internal/identity/svrconfig"
-	"github.com/JLugagne/agach-mcp/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -23,7 +22,7 @@ import (
 type Config struct {
 	Logger       *logrus.Logger
 	JWTSecret    []byte
-	SSO          identitysvrconfig.SsoConfig
+	SSO          identitydomain.SsoConfig
 	DaemonJWTTTL time.Duration
 }
 
@@ -36,7 +35,7 @@ type System struct {
 	NodeCommands       service.NodeCommands
 	NodeQueries        service.NodeQueries
 	OnboardingCommands service.OnboardingCommands
-	SSOConfig          identitysvrconfig.SsoConfig
+	SSOConfig          identitydomain.SsoConfig
 	JWTSecret          []byte
 }
 
@@ -69,7 +68,7 @@ func Init(ctx context.Context, cfg Config, pool *pgxpool.Pool) (*System, error) 
 
 	daemonTTL := cfg.DaemonJWTTTL
 	if daemonTTL == 0 {
-		daemonTTL = 30 * 24 * time.Hour
+		daemonTTL = identitydomain.DefaultDaemonJWTTTL
 	}
 	onboardingSvc := app.NewOnboardingService(repos.OnboardingCodes, repos.Nodes, cfg.JWTSecret, daemonTTL)
 	nodeCmds := app.NewNodeService(repos.Nodes, repos.NodeAccess)

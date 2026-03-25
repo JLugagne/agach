@@ -4,23 +4,22 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/service"
-	"github.com/JLugagne/agach-mcp/pkg/apierror"
-	"github.com/JLugagne/agach-mcp/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/apierror"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/gorilla/mux"
 	"golang.org/x/time/rate"
 )
 
 const (
-	refreshCookieName      = "refresh_token"
-	refreshCookiePath      = "/api/auth/refresh"
-	refreshCookieTTL       = 7 * 24 * time.Hour
-	rememberMeCookieTTL    = 30 * 24 * time.Hour
+	refreshCookieName   = "refresh_token"
+	refreshCookiePath   = "/api/auth/refresh"
+	refreshCookieTTL    = domain.DefaultRefreshTokenTTL
+	rememberMeCookieTTL = domain.DefaultRememberMeTokenTTL
 )
 
 // AuthCommandsHandler handles authentication HTTP endpoints.
@@ -185,7 +184,7 @@ func (h *AuthCommandsHandler) Logout(w http.ResponseWriter, r *http.Request) {
 
 // GetMe handles GET /api/auth/me.
 func (h *AuthCommandsHandler) GetMe(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.controller, h.queries)
 	if !ok {
 		return
 	}
@@ -201,7 +200,7 @@ func (h *AuthCommandsHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 
 // UpdateProfile handles PATCH /api/auth/me.
 func (h *AuthCommandsHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.controller, h.queries)
 	if !ok {
 		return
 	}
@@ -223,7 +222,7 @@ func (h *AuthCommandsHandler) UpdateProfile(w http.ResponseWriter, r *http.Reque
 
 // ChangePassword handles POST /api/auth/me/password.
 func (h *AuthCommandsHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
-	actor, ok := h.actorFromRequest(w, r)
+	actor, ok := ActorFromRequest(w, r, h.controller, h.queries)
 	if !ok {
 		return
 	}
@@ -245,31 +244,6 @@ func (h *AuthCommandsHandler) ChangePassword(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// ActorFromRequest extracts the actor from the Authorization header.
-// Returns (actor, true) on success; writes an error response and returns (zero, false) on failure.
-func (h *AuthCommandsHandler) ActorFromRequest(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {
-	return h.actorFromRequest(w, r)
-}
-
-func (h *AuthCommandsHandler) actorFromRequest(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {
-	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
-
-	status := http.StatusUnauthorized
-
-	if authHeader != "" {
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-		actor, err := h.queries.ValidateJWT(r.Context(), token)
-		if err != nil {
-			h.controller.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "invalid or expired token"})
-			return domain.Actor{}, false
-		}
-		return actor, true
-	}
-
-	h.controller.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: "authentication required"})
-	return domain.Actor{}, false
 }
 
 func (h *AuthCommandsHandler) handleAuthError(w http.ResponseWriter, r *http.Request, err error) {

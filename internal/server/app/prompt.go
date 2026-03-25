@@ -21,29 +21,29 @@ import (
 // It resolves all {{slot}} variables with live data from the project, task, role,
 // dependencies, and optionally reads context_files from disk.
 func (a *App) RenderPrompt(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (string, error) {
-	logger := a.logger.WithContext(ctx).WithFields(map[string]interface{}{
+	logger := a.TaskService.logger.WithContext(ctx).WithFields(map[string]interface{}{
 		"projectID": projectID,
 		"taskID":    taskID,
 	})
 
 	// Load task
-	task, err := a.tasks.FindByID(ctx, projectID, taskID)
+	task, err := a.TaskService.tasks.FindByID(ctx, projectID, taskID)
 	if err != nil || task == nil {
 		return "", errors.Join(domain.ErrTaskNotFound, err)
 	}
 
 	// Load project
-	project, err := a.projects.FindByID(ctx, projectID)
+	project, err := a.ProjectService.projects.FindByID(ctx, projectID)
 	if err != nil || project == nil {
 		return "", errors.Join(domain.ErrProjectNotFound, err)
 	}
 
 	// Load role template — try project-scoped first, fall back to global
-	var role *domain.Role
+	var role *domain.Agent
 	if task.AssignedRole != "" {
-		role, _ = a.agents.FindBySlugInProject(ctx, projectID, task.AssignedRole)
+		role, _ = a.AgentService.agents.FindBySlugInProject(ctx, projectID, task.AssignedRole)
 		if role == nil {
-			role, _ = a.agents.FindBySlug(ctx, task.AssignedRole)
+			role, _ = a.AgentService.agents.FindBySlug(ctx, task.AssignedRole)
 		}
 	}
 
@@ -58,7 +58,7 @@ func (a *App) RenderPrompt(ctx context.Context, projectID domain.ProjectID, task
 	}
 
 	// Load dependency tasks
-	depTasks, err := a.dependencies.GetDependencyContext(ctx, projectID, taskID)
+	depTasks, err := a.DependencyService.dependencies.GetDependencyContext(ctx, projectID, taskID)
 	if err != nil {
 		depTasks = nil
 	}
@@ -71,10 +71,10 @@ func (a *App) RenderPrompt(ctx context.Context, projectID domain.ProjectID, task
 	}
 
 	// We need the full Task objects for role-keyed access — fetch them
-	fullDepTasks, err := a.dependencies.List(ctx, projectID, taskID)
+	fullDepTasks, err := a.DependencyService.dependencies.List(ctx, projectID, taskID)
 	if err == nil {
 		for _, depRef := range fullDepTasks {
-			depTask, ferr := a.tasks.FindByID(ctx, projectID, depRef.DependsOnTaskID)
+			depTask, ferr := a.TaskService.tasks.FindByID(ctx, projectID, depRef.DependsOnTaskID)
 			if ferr == nil && depTask != nil && depTask.AssignedRole != "" {
 				depByRole[depTask.AssignedRole] = domain.DependencyContext{
 					TaskID:            depTask.ID,
@@ -278,7 +278,7 @@ func extractSignatures(paths []string) string {
 }
 
 // inferTestCommand tries to determine the test command from the role tech stack.
-func inferTestCommand(role *domain.Role) string {
+func inferTestCommand(role *domain.Agent) string {
 	if role != nil {
 		for _, tech := range role.TechStack {
 			switch strings.ToLower(tech) {

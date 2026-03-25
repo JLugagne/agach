@@ -25,9 +25,5 @@ func ToPublicComment(comment domain.Comment) pkgserver.CommentResponse {
 
 // ToPublicComments converts []domain.Comment to []pkgserver.CommentResponse
 func ToPublicComments(comments []domain.Comment) []pkgserver.CommentResponse {
-	result := make([]pkgserver.CommentResponse, len(comments))
-	for i, c := range comments {
-		result[i] = ToPublicComment(c)
-	}
-	return result
+	return MapSlice(comments, ToPublicComment)
 }

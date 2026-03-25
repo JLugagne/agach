@@ -23,9 +23,9 @@ type Result struct {
 	FeatureProjectID domain.ProjectID
 
 	// Roles
-	BackendRoleID  domain.RoleID
-	FrontendRoleID domain.RoleID
-	QARoleID       domain.RoleID
+	BackendRoleID  domain.AgentID
+	FrontendRoleID domain.AgentID
+	QARoleID       domain.AgentID
 
 	// Skills
 	GoSkillID         domain.SkillID
@@ -373,7 +373,7 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 		domain.PriorityMedium,
 		"frontend", "qa-seed", "frontend",
 		[]string{}, []string{"qa", "feature"}, "M",
-		false, &featureProject.ID,
+		false, func() *domain.FeatureID { fid := domain.FeatureID(featureProject.ID); return &fid }(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create feature task: %w", err)

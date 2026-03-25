@@ -22,6 +22,8 @@ func projectIDOrNil(id *domain.ProjectID) interface{} {
 }
 
 func (r *notificationRepository) Create(ctx context.Context, notification domain.Notification) error {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO notifications (id, project_id, scope, agent_slug, severity, title, text, link_url, link_text, link_style, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
@@ -38,6 +40,8 @@ func (r *notificationRepository) Create(ctx context.Context, notification domain
 }
 
 func (r *notificationRepository) FindByID(ctx context.Context, id domain.NotificationID) (*domain.Notification, error) {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	row := r.pool.QueryRow(ctx, `
 		SELECT id, project_id, scope, agent_slug, severity, title, text, link_url, link_text, link_style, read_at, created_at
 		FROM notifications WHERE id = $1`, string(id))
@@ -90,6 +94,8 @@ func (r *notificationRepository) buildFilters(filters notifications.Notification
 }
 
 func (r *notificationRepository) List(ctx context.Context, filters notifications.NotificationFilters, limit, offset int) ([]domain.Notification, error) {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	where, args := r.buildFilters(filters)
 
 	query := `SELECT id, project_id, scope, agent_slug, severity, title, text, link_url, link_text, link_style, read_at, created_at
@@ -136,7 +142,8 @@ func (r *notificationRepository) List(ctx context.Context, filters notifications
 }
 
 func (r *notificationRepository) UnreadCount(ctx context.Context, filters notifications.NotificationFilters) (int, error) {
-	// Force unread filter
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	filters.UnreadOnly = true
 	where, args := r.buildFilters(filters)
 
@@ -152,6 +159,8 @@ func (r *notificationRepository) UnreadCount(ctx context.Context, filters notifi
 }
 
 func (r *notificationRepository) MarkRead(ctx context.Context, id domain.NotificationID) error {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	tag, err := r.pool.Exec(ctx,
 		`UPDATE notifications SET read_at = NOW() WHERE id = $1 AND read_at IS NULL`,
 		string(id),
@@ -176,6 +185,8 @@ func (r *notificationRepository) MarkRead(ctx context.Context, id domain.Notific
 }
 
 func (r *notificationRepository) MarkAllRead(ctx context.Context, filters notifications.NotificationFilters) error {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	where, args := r.buildFilters(filters)
 
 	// Add read_at IS NULL condition if not already present from UnreadOnly
@@ -198,6 +209,8 @@ func (r *notificationRepository) MarkAllRead(ctx context.Context, filters notifi
 }
 
 func (r *notificationRepository) Delete(ctx context.Context, id domain.NotificationID) error {
+	ctx, cancel := r.ctx(ctx)
+	defer cancel()
 	tag, err := r.pool.Exec(ctx, `DELETE FROM notifications WHERE id = $1`, string(id))
 	if err != nil {
 		return fmt.Errorf("delete notification: %w", err)

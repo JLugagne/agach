@@ -30,14 +30,14 @@ type SkillRepository interface {
 	// IsInUse checks whether any agent has this skill assigned
 	IsInUse(ctx context.Context, id domain.SkillID) (bool, error)
 
-	// ListByAgent returns all skills assigned to a given role ID, ordered by sort_order
-	ListByAgent(ctx context.Context, roleID domain.RoleID) ([]domain.Skill, error)
+	// ListByAgent returns all skills assigned to a given agent ID, ordered by sort_order
+	ListByAgent(ctx context.Context, agentID domain.AgentID) ([]domain.Skill, error)
 
 	// AssignToAgent creates an agent_skills row
 	// Returns ErrSkillAlreadyExists if the association already exists
-	AssignToAgent(ctx context.Context, roleID domain.RoleID, skillID domain.SkillID) error
+	AssignToAgent(ctx context.Context, agentID domain.AgentID, skillID domain.SkillID) error
 
 	// RemoveFromAgent deletes an agent_skills row
 	// Returns ErrSkillNotFound if the association does not exist
-	RemoveFromAgent(ctx context.Context, roleID domain.RoleID, skillID domain.SkillID) error
+	RemoveFromAgent(ctx context.Context, agentID domain.AgentID, skillID domain.SkillID) error
 }

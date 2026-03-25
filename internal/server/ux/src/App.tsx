@@ -22,6 +22,7 @@ import NotificationsPage from './pages/NotificationsPage';
 import NodesPage from './pages/NodesPage';
 import NodeSettingsPage from './pages/NodeSettingsPage';
 import FeatureChatPage from './pages/FeatureChatPage';
+import SpecializedAgentDetailPage from './pages/SpecializedAgentDetailPage';
 
 
 function ProtectedRoute() {
@@ -67,6 +68,7 @@ function App() {
                 <Route path="/projects/:projectId/statistics" element={<StatisticsPage />} />
                 <Route path="/projects/:projectId/roles" element={<RolesPage />} />
                 <Route path="/roles" element={<RolesPage />} />
+                <Route path="/agents/:parentSlug/specialized/:specSlug" element={<SpecializedAgentDetailPage />} />
                 <Route path="/skills" element={<SkillsPage />} />
                 <Route path="/dockerfiles" element={<DockerfilesPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />

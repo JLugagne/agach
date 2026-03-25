@@ -48,10 +48,10 @@ func (id AgentID) String() string {
 	return string(id)
 }
 
-// RoleID is an alias for AgentID for backward compatibility
+// RoleID is an alias for AgentID — kept for test compatibility until _test.go files are updated.
 type RoleID = AgentID
 
-// NewRoleID is an alias for NewAgentID for backward compatibility
+// NewRoleID is an alias for NewAgentID — kept for test compatibility until _test.go files are updated.
 var NewRoleID = NewAgentID
 
 // TaskID represents a unique task identifier
@@ -93,12 +93,17 @@ func (id CommentID) String() string {
 	return string(id)
 }
 
-// FeatureID is an alias for ProjectID since features are sub-projects
-type FeatureID = ProjectID
+// FeatureID represents a unique feature identifier
+type FeatureID string
 
 // NewFeatureID generates a new feature ID
 func NewFeatureID() FeatureID {
 	return FeatureID(newID())
+}
+
+// String returns the string representation of a FeatureID
+func (id FeatureID) String() string {
+	return string(id)
 }
 
 // ParseFeatureID validates and returns a FeatureID.
@@ -132,6 +137,19 @@ func NewSkillID() SkillID {
 
 // String returns the string representation of a SkillID
 func (id SkillID) String() string {
+	return string(id)
+}
+
+// SpecializedAgentID represents a unique specialized agent identifier
+type SpecializedAgentID string
+
+// NewSpecializedAgentID generates a new specialized agent ID
+func NewSpecializedAgentID() SpecializedAgentID {
+	return SpecializedAgentID(newID())
+}
+
+// String returns the string representation of a SpecializedAgentID
+func (id SpecializedAgentID) String() string {
 	return string(id)
 }
 
@@ -257,7 +275,7 @@ type Agent struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
-// Role is an alias for Agent for backward compatibility
+// Role is an alias for Agent — kept for test compatibility until _test.go files are updated.
 type Role = Agent
 
 // Skill represents a reusable capability that can be assigned to an agent
@@ -272,6 +290,17 @@ type Skill struct {
 	SortOrder   int       `json:"sort_order"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// SpecializedAgent represents a specialization of an existing agent (role)
+type SpecializedAgent struct {
+	ID            SpecializedAgentID `json:"id"`
+	ParentAgentID AgentID            `json:"parent_agent_id"`
+	Slug          string             `json:"slug"`
+	Name          string             `json:"name"`
+	SortOrder     int                `json:"sort_order"`
+	CreatedAt     time.Time          `json:"created_at"`
+	UpdatedAt     time.Time          `json:"updated_at"`
 }
 
 // Dockerfile represents a Docker Compose service definition with versioning
@@ -433,10 +462,6 @@ type DependencyContext struct {
 }
 
 // AgentColdStartStat holds aggregated cold-start token stats per agent
-//
-// Deprecated: Use AgentColdStartStat. RoleColdStartStat is kept for backward compatibility.
-type RoleColdStartStat = AgentColdStartStat
-
 type AgentColdStartStat struct {
 	AssignedRole       string  `json:"assigned_role"`
 	Count              int     `json:"count"`
@@ -450,6 +475,9 @@ type AgentColdStartStat struct {
 	MaxCacheReadTokens int     `json:"max_cache_read_tokens"`
 	AvgCacheReadTokens float64 `json:"avg_cache_read_tokens"`
 }
+
+// RoleColdStartStat is an alias for AgentColdStartStat — kept for test compatibility until _test.go files are updated.
+type RoleColdStartStat = AgentColdStartStat
 
 // TimelineEntry represents task counts for a single day
 type TimelineEntry struct {
