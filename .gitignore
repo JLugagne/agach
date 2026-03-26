@@ -36,7 +36,7 @@ ux/dist/
 ux/node_modules/
 
 # Built binary
-server
+/server
 
 /agach-server
 
