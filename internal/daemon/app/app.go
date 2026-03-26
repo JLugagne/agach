@@ -123,7 +123,8 @@ func (a *App) Run(ctx context.Context) error {
 	a.gitService = gitService
 	a.projectClient = client.NewProjectClient(a.cfg.BaseURL)
 	uploadClient := client.NewChatUploadClient(a.cfg.BaseURL)
-	a.chatManager = NewChatManager(a.logger, a.gitService, a.projectClient, uploadClient, a.tokens.AccessToken, a.sendWSMessage)
+	agentDownloader := client.NewAgentDownloadClient(a.cfg.BaseURL)
+	a.chatManager = NewChatManager(a.logger, a.gitService, a.projectClient, uploadClient, agentDownloader, a.tokens.AccessToken, a.sendWSMessage)
 
 	a.wsClient = client.NewWSClient(
 		a.cfg.WebSocketURL(),
@@ -139,12 +140,13 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 func (a *App) initDockerService(ctx context.Context) error {
+	fetcher := client.NewDockerfileClient(a.cfg.BaseURL)
 	docker, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
 	if err != nil {
 		a.logger.WithError(err).Warn("Docker client unavailable, builds will fail")
-		a.dockerService = NewDockerService(a.buildRepo, nil, a.logger)
+		a.dockerService = NewDockerService(a.buildRepo, nil, fetcher, a.tokens.AccessToken, a.logger)
 	} else {
-		a.dockerService = NewDockerService(a.buildRepo, docker, a.logger)
+		a.dockerService = NewDockerService(a.buildRepo, docker, fetcher, a.tokens.AccessToken, a.logger)
 	}
 
 	a.logger.Info("Docker service initialized")

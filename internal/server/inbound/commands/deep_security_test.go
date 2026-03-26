@@ -300,7 +300,7 @@ func TestSecurity_SEC03_PromptTemplateUnbounded_RED(t *testing.T) {
 	var receivedTemplateLen int
 
 	cmds := &servicetest.MockCommands{
-		CreateAgentFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
+		CreateAgentFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) (domain.Role, error) {
 			createCalled = true
 			receivedTemplateLen = len(promptTemplate)
 			return domain.Role{ID: domain.NewRoleID(), Slug: slug, Name: name}, nil

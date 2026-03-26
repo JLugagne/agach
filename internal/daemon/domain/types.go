@@ -14,9 +14,10 @@ type OnboardingResult struct {
 
 // ProjectInfo holds project metadata returned from the server.
 type ProjectInfo struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	GitURL string `json:"git_url"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	GitURL      string `json:"git_url"`
+	DefaultRole string `json:"default_role"`
 }
 
 // DaemonState represents the current state of the daemon.

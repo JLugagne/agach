@@ -287,7 +287,7 @@ func TestApp_UpdateRole_NilRoleReturned_ReturnsError(t *testing.T) {
 		return nil, nil // nil role, no error
 	}
 
-	err := a.UpdateAgent(ctx, roleID, "New Name", "", "", "", "", "", nil, 0)
+	err := a.UpdateAgent(ctx, roleID, "New Name", "", "", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
 }
@@ -304,7 +304,7 @@ func TestApp_UpdateRole_UpdateError_ReturnsError(t *testing.T) {
 		return errors.New("update failed")
 	}
 
-	err := a.UpdateAgent(ctx, roleID, "New Name", "", "", "", "", "", nil, 0)
+	err := a.UpdateAgent(ctx, roleID, "New Name", "", "", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
 }
 
@@ -323,7 +323,7 @@ func TestApp_UpdateRole_WithSortOrder_UpdatesField(t *testing.T) {
 		return nil
 	}
 
-	err := a.UpdateAgent(ctx, roleID, "", "", "", "", "", "", nil, 5)
+	err := a.UpdateAgent(ctx, roleID, "", "", "", "", "", "", "", "", nil, 5)
 	require.NoError(t, err)
 	assert.Equal(t, 5, updated.SortOrder)
 }
@@ -343,7 +343,7 @@ func TestApp_UpdateRole_WithPromptTemplate_UpdatesField(t *testing.T) {
 		return nil
 	}
 
-	err := a.UpdateAgent(ctx, roleID, "", "", "", "", "", "my template", nil, 0)
+	err := a.UpdateAgent(ctx, roleID, "", "", "", "", "", "my template", "", "", nil, 0)
 	require.NoError(t, err)
 	assert.Equal(t, "my template", updated.PromptTemplate)
 }
@@ -369,7 +369,7 @@ func TestApp_CreateRole_AlreadyExists_ReturnsError(t *testing.T) {
 		return existing, nil // role found — already exists
 	}
 
-	_, err := a.CreateAgent(ctx, "test", "Test Role", "", "", "", "", "", nil, 0)
+	_, err := a.CreateAgent(ctx, "test", "Test Role", "", "", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrRoleAlreadyExists)
 }
@@ -385,7 +385,7 @@ func TestApp_CreateRole_CreateError_ReturnsError(t *testing.T) {
 		return errors.New("db error")
 	}
 
-	_, err := a.CreateAgent(ctx, "test", "Test Role", "", "", "", "", "", nil, 0)
+	_, err := a.CreateAgent(ctx, "test", "Test Role", "", "", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
 }
 
@@ -438,7 +438,7 @@ func TestApp_UpdateProjectRole_NilRoleReturned_ReturnsError(t *testing.T) {
 		return nil, nil // nil, no error
 	}
 
-	err := a.UpdateProjectAgent(ctx, domain.NewProjectID(), domain.NewRoleID(), "New Name", "", "", "", "", "", nil, 0)
+	err := a.UpdateProjectAgent(ctx, domain.NewProjectID(), domain.NewRoleID(), "New Name", "", "", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
 }
@@ -455,7 +455,7 @@ func TestApp_UpdateProjectRole_UpdateError_ReturnsError(t *testing.T) {
 		return errors.New("update error")
 	}
 
-	err := a.UpdateProjectAgent(ctx, domain.NewProjectID(), roleID, "New Name", "", "", "", "", "", nil, 0)
+	err := a.UpdateProjectAgent(ctx, domain.NewProjectID(), roleID, "New Name", "", "", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
 }
 
@@ -474,7 +474,7 @@ func TestApp_UpdateProjectRole_WithAllFields_UpdatesAll(t *testing.T) {
 		return nil
 	}
 
-	err := a.UpdateProjectAgent(ctx, domain.NewProjectID(), roleID, "New Name", "icon", "color", "desc", "hint", "template", []string{"Go"}, 3)
+	err := a.UpdateProjectAgent(ctx, domain.NewProjectID(), roleID, "New Name", "icon", "color", "desc", "hint", "template", "", "", []string{"Go"}, 3)
 	require.NoError(t, err)
 	assert.Equal(t, "New Name", updated.Name)
 	assert.Equal(t, "icon", updated.Icon)
@@ -510,6 +510,6 @@ func TestApp_CreateProjectRole_CreateError_ReturnsError(t *testing.T) {
 		return errors.New("db error")
 	}
 
-	_, err := a.CreateProjectAgent(ctx, domain.NewProjectID(), "test", "Test Role", "", "", "", "", "", nil, 0)
+	_, err := a.CreateProjectAgent(ctx, domain.NewProjectID(), "test", "Test Role", "", "", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
 }

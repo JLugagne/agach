@@ -61,7 +61,7 @@ func NewApp(cfg Config) *App {
 	return &App{
 		ProjectService:          newProjectService(cfg.Projects, cfg.Agents, cfg.Logger),
 		TaskService:             newTaskService(cfg.Tasks, cfg.Columns, cfg.Dependencies, cfg.Features, cfg.Projects, cfg.Comments, cfg.Logger),
-		AgentService:            newAgentService(cfg.Agents, cfg.Projects, cfg.Tasks, cfg.Skills, cfg.Logger),
+		AgentService:            newAgentService(cfg.Agents, cfg.Specialized, cfg.Projects, cfg.Tasks, cfg.Skills, cfg.Logger),
 		CommentService:          newCommentService(cfg.Comments, cfg.Tasks, cfg.Logger),
 		FeatureService:          newFeatureService(cfg.Features, cfg.Projects, cfg.Logger),
 		SkillService:            newSkillService(cfg.Skills, cfg.Logger),

@@ -30,4 +30,10 @@ type FeatureRepository interface {
 
 	// GetStats returns feature counts grouped by status for a project
 	GetStats(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error)
+
+	// UpdateChangelogs updates the user or tech changelogs for a feature
+	UpdateChangelogs(ctx context.Context, id domain.FeatureID, userChangelog, techChangelog *string) error
+
+	// ListTaskSummaries lists completed task summaries for a feature, sorted by completed_at ASC
+	ListTaskSummaries(ctx context.Context, featureID domain.FeatureID) ([]domain.FeatureTaskSummary, error)
 }

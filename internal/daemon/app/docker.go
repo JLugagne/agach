@@ -1,6 +1,7 @@
 package app
 
 import (
+	"archive/tar"
 	"bufio"
 	"bytes"
 	"context"
@@ -58,17 +59,21 @@ type dockerBuildMessage struct {
 
 // DockerService manages Docker image builds and lifecycle.
 type DockerService struct {
-	repo   builds.DockerBuildRepository
-	docker DockerClient
-	logger *logrus.Logger
+	repo              builds.DockerBuildRepository
+	docker            DockerClient
+	dockerfileFetcher domain.DockerfileFetcher
+	token             string
+	logger            *logrus.Logger
 }
 
 // NewDockerService creates a new DockerService.
-func NewDockerService(repo builds.DockerBuildRepository, docker DockerClient, logger *logrus.Logger) *DockerService {
+func NewDockerService(repo builds.DockerBuildRepository, docker DockerClient, fetcher domain.DockerfileFetcher, token string, logger *logrus.Logger) *DockerService {
 	return &DockerService{
-		repo:   repo,
-		docker: docker,
-		logger: logger,
+		repo:              repo,
+		docker:            docker,
+		dockerfileFetcher: fetcher,
+		token:             token,
+		logger:            logger,
 	}
 }
 
@@ -119,6 +124,32 @@ func (s *DockerService) Rebuild(ctx context.Context, slug string, eventCh chan<-
 		Status:         "started",
 	}
 
+	// Fetch dockerfile content from server
+	df, err := s.dockerfileFetcher.GetDockerfileBySlug(ctx, s.token, slug)
+	if err != nil {
+		eventCh <- daemonws.BuildEvent{
+			DockerfileSlug: slug,
+			BuildID:        string(buildID),
+			Status:         "failed",
+			Log:            "failed to fetch dockerfile: " + err.Error(),
+		}
+		return nil
+	}
+	if df.Content == "" {
+		eventCh <- daemonws.BuildEvent{
+			DockerfileSlug: slug,
+			BuildID:        string(buildID),
+			Status:         "failed",
+			Log:            "dockerfile content is empty",
+		}
+		return nil
+	}
+
+	// Use the server version for the build record
+	if df.Version != "" {
+		version = df.Version
+	}
+
 	// Create build record
 	buildRecord := domain.DockerBuild{
 		ID:             buildID,
@@ -131,9 +162,22 @@ func (s *DockerService) Rebuild(ctx context.Context, slug string, eventCh chan<-
 		return fmt.Errorf("create build record: %w", err)
 	}
 
+	// Create tar build context with the Dockerfile
+	buildContext, err := createBuildContext(df.Content)
+	if err != nil {
+		eventCh <- daemonws.BuildEvent{
+			DockerfileSlug: slug,
+			BuildID:        string(buildID),
+			Status:         "failed",
+			Log:            "failed to create build context: " + err.Error(),
+		}
+		_ = s.repo.UpdateStatus(ctx, buildID, domain.BuildFailed, err.Error())
+		return nil
+	}
+
 	// Build the image
 	tag := fmt.Sprintf("%s:%s", slug, version)
-	resp, err := s.docker.ImageBuild(ctx, &bytes.Buffer{}, dbuild.ImageBuildOptions{
+	resp, err := s.docker.ImageBuild(ctx, buildContext, dbuild.ImageBuildOptions{
 		Tags:       []string{tag, slug + ":latest"},
 		Dockerfile: "Dockerfile",
 	})
@@ -280,4 +324,27 @@ func (s *DockerService) PruneNonLatest(ctx context.Context, eventCh chan<- daemo
 	}
 
 	return result, nil
+}
+
+// createBuildContext creates a tar archive containing the Dockerfile for Docker image build.
+func createBuildContext(dockerfileContent string) (io.Reader, error) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+
+	content := []byte(dockerfileContent)
+	if err := tw.WriteHeader(&tar.Header{
+		Name: "Dockerfile",
+		Size: int64(len(content)),
+		Mode: 0644,
+	}); err != nil {
+		return nil, fmt.Errorf("write tar header: %w", err)
+	}
+	if _, err := tw.Write(content); err != nil {
+		return nil, fmt.Errorf("write tar content: %w", err)
+	}
+	if err := tw.Close(); err != nil {
+		return nil, fmt.Errorf("close tar: %w", err)
+	}
+
+	return &buf, nil
 }

@@ -252,6 +252,8 @@ type Feature struct {
 	ProjectID      ProjectID     `json:"project_id"`
 	Name           string        `json:"name"`
 	Description    string        `json:"description"`
+	UserChangelog  string        `json:"user_changelog"`
+	TechChangelog  string        `json:"tech_changelog"`
 	Status         FeatureStatus `json:"status"`
 	CreatedByRole  string        `json:"created_by_role"`
 	CreatedByAgent string        `json:"created_by_agent"`
@@ -271,6 +273,8 @@ type Agent struct {
 	PromptHint     string    `json:"prompt_hint"`
 	PromptTemplate string    `json:"prompt_template"`
 	Content        string    `json:"content"`
+	Model          string    `json:"model"`
+	Thinking       string    `json:"thinking"`
 	SortOrder      int       `json:"sort_order"`
 	CreatedAt      time.Time `json:"created_at"`
 }
@@ -494,6 +498,16 @@ type ModelTokenStat struct {
 	OutputTokens    int    `json:"output_tokens"`
 	CacheReadTokens int    `json:"cache_read_tokens"`
 	CacheWriteTokens int   `json:"cache_write_tokens"`
+}
+
+// FeatureTaskSummary represents a completed task's summary for a feature changelog view
+type FeatureTaskSummary struct {
+	ID                TaskID     `json:"id"`
+	Title             string     `json:"title"`
+	CompletionSummary string     `json:"completion_summary"`
+	CompletedByAgent  string     `json:"completed_by_agent"`
+	CompletedAt       time.Time  `json:"completed_at"`
+	FilesModified     []string   `json:"files_modified"`
 }
 
 // ModelPricing holds per-model pricing rates (per million tokens)

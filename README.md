@@ -112,6 +112,23 @@ agach-daemon
 
 The daemon registers with the server, receives tokens, and connects via WebSocket.
 
+## Token costs
+
+Agach is designed to produce **quality code**, not to minimize token usage. The multi-agent TDD workflow — planning, scaffolding, red, green, refactor, review — trades tokens for correctness and traceability. A single feature can consume significant token volume across many agent sessions.
+
+This is by design. The goal is structured, reviewable, regression-aware output — not the cheapest path to a diff.
+
+### How to keep costs reasonable
+
+That said, there are practices that reduce waste without sacrificing quality:
+
+- **Keep your `CLAUDE.md` concise.** Every agent session loads it into context. A bloated file with redundant instructions, long examples, or copy-pasted docs burns tokens on every single task. Use Agach skills (loaded on demand) instead of inlining everything.
+- **Don't attach unnecessary MCP servers.** Each MCP server adds tool definitions to the context window. Only configure the servers an agent actually needs for its role.
+- **Right-size your agent definitions.** A 2,000-line system prompt on every agent is expensive. Keep prompts focused on the agent's specific job. Share common instructions through skills, not duplication.
+- **Fewer agents when fewer will do.** The red/green/refactor/review cycle is valuable for complex features. For a one-line config change, a single agent with a direct prompt is fine. Match the workflow to the task.
+- **Use task dependencies wisely.** Unnecessary sequential dependencies prevent parallelism and increase wall-clock time, which increases the chance of context drift and rework.
+- **Monitor the cost dashboard.** Agach tracks per-task and per-feature token usage. Review it. If a single task burns 200k tokens, the prompt or task scope probably needs work.
+
 ## Features
 
 ### Server

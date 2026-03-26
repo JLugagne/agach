@@ -27,6 +27,7 @@ func NewDockerfileQueriesHandler(queries service.Queries, ctrl *controller.Contr
 // RegisterRoutes registers dockerfile query routes
 func (h *DockerfileQueriesHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/dockerfiles", h.ListDockerfiles).Methods("GET")
+	router.HandleFunc("/api/dockerfiles/by-slug/{slug}", h.GetDockerfileBySlug).Methods("GET")
 	router.HandleFunc("/api/dockerfiles/{id}", h.GetDockerfile).Methods("GET")
 	router.HandleFunc("/api/projects/{id}/dockerfile", h.GetProjectDockerfile).Methods("GET")
 }
@@ -39,6 +40,23 @@ func (h *DockerfileQueriesHandler) ListDockerfiles(w http.ResponseWriter, r *htt
 		return
 	}
 	h.controller.SendSuccess(w, r, converters.ToPublicDockerfiles(list))
+}
+
+// GetDockerfileBySlug gets the latest version of a dockerfile by slug
+func (h *DockerfileQueriesHandler) GetDockerfileBySlug(w http.ResponseWriter, r *http.Request) {
+	slug := mux.Vars(r)["slug"]
+
+	dockerfile, err := h.queries.GetDockerfileBySlug(r.Context(), slug)
+	if err != nil {
+		if domain.IsDomainError(err) {
+			h.controller.SendFail(w, r, nil, err)
+		} else {
+			h.controller.SendError(w, r, err)
+		}
+		return
+	}
+
+	h.controller.SendSuccess(w, r, converters.ToPublicDockerfile(*dockerfile))
 }
 
 // GetDockerfile gets a single dockerfile by ID

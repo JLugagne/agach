@@ -160,6 +160,165 @@ func TestUpdateFeatureStatus(t *testing.T) {
 	})
 }
 
+// TestUpdateFeatureChangelogs_UserOnly tests updating only user_changelog
+func TestUpdateFeatureChangelogs_UserOnly(t *testing.T) {
+	featureID := domain.NewFeatureID()
+	userChangelog := "User-facing summary of what changed."
+
+	mockCommands := &servicetest.MockCommands{
+		UpdateFeatureChangelogsFunc: func(ctx context.Context, fid domain.FeatureID, uc, tc *string) error {
+			if fid == featureID && uc != nil && *uc == userChangelog && tc == nil {
+				return nil
+			}
+			return domain.ErrFeatureNotFound
+		},
+	}
+
+	ctrl := newTestController()
+	hub := websocket.NewHub(logrus.New())
+	handler := commands.NewFeatureCommandsHandler(mockCommands, ctrl, hub)
+
+	req := &pkgserver.UpdateFeatureChangelogsRequest{
+		UserChangelog: &userChangelog,
+	}
+	body, _ := json.Marshal(req)
+	httpReq := httptest.NewRequest(http.MethodPatch, "/api/projects/test-project/features/"+string(featureID)+"/changelogs", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq = mux.SetURLVars(httpReq, map[string]string{"id": "test-project", "featureId": string(featureID)})
+	w := httptest.NewRecorder()
+
+	handler.UpdateFeatureChangelogs(w, httpReq)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var result map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &result)
+	require.NoError(t, err)
+
+	data, ok := result["data"].(map[string]interface{})
+	assert.True(t, ok)
+	assert.Equal(t, "feature changelogs updated", data["message"])
+}
+
+// TestUpdateFeatureChangelogs_TechOnly tests updating only tech_changelog
+func TestUpdateFeatureChangelogs_TechOnly(t *testing.T) {
+	featureID := domain.NewFeatureID()
+	techChangelog := "Technical implementation notes."
+
+	mockCommands := &servicetest.MockCommands{
+		UpdateFeatureChangelogsFunc: func(ctx context.Context, fid domain.FeatureID, uc, tc *string) error {
+			if fid == featureID && uc == nil && tc != nil && *tc == techChangelog {
+				return nil
+			}
+			return domain.ErrFeatureNotFound
+		},
+	}
+
+	ctrl := newTestController()
+	hub := websocket.NewHub(logrus.New())
+	handler := commands.NewFeatureCommandsHandler(mockCommands, ctrl, hub)
+
+	req := &pkgserver.UpdateFeatureChangelogsRequest{
+		TechChangelog: &techChangelog,
+	}
+	body, _ := json.Marshal(req)
+	httpReq := httptest.NewRequest(http.MethodPatch, "/api/projects/test-project/features/"+string(featureID)+"/changelogs", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq = mux.SetURLVars(httpReq, map[string]string{"id": "test-project", "featureId": string(featureID)})
+	w := httptest.NewRecorder()
+
+	handler.UpdateFeatureChangelogs(w, httpReq)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var result map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &result)
+	require.NoError(t, err)
+
+	data, ok := result["data"].(map[string]interface{})
+	assert.True(t, ok)
+	assert.Equal(t, "feature changelogs updated", data["message"])
+}
+
+// TestUpdateFeatureChangelogs_Both tests updating both user_changelog and tech_changelog
+func TestUpdateFeatureChangelogs_Both(t *testing.T) {
+	featureID := domain.NewFeatureID()
+	userChangelog := "User changelog text."
+	techChangelog := "Tech changelog text."
+
+	mockCommands := &servicetest.MockCommands{
+		UpdateFeatureChangelogsFunc: func(ctx context.Context, fid domain.FeatureID, uc, tc *string) error {
+			if fid == featureID &&
+				uc != nil && *uc == userChangelog &&
+				tc != nil && *tc == techChangelog {
+				return nil
+			}
+			return domain.ErrFeatureNotFound
+		},
+	}
+
+	ctrl := newTestController()
+	hub := websocket.NewHub(logrus.New())
+	handler := commands.NewFeatureCommandsHandler(mockCommands, ctrl, hub)
+
+	req := &pkgserver.UpdateFeatureChangelogsRequest{
+		UserChangelog: &userChangelog,
+		TechChangelog: &techChangelog,
+	}
+	body, _ := json.Marshal(req)
+	httpReq := httptest.NewRequest(http.MethodPatch, "/api/projects/test-project/features/"+string(featureID)+"/changelogs", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq = mux.SetURLVars(httpReq, map[string]string{"id": "test-project", "featureId": string(featureID)})
+	w := httptest.NewRecorder()
+
+	handler.UpdateFeatureChangelogs(w, httpReq)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var result map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &result)
+	require.NoError(t, err)
+
+	data, ok := result["data"].(map[string]interface{})
+	assert.True(t, ok)
+	assert.Equal(t, "feature changelogs updated", data["message"])
+}
+
+// TestUpdateFeatureChangelogs_FeatureNotFound tests 400 response for unknown feature
+func TestUpdateFeatureChangelogs_FeatureNotFound(t *testing.T) {
+	unknownFeatureID := domain.NewFeatureID()
+	userChangelog := "Some changelog."
+
+	mockCommands := &servicetest.MockCommands{
+		UpdateFeatureChangelogsFunc: func(ctx context.Context, fid domain.FeatureID, uc, tc *string) error {
+			return domain.ErrFeatureNotFound
+		},
+	}
+
+	ctrl := newTestController()
+	hub := websocket.NewHub(logrus.New())
+	handler := commands.NewFeatureCommandsHandler(mockCommands, ctrl, hub)
+
+	req := &pkgserver.UpdateFeatureChangelogsRequest{
+		UserChangelog: &userChangelog,
+	}
+	body, _ := json.Marshal(req)
+	httpReq := httptest.NewRequest(http.MethodPatch, "/api/projects/test-project/features/"+string(unknownFeatureID)+"/changelogs", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq = mux.SetURLVars(httpReq, map[string]string{"id": "test-project", "featureId": string(unknownFeatureID)})
+	w := httptest.NewRecorder()
+
+	handler.UpdateFeatureChangelogs(w, httpReq)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var result map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &result)
+	require.NoError(t, err)
+
+	assert.Equal(t, "fail", result["status"])
+}
+
 // TestDeleteFeature tests the DeleteFeature endpoint
 func TestDeleteFeature(t *testing.T) {
 	t.Run("deletes a feature", func(t *testing.T) {

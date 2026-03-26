@@ -56,6 +56,8 @@ func (h *AgentCommandsHandler) CreateAgent(w http.ResponseWriter, r *http.Reques
 		req.Description,
 		req.PromptHint,
 		req.PromptTemplate,
+		req.Model,
+		req.Thinking,
 		req.TechStack,
 		req.SortOrder,
 	)
@@ -120,6 +122,14 @@ func (h *AgentCommandsHandler) UpdateAgent(w http.ResponseWriter, r *http.Reques
 	if req.PromptTemplate != nil {
 		promptTemplate = *req.PromptTemplate
 	}
+	model := ""
+	if req.Model != nil {
+		model = *req.Model
+	}
+	thinking := ""
+	if req.Thinking != nil {
+		thinking = *req.Thinking
+	}
 	techStack := []string{}
 	if req.TechStack != nil {
 		techStack = *req.TechStack
@@ -146,6 +156,8 @@ func (h *AgentCommandsHandler) UpdateAgent(w http.ResponseWriter, r *http.Reques
 		description,
 		promptHint,
 		promptTemplate,
+		model,
+		thinking,
 		techStack,
 		sortOrder,
 	)

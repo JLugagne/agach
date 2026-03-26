@@ -12,6 +12,9 @@ import {
   Circle,
   Clock,
   AlertTriangle,
+  BookOpen,
+  FileText,
+  ListChecks,
 } from 'lucide-react';
 import {
   getFeature,
@@ -21,6 +24,8 @@ import {
   listTasks,
 } from '../lib/api';
 import DeleteConfirmModal from '../components/ui/DeleteConfirmModal';
+import FeatureChangelogDrawer from '../components/kanban/FeatureChangelogDrawer';
+import TaskSummariesDrawer from '../components/kanban/TaskSummariesDrawer';
 import type { FeatureResponse, FeatureStatus, TaskWithDetailsResponse } from '../lib/types';
 import { useWebSocket } from '../hooks/useWebSocket';
 
@@ -84,6 +89,11 @@ export default function FeatureDetailPage() {
   // Delete state
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Drawer state
+  const [showUserChangelog, setShowUserChangelog] = useState(false);
+  const [showTechChangelog, setShowTechChangelog] = useState(false);
+  const [showTaskSummaries, setShowTaskSummaries] = useState(false);
 
   const fetchFeature = useCallback(async () => {
     if (!projectId || !featureId) return;
@@ -290,6 +300,34 @@ export default function FeatureDetailPage() {
               >
                 <MessageCircle size={16} />
               </button>
+              <div className="w-px h-4 bg-[var(--border-primary)]" />
+              <button
+                onClick={() => setShowUserChangelog(true)}
+                disabled={!feature.user_changelog}
+                data-qa="feature-user-changelog-btn"
+                className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors rounded-md hover:bg-[var(--bg-tertiary)] disabled:opacity-40 disabled:pointer-events-none"
+                title="User Changelog"
+              >
+                <BookOpen size={16} />
+              </button>
+              <button
+                onClick={() => setShowTechChangelog(true)}
+                disabled={!feature.tech_changelog}
+                data-qa="feature-tech-changelog-btn"
+                className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors rounded-md hover:bg-[var(--bg-tertiary)] disabled:opacity-40 disabled:pointer-events-none"
+                title="Technical Changelog"
+              >
+                <FileText size={16} />
+              </button>
+              <button
+                onClick={() => setShowTaskSummaries(true)}
+                data-qa="feature-task-summaries-btn"
+                className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors rounded-md hover:bg-[var(--bg-tertiary)]"
+                title="Implementation Summary"
+              >
+                <ListChecks size={16} />
+              </button>
+              <div className="w-px h-4 bg-[var(--border-primary)]" />
               <button
                 onClick={() => {
                   setEditName(feature.name);
@@ -445,6 +483,28 @@ export default function FeatureDetailPage() {
           loading={deleting}
         />
       </div>
+
+      <FeatureChangelogDrawer
+        open={showUserChangelog}
+        onClose={() => setShowUserChangelog(false)}
+        type="user"
+        content={feature.user_changelog || ''}
+        featureName={feature.name}
+      />
+      <FeatureChangelogDrawer
+        open={showTechChangelog}
+        onClose={() => setShowTechChangelog(false)}
+        type="tech"
+        content={feature.tech_changelog || ''}
+        featureName={feature.name}
+      />
+      <TaskSummariesDrawer
+        open={showTaskSummaries}
+        onClose={() => setShowTaskSummaries(false)}
+        projectId={projectId}
+        featureId={featureId!}
+        featureName={feature.name}
+      />
     </div>
   );
 }

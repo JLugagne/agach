@@ -27,11 +27,10 @@ export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onCl
     (async () => {
       try {
         const agents = (await listAgents()) ?? [];
-        const available = agents.filter(r => !assignedSlugs.has(r.slug));
 
-        // Fetch specialized agents for each parent
+        // Fetch specialized agents for every parent agent
         const specResults = await Promise.all(
-          available.map(async (agent): Promise<{ agent: AgentResponse; specs: SpecializedAgentResponse[] }> => {
+          agents.map(async (agent): Promise<{ agent: AgentResponse; specs: SpecializedAgentResponse[] }> => {
             try {
               const specs = await listSpecializedAgents(agent.slug);
               return { agent, specs: specs ?? [] };
@@ -41,17 +40,14 @@ export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onCl
           })
         );
 
+        // Only show specialized agents, filtering out already-assigned ones
         const opts: AgentOption[] = [];
         for (const { agent, specs } of specResults) {
-          if (specs.length === 0) {
-            // No specializations -- list the base agent directly
-            opts.push({ slug: agent.slug, label: agent.name });
-          } else {
-            // Has specializations -- group them under the parent name
-            for (const spec of specs) {
+          for (const spec of specs) {
+            if (!assignedSlugs.has(spec.slug)) {
               opts.push({
                 slug: spec.slug,
-                label: `${agent.name} > ${spec.name}`,
+                label: specs.length > 1 ? `${agent.name} > ${spec.name}` : spec.name,
                 groupLabel: agent.name,
               });
             }
@@ -94,7 +90,7 @@ export default function AddAgentToProjectDialog({ projectId, assignedSlugs, onCl
           </div>
         ) : options.length === 0 ? (
           <p className="text-sm text-[var(--text-muted)] mb-4">
-            All global agents are already assigned to this project.
+            All specialized agents are already assigned to this project.
           </p>
         ) : (
           <div className="mb-4">

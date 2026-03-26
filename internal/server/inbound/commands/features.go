@@ -33,6 +33,7 @@ func (h *FeatureCommandsHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/projects/{id}/features", h.CreateFeature).Methods("POST")
 	router.HandleFunc("/api/projects/{id}/features/{featureId}", h.UpdateFeature).Methods("PATCH")
 	router.HandleFunc("/api/projects/{id}/features/{featureId}/status", h.UpdateFeatureStatus).Methods("PATCH")
+	router.HandleFunc("/api/projects/{id}/features/{featureId}/changelogs", h.UpdateFeatureChangelogs).Methods("PATCH")
 	router.HandleFunc("/api/projects/{id}/features/{featureId}", h.DeleteFeature).Methods("DELETE")
 }
 
@@ -121,6 +122,33 @@ func (h *FeatureCommandsHandler) UpdateFeatureStatus(w http.ResponseWriter, r *h
 
 	h.hub.Broadcast(websocket.Event{Type: "feature_status_updated", Data: map[string]string{"feature_id": string(featureID), "status": req.Status}})
 	h.controller.SendSuccess(w, r, map[string]string{"message": "feature status updated"})
+}
+
+// UpdateFeatureChangelogs updates feature changelogs
+func (h *FeatureCommandsHandler) UpdateFeatureChangelogs(w http.ResponseWriter, r *http.Request) {
+	featureID := domain.FeatureID(mux.Vars(r)["featureId"])
+
+	var req pkgserver.UpdateFeatureChangelogsRequest
+	if err := h.controller.DecodeAndValidate(r, &req, pkgserver.ErrInvalidFeatureRequest); err != nil {
+		h.controller.SendFail(w, r, nil, err)
+		return
+	}
+
+	if err := h.commands.UpdateFeatureChangelogs(r.Context(), featureID, req.UserChangelog, req.TechChangelog); err != nil {
+		if domain.IsDomainError(err) {
+			h.controller.SendFail(w, r, nil, err)
+		} else {
+			h.controller.SendError(w, r, err)
+		}
+		return
+	}
+
+	h.hub.Broadcast(websocket.Event{
+		Type: "feature_changelogs_updated",
+		Data: map[string]string{"feature_id": string(featureID)},
+	})
+
+	h.controller.SendSuccess(w, r, map[string]string{"message": "feature changelogs updated"})
 }
 
 // DeleteFeature deletes a feature

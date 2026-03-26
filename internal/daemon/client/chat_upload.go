@@ -3,12 +3,15 @@ package client
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/JLugagne/agach-mcp/internal/daemon/domain"
 )
 
 type ChatUploadClient struct {
@@ -60,6 +63,30 @@ func (c *ChatUploadClient) UploadJSONL(ctx context.Context, token, projectID, fe
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("upload failed with status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+func (c *ChatUploadClient) UpdateStats(ctx context.Context, token, projectID, featureID, sessionID string, stats domain.ChatStats) error {
+	body, _ := json.Marshal(stats)
+	url := fmt.Sprintf("%s/api/projects/%s/features/%s/chats/%s/stats", c.baseURL, projectID, featureID, sessionID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("http request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("update stats failed with status %d", resp.StatusCode)
 	}
 
 	return nil

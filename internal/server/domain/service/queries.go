@@ -63,10 +63,12 @@ type FeatureQueries interface {
 	GetFeature(ctx context.Context, featureID domain.FeatureID) (*domain.Feature, error)
 	ListFeatures(ctx context.Context, projectID domain.ProjectID, statusFilter []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error)
 	GetFeatureStats(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error)
+	ListFeatureTaskSummaries(ctx context.Context, featureID domain.FeatureID) ([]domain.FeatureTaskSummary, error)
 }
 
 type DockerfileQueries interface {
 	GetDockerfile(ctx context.Context, dockerfileID domain.DockerfileID) (*domain.Dockerfile, error)
+	GetDockerfileBySlug(ctx context.Context, slug string) (*domain.Dockerfile, error)
 	GetDockerfileBySlugAndVersion(ctx context.Context, slug, version string) (*domain.Dockerfile, error)
 	ListDockerfiles(ctx context.Context) ([]domain.Dockerfile, error)
 	GetProjectDockerfile(ctx context.Context, projectID domain.ProjectID) (*domain.Dockerfile, error)

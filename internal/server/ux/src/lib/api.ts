@@ -16,6 +16,7 @@ import type {
   NotificationResponse, UnreadCountResponse,
   NodeResponse, OnboardingCodeResponse, GenerateOnboardingCodeRequest,
   ChatSessionResponse,
+  TaskSummaryResponse,
 } from './types';
 import { refreshAccessToken, setToken } from './auth';
 
@@ -298,3 +299,7 @@ export const startChatSession = (projectId: string, featureId: string, resumeSes
 
 export const endChatSession = (projectId: string, featureId: string, sessionId: string) =>
   request<void>('POST', `/api/projects/${projectId}/features/${featureId}/chats/${sessionId}/end`);
+
+// Feature task summaries
+export const getFeatureTaskSummaries = (projectId: string, featureId: string) =>
+  request<TaskSummaryResponse[]>('GET', `/api/projects/${projectId}/features/${featureId}/task-summaries`);

@@ -25,7 +25,7 @@ func TestApp_CreateRole_Success(t *testing.T) {
 		return nil
 	}
 
-	role, err := a.CreateAgent(ctx, "architect", "System Architect", "📐", "#3B82F6", "Designs system architecture", "Focus on clean architecture", "", []string{"Go", "PostgreSQL"}, 0)
+	role, err := a.CreateAgent(ctx, "architect", "System Architect", "📐", "#3B82F6", "Designs system architecture", "Focus on clean architecture", "", "", "", []string{"Go", "PostgreSQL"}, 0)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, role.ID)
@@ -42,7 +42,7 @@ func TestApp_CreateRole_EmptySlug_ReturnsError(t *testing.T) {
 	ctx := context.Background()
 	a, _, _, _, _, _, _ := setupTestApp()
 
-	_, err := a.CreateAgent(ctx, "", "System Architect", "📐", "#3B82F6", "Description", "", "", nil, 0)
+	_, err := a.CreateAgent(ctx, "", "System Architect", "📐", "#3B82F6", "Description", "", "", "", "", nil, 0)
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -53,7 +53,7 @@ func TestApp_CreateRole_EmptyName_ReturnsError(t *testing.T) {
 	ctx := context.Background()
 	a, _, _, _, _, _, _ := setupTestApp()
 
-	_, err := a.CreateAgent(ctx, "architect", "", "📐", "#3B82F6", "Description", "", "", nil, 0)
+	_, err := a.CreateAgent(ctx, "architect", "", "📐", "#3B82F6", "Description", "", "", "", "", nil, 0)
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -84,7 +84,7 @@ func TestApp_UpdateRole_Success(t *testing.T) {
 		return nil
 	}
 
-	err := a.UpdateAgent(ctx, roleID, "New Name", "🏗️", "#10B981", "New Description", "New hint", "", []string{"Go"}, 0)
+	err := a.UpdateAgent(ctx, roleID, "New Name", "🏗️", "#10B981", "New Description", "New hint", "", "", "", []string{"Go"}, 0)
 
 	require.NoError(t, err)
 	assert.Equal(t, "New Name", updatedRole.Name)
@@ -105,7 +105,7 @@ func TestApp_UpdateRole_NotFound_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	err := a.UpdateAgent(ctx, roleID, "New Name", "", "", "", "", "", nil, 0)
+	err := a.UpdateAgent(ctx, roleID, "New Name", "", "", "", "", "", "", "", nil, 0)
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -274,7 +274,7 @@ func TestApp_CreateProjectRole_Success(t *testing.T) {
 		return nil
 	}
 
-	role, err := a.CreateProjectAgent(ctx, projectID, "dev", "Developer", "", "#000", "desc", "hint", "", []string{"Go"}, 1)
+	role, err := a.CreateProjectAgent(ctx, projectID, "dev", "Developer", "", "#000", "desc", "hint", "", "", "", []string{"Go"}, 1)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, role.ID)
@@ -287,7 +287,7 @@ func TestApp_CreateProjectRole_EmptySlug_ReturnsError(t *testing.T) {
 	ctx := context.Background()
 	a, _, _, _, _, _, _ := setupTestApp()
 
-	_, err := a.CreateProjectAgent(ctx, domain.NewProjectID(), "", "Developer", "", "", "", "", "", nil, 0)
+	_, err := a.CreateProjectAgent(ctx, domain.NewProjectID(), "", "Developer", "", "", "", "", "", "", "", nil, 0)
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrRoleSlugRequired)
@@ -297,7 +297,7 @@ func TestApp_CreateProjectRole_EmptyName_ReturnsError(t *testing.T) {
 	ctx := context.Background()
 	a, _, _, _, _, _, _ := setupTestApp()
 
-	_, err := a.CreateProjectAgent(ctx, domain.NewProjectID(), "dev", "", "", "", "", "", "", nil, 0)
+	_, err := a.CreateProjectAgent(ctx, domain.NewProjectID(), "dev", "", "", "", "", "", "", "", "", nil, 0)
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrRoleNameRequired)
@@ -314,7 +314,7 @@ func TestApp_CreateProjectRole_AlreadyExists_ReturnsError(t *testing.T) {
 		return existingRole, nil
 	}
 
-	_, err := a.CreateProjectAgent(ctx, projectID, "dev", "Developer", "", "", "", "", "", nil, 0)
+	_, err := a.CreateProjectAgent(ctx, projectID, "dev", "Developer", "", "", "", "", "", "", "", nil, 0)
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrRoleAlreadyExists)
@@ -341,7 +341,7 @@ func TestApp_UpdateProjectRole_Success(t *testing.T) {
 		return nil
 	}
 
-	err := a.UpdateProjectAgent(ctx, projectID, roleID, "New Name", "", "", "", "", "", nil, 0)
+	err := a.UpdateProjectAgent(ctx, projectID, roleID, "New Name", "", "", "", "", "", "", "", nil, 0)
 
 	require.NoError(t, err)
 	assert.Equal(t, "New Name", updatedRole.Name)
@@ -355,7 +355,7 @@ func TestApp_UpdateProjectRole_NotFound_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	err := a.UpdateProjectAgent(ctx, domain.NewProjectID(), domain.NewRoleID(), "New Name", "", "", "", "", "", nil, 0)
+	err := a.UpdateProjectAgent(ctx, domain.NewProjectID(), domain.NewRoleID(), "New Name", "", "", "", "", "", "", "", nil, 0)
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrRoleNotFound)

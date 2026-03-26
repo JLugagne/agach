@@ -253,6 +253,8 @@ export interface FeatureResponse {
   name: string;
   description: string;
   status: FeatureStatus;
+  user_changelog: string;
+  tech_changelog: string;
   created_by_role: string;
   created_by_agent: string;
   created_at: string;
@@ -546,6 +548,16 @@ export interface ChatStats {
   totalCost: number;
   durationSeconds: number;
   model: string;
+}
+
+// Task Summaries
+export interface TaskSummaryResponse {
+  task_id: string;
+  title: string;
+  completion_summary: string;
+  completed_by_agent: string;
+  completed_at: string;
+  files_modified: string[];
 }
 
 // WebSocket

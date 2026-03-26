@@ -58,6 +58,8 @@ type CreateAgentRequest struct {
 	TechStack      []string `json:"tech_stack" validate:"max=100,dive,max=50"`
 	PromptHint     string   `json:"prompt_hint" validate:"max=5000"`
 	PromptTemplate string   `json:"prompt_template" validate:"omitempty,max=50000"`
+	Model          string   `json:"model" validate:"omitempty,max=100"`
+	Thinking       string   `json:"thinking" validate:"omitempty,max=50"`
 	SkillSlugs     []string `json:"skill_slugs" validate:"max=100,dive,max=50"`
 	SortOrder      int      `json:"sort_order"`
 }
@@ -71,6 +73,8 @@ type UpdateAgentRequest struct {
 	TechStack      *[]string `json:"tech_stack" validate:"omitempty,max=100,dive,max=50"`
 	PromptHint     *string   `json:"prompt_hint" validate:"omitempty,max=5000"`
 	PromptTemplate *string   `json:"prompt_template" validate:"omitempty,max=50000"`
+	Model          *string   `json:"model" validate:"omitempty,max=100"`
+	Thinking       *string   `json:"thinking" validate:"omitempty,max=50"`
 	SkillSlugs     *[]string `json:"skill_slugs" validate:"omitempty,max=100,dive,max=50"`
 	SortOrder      *int      `json:"sort_order"`
 }
@@ -87,6 +91,8 @@ type AgentResponse struct {
 	PromptHint       string    `json:"prompt_hint"`
 	PromptTemplate   string    `json:"prompt_template"`
 	Content          string    `json:"content"`
+	Model            string    `json:"model"`
+	Thinking         string    `json:"thinking"`
 	SkillCount       int       `json:"skill_count"`
 	SpecializedCount int       `json:"specialized_count"`
 	SortOrder        int       `json:"sort_order"`
@@ -514,6 +520,8 @@ type FeatureResponse struct {
 	ProjectID      string `json:"project_id"`
 	Name           string `json:"name"`
 	Description    string `json:"description"`
+	UserChangelog  string `json:"user_changelog"`
+	TechChangelog  string `json:"tech_changelog"`
 	Status         string `json:"status"`
 	CreatedByRole  string `json:"created_by_role"`
 	CreatedByAgent string `json:"created_by_agent"`
@@ -526,11 +534,33 @@ type FeatureWithSummaryResponse struct {
 	TaskSummary ProjectSummaryResponse `json:"task_summary"`
 }
 
+type UpdateFeatureChangelogsRequest struct {
+	UserChangelog *string `json:"user_changelog" validate:"omitempty,max=50000"`
+	TechChangelog *string `json:"tech_changelog" validate:"omitempty,max=50000"`
+}
+
+type TaskSummaryResponse struct {
+	TaskID            string    `json:"task_id"`
+	Title             string    `json:"title"`
+	CompletionSummary string    `json:"completion_summary"`
+	CompletedByAgent  string    `json:"completed_by_agent"`
+	CompletedAt       time.Time `json:"completed_at"`
+	FilesModified     []string  `json:"files_modified"`
+}
+
 // Chat Sessions
 
 type StartChatSessionRequest struct {
 	ResumeSessionID *string `json:"resume_session_id" validate:"omitempty,entity_id"`
 	NodeID          string  `json:"node_id" validate:"omitempty,max=100"`
+}
+
+type UpdateChatStatsRequest struct {
+	InputTokens      int    `json:"input_tokens"`
+	OutputTokens     int    `json:"output_tokens"`
+	CacheReadTokens  int    `json:"cache_read_tokens"`
+	CacheWriteTokens int    `json:"cache_write_tokens"`
+	Model            string `json:"model" validate:"omitempty,max=100"`
 }
 
 type ChatSessionResponse struct {
@@ -600,6 +630,10 @@ var (
 	ErrInvalidChatSessionRequest = &apierror.Error{
 		Code:    "INVALID_CHAT_SESSION_REQUEST",
 		Message: "invalid chat session request data",
+	}
+	ErrInvalidChatStatsRequest = &apierror.Error{
+		Code:    "INVALID_CHAT_STATS_REQUEST",
+		Message: "invalid chat stats request data",
 	}
 	ErrInvalidSpecializedAgentRequest = &apierror.Error{
 		Code:    "INVALID_SPECIALIZED_AGENT_REQUEST",

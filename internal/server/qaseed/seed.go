@@ -112,7 +112,8 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 	backendRole, err := svc.CreateAgent(ctx,
 		"backend", "Backend Engineer", "⚙️", "#3B82F6",
 		"Implements server-side logic, APIs, and database access.",
-		"Focus on correctness, performance, and test coverage.", "",
+		"Focus on correctness, performance, and test coverage.",
+		"", "", "",
 		[]string{"Go", "PostgreSQL", "REST"}, 1,
 	)
 	if err != nil {
@@ -125,6 +126,7 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 		"frontend", "Frontend Engineer", "🖥️", "#8B5CF6",
 		"Builds user interfaces and integrates with HTTP APIs.",
 		"Write accessible, responsive components.", "",
+		"", "",
 		[]string{"TypeScript", "React", "Tailwind"}, 2,
 	)
 	if err != nil {
@@ -137,6 +139,7 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 		"qa", "QA Engineer", "🧪", "#10B981",
 		"Writes automated and manual tests to ensure quality.",
 		"Prefer end-to-end coverage over unit tests.", "",
+		"", "",
 		[]string{"Playwright", "pytest"}, 3,
 	)
 	if err != nil {

@@ -48,11 +48,11 @@ type TaskCommands interface {
 }
 
 type AgentCommands interface {
-	CreateAgent(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Agent, error)
-	UpdateAgent(ctx context.Context, agentID domain.AgentID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error
+	CreateAgent(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) (domain.Agent, error)
+	UpdateAgent(ctx context.Context, agentID domain.AgentID, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) error
 	DeleteAgent(ctx context.Context, agentID domain.AgentID) error
-	CreateProjectAgent(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Agent, error)
-	UpdateProjectAgent(ctx context.Context, projectID domain.ProjectID, agentID domain.AgentID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error
+	CreateProjectAgent(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) (domain.Agent, error)
+	UpdateProjectAgent(ctx context.Context, projectID domain.ProjectID, agentID domain.AgentID, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) error
 	DeleteProjectAgent(ctx context.Context, projectID domain.ProjectID, agentID domain.AgentID) error
 	CloneAgent(ctx context.Context, sourceSlug, newSlug, newName string) (domain.Agent, error)
 	AssignAgentToProject(ctx context.Context, projectID domain.ProjectID, agentSlug string) error
@@ -84,6 +84,7 @@ type FeatureCommands interface {
 	UpdateFeature(ctx context.Context, featureID domain.FeatureID, name, description string) error
 	UpdateFeatureStatus(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus) error
 	DeleteFeature(ctx context.Context, featureID domain.FeatureID) error
+	UpdateFeatureChangelogs(ctx context.Context, featureID domain.FeatureID, userChangelog, techChangelog *string) error
 }
 
 type DockerfileCommands interface {

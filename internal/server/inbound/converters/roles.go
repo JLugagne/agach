@@ -23,6 +23,8 @@ func ToPublicAgentWithCount(agent domain.Agent, skillCount, specializedCount int
 		PromptHint:       agent.PromptHint,
 		PromptTemplate:   agent.PromptTemplate,
 		Content:          agent.Content,
+		Model:            agent.Model,
+		Thinking:         agent.Thinking,
 		SkillCount:       skillCount,
 		SpecializedCount: specializedCount,
 		SortOrder:        agent.SortOrder,

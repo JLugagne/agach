@@ -1,24 +1,49 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, AlertTriangle, Star } from 'lucide-react';
-import { getProject, updateProject, deleteProject, listProjectAgents } from '../lib/api';
+import { getProject, updateProject, deleteProject, listProjectAgents, listSpecializedAgents } from '../lib/api';
 import SettingsLayout from '../components/settings/SettingsLayout';
 import DeleteConfirmModal from '../components/ui/DeleteConfirmModal';
 import AddAgentToProjectDialog from '../components/AddAgentToProjectDialog';
 import RemoveAgentDialog from '../components/RemoveAgentDialog';
 import { useWebSocket } from '../hooks/useWebSocket';
-import type { ProjectResponse, AgentResponse, WSEvent } from '../lib/types';
+import type { ProjectResponse, AgentResponse, SpecializedAgentResponse, WSEvent } from '../lib/types';
+
+interface ProjectSpecializedAgent {
+  slug: string;
+  name: string;
+  color: string;
+  parentSlug: string;
+}
 
 function ProjectAgentsSection({ projectId, defaultRole, onDefaultRoleChange }: { projectId: string; defaultRole: string; onDefaultRoleChange: (slug: string) => void }) {
-  const [agents, setAgents] = useState<AgentResponse[]>([]);
+  const [parentAgents, setParentAgents] = useState<AgentResponse[]>([]);
+  const [specAgents, setSpecAgents] = useState<ProjectSpecializedAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<AgentResponse | null>(null);
 
   const fetchAgents = useCallback(async () => {
     try {
-      const data = await listProjectAgents(projectId);
-      setAgents(data ?? []);
+      const parents = (await listProjectAgents(projectId)) ?? [];
+      setParentAgents(parents);
+
+      const specResults = await Promise.all(
+        parents.map(async (agent) => {
+          try {
+            const specs = (await listSpecializedAgents(agent.slug)) ?? [];
+            return specs.map((spec: SpecializedAgentResponse) => ({
+              slug: spec.slug,
+              name: spec.name,
+              color: agent.color,
+              parentSlug: agent.slug,
+            }));
+          } catch {
+            return [];
+          }
+        })
+      );
+      setSpecAgents(specResults.flat());
     } catch {
       // ignore
     } finally {
@@ -62,11 +87,11 @@ function ProjectAgentsSection({ projectId, defaultRole, onDefaultRoleChange }: {
           <Loader2 className="animate-spin" size={14} />
           <span>Loading agents...</span>
         </div>
-      ) : agents.length === 0 ? (
+      ) : specAgents.length === 0 ? (
         <p className="text-sm text-[var(--text-dim)] italic">No agents assigned yet.</p>
       ) : (
         <div className="space-y-1">
-          {agents.map(agent => (
+          {specAgents.map(agent => (
             <div key={agent.slug} className="flex items-center justify-between py-2.5 px-3 rounded-md bg-[var(--bg-primary)] border border-[var(--border-primary)]">
               <div className="flex items-center gap-2.5">
                 <span
@@ -95,7 +120,7 @@ function ProjectAgentsSection({ projectId, defaultRole, onDefaultRoleChange }: {
                   <Star size={14} fill={agent.slug === defaultRole ? 'currentColor' : 'none'} />
                 </button>
                 <button
-                  onClick={() => setRemoveTarget(agent)}
+                  onClick={() => setRemoveTarget(parentAgents.find(p => p.slug === agent.parentSlug) ?? null)}
                   data-qa="remove-agent-btn"
                   className="text-xs text-[var(--text-dim)] hover:text-[#FF3B30] transition-colors px-2 py-0.5 rounded"
                 >
@@ -110,7 +135,7 @@ function ProjectAgentsSection({ projectId, defaultRole, onDefaultRoleChange }: {
       {addDialogOpen && (
         <AddAgentToProjectDialog
           projectId={projectId}
-          assignedSlugs={new Set(agents.map(a => a.slug))}
+          assignedSlugs={new Set(specAgents.map(a => a.slug))}
           onClose={() => setAddDialogOpen(false)}
           onSuccess={fetchAgents}
         />
@@ -120,7 +145,7 @@ function ProjectAgentsSection({ projectId, defaultRole, onDefaultRoleChange }: {
         <RemoveAgentDialog
           projectId={projectId}
           agent={removeTarget}
-          projectAgents={agents}
+          projectAgents={parentAgents}
           onClose={() => setRemoveTarget(null)}
           onSuccess={() => {
             setRemoveTarget(null);

@@ -137,6 +137,15 @@ func (m *mockDockerClient) ImageRemove(_ context.Context, imageID string, _ imag
 	return m.removeResp, nil
 }
 
+type mockDockerfileFetcher struct {
+	content *domain.DockerfileContent
+	err     error
+}
+
+func (m *mockDockerfileFetcher) GetDockerfileBySlug(_ context.Context, _, _ string) (*domain.DockerfileContent, error) {
+	return m.content, m.err
+}
+
 func newTestLogger() *logrus.Logger {
 	l := logrus.New()
 	l.SetLevel(logrus.ErrorLevel)
@@ -155,7 +164,7 @@ func TestDockerService_ListImages(t *testing.T) {
 		},
 	}
 
-	svc := app.NewDockerService(mock, &mockDockerClient{}, newTestLogger())
+	svc := app.NewDockerService(mock, &mockDockerClient{}, nil, "", newTestLogger())
 
 	result, err := svc.ListImages(context.Background())
 	require.NoError(t, err)
@@ -198,7 +207,10 @@ func TestDockerService_Rebuild_Success(t *testing.T) {
 		},
 	}
 
-	svc := app.NewDockerService(repo, docker, newTestLogger())
+	fetcher := &mockDockerfileFetcher{
+		content: &domain.DockerfileContent{Slug: "agent-base", Version: "v1.0", Content: "FROM golang:1.21\nCOPY . .\nRUN go build"},
+	}
+	svc := app.NewDockerService(repo, docker, fetcher, "test-token", newTestLogger())
 	eventCh := make(chan daemonws.BuildEvent, 10)
 
 	err := svc.Rebuild(context.Background(), "agent-base", eventCh)
@@ -232,8 +244,11 @@ func TestDockerService_Rebuild_Failure(t *testing.T) {
 	docker := &mockDockerClient{
 		buildErr: errors.New("docker build failed: out of disk"),
 	}
+	fetcher := &mockDockerfileFetcher{
+		content: &domain.DockerfileContent{Slug: "agent-base", Version: "v1.0", Content: "FROM golang:1.21"},
+	}
 
-	svc := app.NewDockerService(repo, docker, newTestLogger())
+	svc := app.NewDockerService(repo, docker, fetcher, "test-token", newTestLogger())
 	eventCh := make(chan daemonws.BuildEvent, 10)
 
 	err := svc.Rebuild(context.Background(), "agent-base", eventCh)
@@ -273,7 +288,7 @@ func TestDockerService_PruneNonLatest(t *testing.T) {
 	}
 	docker := &mockDockerClient{}
 
-	svc := app.NewDockerService(repo, docker, newTestLogger())
+	svc := app.NewDockerService(repo, docker, nil, "", newTestLogger())
 	eventCh := make(chan daemonws.PruneEvent, 20)
 
 	result, err := svc.PruneNonLatest(context.Background(), eventCh)
@@ -307,7 +322,7 @@ func TestDockerService_PruneNonLatest_PartialFailure(t *testing.T) {
 		},
 	}
 
-	svc := app.NewDockerService(repo, docker, newTestLogger())
+	svc := app.NewDockerService(repo, docker, nil, "", newTestLogger())
 	eventCh := make(chan daemonws.PruneEvent, 20)
 
 	result, err := svc.PruneNonLatest(context.Background(), eventCh)

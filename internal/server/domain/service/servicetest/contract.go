@@ -22,11 +22,11 @@ type MockCommands struct {
 	CreateProjectFunc        func(ctx context.Context, name, description, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
 	UpdateProjectFunc        func(ctx context.Context, projectID domain.ProjectID, name, description string, gitURL, defaultRole *string) error
 	DeleteProjectFunc        func(ctx context.Context, projectID domain.ProjectID) error
-	CreateAgentFunc           func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Agent, error)
-	UpdateAgentFunc           func(ctx context.Context, roleID domain.AgentID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error
+	CreateAgentFunc           func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) (domain.Agent, error)
+	UpdateAgentFunc           func(ctx context.Context, roleID domain.AgentID, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) error
 	DeleteAgentFunc           func(ctx context.Context, roleID domain.AgentID) error
-	CreateProjectAgentFunc    func(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Agent, error)
-	UpdateProjectAgentFunc    func(ctx context.Context, projectID domain.ProjectID, roleID domain.AgentID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error
+	CreateProjectAgentFunc    func(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) (domain.Agent, error)
+	UpdateProjectAgentFunc    func(ctx context.Context, projectID domain.ProjectID, roleID domain.AgentID, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) error
 	DeleteProjectAgentFunc    func(ctx context.Context, projectID domain.ProjectID, roleID domain.AgentID) error
 	CreateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.FeatureID) (domain.Task, error)
 	BulkCreateTasksFunc      func(ctx context.Context, projectID domain.ProjectID, inputs []service.BulkTaskInput) ([]domain.Task, error)
@@ -69,6 +69,7 @@ type MockCommands struct {
 	UpdateFeatureFunc               func(ctx context.Context, featureID domain.FeatureID, name, description string) error
 	UpdateFeatureStatusFunc         func(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus) error
 	DeleteFeatureFunc               func(ctx context.Context, featureID domain.FeatureID) error
+	UpdateFeatureChangelogsFunc     func(ctx context.Context, featureID domain.FeatureID, userChangelog, techChangelog *string) error
 	CreateNotificationFunc       func(ctx context.Context, projectID *domain.ProjectID, scope domain.NotificationScope, agentSlug string, severity domain.NotificationSeverity, title, text, linkURL, linkText, linkStyle string) (domain.Notification, error)
 	MarkNotificationReadFunc     func(ctx context.Context, notificationID domain.NotificationID) error
 	MarkAllNotificationsReadFunc func(ctx context.Context, projectID *domain.ProjectID) error
@@ -99,18 +100,18 @@ func (m *MockCommands) DeleteProject(ctx context.Context, projectID domain.Proje
 	return m.DeleteProjectFunc(ctx, projectID)
 }
 
-func (m *MockCommands) CreateAgent(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Agent, error) {
+func (m *MockCommands) CreateAgent(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) (domain.Agent, error) {
 	if m.CreateAgentFunc == nil {
 		panic("called not defined CreateAgentFunc")
 	}
-	return m.CreateAgentFunc(ctx, slug, name, icon, color, description, promptHint, promptTemplate, techStack, sortOrder)
+	return m.CreateAgentFunc(ctx, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking, techStack, sortOrder)
 }
 
-func (m *MockCommands) UpdateAgent(ctx context.Context, roleID domain.AgentID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error {
+func (m *MockCommands) UpdateAgent(ctx context.Context, roleID domain.AgentID, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) error {
 	if m.UpdateAgentFunc == nil {
 		panic("called not defined UpdateAgentFunc")
 	}
-	return m.UpdateAgentFunc(ctx, roleID, name, icon, color, description, promptHint, promptTemplate, techStack, sortOrder)
+	return m.UpdateAgentFunc(ctx, roleID, name, icon, color, description, promptHint, promptTemplate, model, thinking, techStack, sortOrder)
 }
 
 func (m *MockCommands) DeleteAgent(ctx context.Context, roleID domain.AgentID) error {
@@ -120,18 +121,18 @@ func (m *MockCommands) DeleteAgent(ctx context.Context, roleID domain.AgentID) e
 	return m.DeleteAgentFunc(ctx, roleID)
 }
 
-func (m *MockCommands) CreateProjectAgent(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Agent, error) {
+func (m *MockCommands) CreateProjectAgent(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) (domain.Agent, error) {
 	if m.CreateProjectAgentFunc == nil {
 		panic("called not defined CreateProjectAgentFunc")
 	}
-	return m.CreateProjectAgentFunc(ctx, projectID, slug, name, icon, color, description, promptHint, promptTemplate, techStack, sortOrder)
+	return m.CreateProjectAgentFunc(ctx, projectID, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking, techStack, sortOrder)
 }
 
-func (m *MockCommands) UpdateProjectAgent(ctx context.Context, projectID domain.ProjectID, roleID domain.AgentID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error {
+func (m *MockCommands) UpdateProjectAgent(ctx context.Context, projectID domain.ProjectID, roleID domain.AgentID, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) error {
 	if m.UpdateProjectAgentFunc == nil {
 		panic("called not defined UpdateProjectAgentFunc")
 	}
-	return m.UpdateProjectAgentFunc(ctx, projectID, roleID, name, icon, color, description, promptHint, promptTemplate, techStack, sortOrder)
+	return m.UpdateProjectAgentFunc(ctx, projectID, roleID, name, icon, color, description, promptHint, promptTemplate, model, thinking, techStack, sortOrder)
 }
 
 func (m *MockCommands) DeleteProjectAgent(ctx context.Context, projectID domain.ProjectID, roleID domain.AgentID) error {
@@ -428,6 +429,13 @@ func (m *MockCommands) DeleteFeature(ctx context.Context, featureID domain.Featu
 	return m.DeleteFeatureFunc(ctx, featureID)
 }
 
+func (m *MockCommands) UpdateFeatureChangelogs(ctx context.Context, featureID domain.FeatureID, userChangelog, techChangelog *string) error {
+	if m.UpdateFeatureChangelogsFunc == nil {
+		panic("called not defined UpdateFeatureChangelogsFunc")
+	}
+	return m.UpdateFeatureChangelogsFunc(ctx, featureID, userChangelog, techChangelog)
+}
+
 func (m *MockCommands) CreateNotification(ctx context.Context, projectID *domain.ProjectID, scope domain.NotificationScope, agentSlug string, severity domain.NotificationSeverity, title, text, linkURL, linkText, linkStyle string) (domain.Notification, error) {
 	if m.CreateNotificationFunc == nil {
 		panic("called not defined CreateNotificationFunc")
@@ -514,6 +522,7 @@ type MockQueries struct {
 	ListAgentSkillsFunc             func(ctx context.Context, agentSlug string) ([]domain.Skill, error)
 	GetProjectTasksByAgentFunc      func(ctx context.Context, projectID domain.ProjectID, agentSlug string) ([]domain.Task, error)
 	GetDockerfileFunc               func(ctx context.Context, dockerfileID domain.DockerfileID) (*domain.Dockerfile, error)
+	GetDockerfileBySlugFunc          func(ctx context.Context, slug string) (*domain.Dockerfile, error)
 	GetDockerfileBySlugAndVersionFunc func(ctx context.Context, slug, version string) (*domain.Dockerfile, error)
 	ListDockerfilesFunc             func(ctx context.Context) ([]domain.Dockerfile, error)
 	GetProjectDockerfileFunc        func(ctx context.Context, projectID domain.ProjectID) (*domain.Dockerfile, error)
@@ -522,6 +531,7 @@ type MockQueries struct {
 	GetFeatureFunc                  func(ctx context.Context, featureID domain.FeatureID) (*domain.Feature, error)
 	ListFeaturesFunc                func(ctx context.Context, projectID domain.ProjectID, statusFilter []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error)
 	GetFeatureStatsFunc             func(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error)
+	ListFeatureTaskSummariesFunc    func(ctx context.Context, featureID domain.FeatureID) ([]domain.FeatureTaskSummary, error)
 	ListNotificationsFunc           func(ctx context.Context, projectID *domain.ProjectID, scope *domain.NotificationScope, agentSlug string, unreadOnly bool, limit, offset int) ([]domain.Notification, error)
 	GetNotificationUnreadCountFunc  func(ctx context.Context, projectID *domain.ProjectID, scope *domain.NotificationScope, agentSlug string) (int, error)
 	ListSpecializedAgentsFunc       func(ctx context.Context, parentSlug string) ([]domain.SpecializedAgent, error)
@@ -775,6 +785,13 @@ func (m *MockQueries) GetDockerfile(ctx context.Context, dockerfileID domain.Doc
 	return m.GetDockerfileFunc(ctx, dockerfileID)
 }
 
+func (m *MockQueries) GetDockerfileBySlug(ctx context.Context, slug string) (*domain.Dockerfile, error) {
+	if m.GetDockerfileBySlugFunc == nil {
+		panic("called not defined GetDockerfileBySlugFunc")
+	}
+	return m.GetDockerfileBySlugFunc(ctx, slug)
+}
+
 func (m *MockQueries) GetDockerfileBySlugAndVersion(ctx context.Context, slug, version string) (*domain.Dockerfile, error) {
 	if m.GetDockerfileBySlugAndVersionFunc == nil {
 		panic("called not defined GetDockerfileBySlugAndVersionFunc")
@@ -829,6 +846,13 @@ func (m *MockQueries) GetFeatureStats(ctx context.Context, projectID domain.Proj
 		return &domain.FeatureStats{}, nil
 	}
 	return m.GetFeatureStatsFunc(ctx, projectID)
+}
+
+func (m *MockQueries) ListFeatureTaskSummaries(ctx context.Context, featureID domain.FeatureID) ([]domain.FeatureTaskSummary, error) {
+	if m.ListFeatureTaskSummariesFunc == nil {
+		return nil, nil
+	}
+	return m.ListFeatureTaskSummariesFunc(ctx, featureID)
 }
 
 func (m *MockQueries) ListNotifications(ctx context.Context, projectID *domain.ProjectID, scope *domain.NotificationScope, agentSlug string, unreadOnly bool, limit, offset int) ([]domain.Notification, error) {

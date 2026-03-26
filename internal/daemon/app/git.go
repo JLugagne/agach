@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -60,6 +61,78 @@ func (s *GitService) EnsureWorktree(ctx context.Context, projectID, gitURL, main
 	}
 	return path, nil
 }
+
+// CreateSessionWorktree ensures the main repo is up-to-date (fetch --all + pull),
+// then creates a detached git worktree for the given session ID.
+// The worktree is placed under ~/.cache/agach/<projectID>-sessions/<sessionID>.
+func (s *GitService) CreateSessionWorktree(ctx context.Context, projectID, sessionID, gitURL, mainBranch string) (string, error) {
+	if gitURL == "" {
+		return "", errors.New("git URL is required")
+	}
+
+	// Ensure main repo exists and is up-to-date
+	mainPath := s.GetWorktreePath(projectID)
+	if _, err := git.PlainOpen(mainPath); err != nil {
+		if !errors.Is(err, git.ErrRepositoryNotExists) {
+			return "", fmt.Errorf("open repo: %w", err)
+		}
+		if err := s.clone(ctx, mainPath, gitURL, mainBranch); err != nil {
+			return "", fmt.Errorf("clone: %w", err)
+		}
+	} else {
+		if err := s.fetchAndPull(ctx, mainPath, mainBranch); err != nil {
+			return "", fmt.Errorf("fetch and pull: %w", err)
+		}
+	}
+
+	// Create a dedicated worktree for this session
+	wtPath := filepath.Join(s.cacheDir, projectID+"-sessions", sessionID)
+	if err := os.MkdirAll(filepath.Dir(wtPath), 0700); err != nil {
+		return "", fmt.Errorf("create session dir: %w", err)
+	}
+
+	cmd := execCommandContext(ctx, "git", "worktree", "add", "--detach", wtPath, "HEAD")
+	cmd.Dir = mainPath
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("git worktree add: %s: %w", string(out), err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"project_id": projectID,
+		"session_id": sessionID,
+		"worktree":   wtPath,
+	}).Info("Created session worktree")
+
+	return wtPath, nil
+}
+
+// RemoveSessionWorktree removes a session worktree and prunes it from the main repo.
+func (s *GitService) RemoveSessionWorktree(ctx context.Context, projectID, sessionID string) error {
+	wtPath := filepath.Join(s.cacheDir, projectID+"-sessions", sessionID)
+	mainPath := s.GetWorktreePath(projectID)
+
+	// Remove the worktree directory
+	if err := os.RemoveAll(wtPath); err != nil {
+		s.logger.WithError(err).WithField("path", wtPath).Warn("failed to remove worktree directory")
+	}
+
+	// Prune stale worktree references
+	cmd := execCommandContext(ctx, "git", "worktree", "prune")
+	cmd.Dir = mainPath
+	if out, err := cmd.CombinedOutput(); err != nil {
+		s.logger.WithError(err).WithField("output", string(out)).Warn("git worktree prune failed")
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"project_id": projectID,
+		"session_id": sessionID,
+	}).Info("Removed session worktree")
+
+	return nil
+}
+
+// execCommandContext is a variable so tests can override it.
+var execCommandContext = exec.CommandContext
 
 func (s *GitService) clone(ctx context.Context, path, gitURL, mainBranch string) error {
 	if err := os.MkdirAll(path, 0700); err != nil {

@@ -9,6 +9,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,16 +47,17 @@ type ChatSession struct {
 }
 
 type ChatManager struct {
-	sessions      map[string]*ChatSession
-	mu            sync.RWMutex
-	logger        *logrus.Logger
-	gitService    *GitService
-	projectClient domain.ProjectFetcher
-	uploadClient  domain.ChatUploader
-	token         string
-	sendMessage   func(daemonws.Message)
-	stopCh        chan struct{}
-	ttl           time.Duration
+	sessions        map[string]*ChatSession
+	mu              sync.RWMutex
+	logger          *logrus.Logger
+	gitService      *GitService
+	projectClient   domain.ProjectFetcher
+	uploadClient    domain.ChatUploader
+	agentDownloader domain.AgentDownloader
+	token           string
+	sendMessage     func(daemonws.Message)
+	stopCh          chan struct{}
+	ttl             time.Duration
 }
 
 func NewChatManager(
@@ -62,26 +65,28 @@ func NewChatManager(
 	gitService *GitService,
 	projectClient domain.ProjectFetcher,
 	uploadClient domain.ChatUploader,
+	agentDownloader domain.AgentDownloader,
 	token string,
 	sendMessage func(daemonws.Message),
 ) *ChatManager {
 	m := &ChatManager{
-		sessions:      make(map[string]*ChatSession),
-		logger:        logger,
-		gitService:    gitService,
-		projectClient: projectClient,
-		uploadClient:  uploadClient,
-		token:         token,
-		sendMessage:   sendMessage,
-		stopCh:        make(chan struct{}),
-		ttl:           30 * time.Minute,
+		sessions:        make(map[string]*ChatSession),
+		logger:          logger,
+		gitService:      gitService,
+		projectClient:   projectClient,
+		uploadClient:    uploadClient,
+		agentDownloader: agentDownloader,
+		token:           token,
+		sendMessage:     sendMessage,
+		stopCh:          make(chan struct{}),
+		ttl:             30 * time.Minute,
 	}
 	go m.ttlChecker()
 	go m.statsBroadcaster()
 	return m
 }
 
-func (m *ChatManager) startClaudeProcess(session *ChatSession, resumeSessionID string) error {
+func (m *ChatManager) startClaudeProcess(session *ChatSession, resumeSessionID, agentName string) error {
 	jsonlPath := fmt.Sprintf("/tmp/agach-chat-%s.jsonl", session.ID)
 	f, err := os.Create(jsonlPath)
 	if err != nil {
@@ -91,6 +96,9 @@ func (m *ChatManager) startClaudeProcess(session *ChatSession, resumeSessionID s
 	session.jsonlPath = jsonlPath
 
 	args := []string{"--print", "--output-format", "stream-json", "--input-format", "stream-json", "--verbose"}
+	if agentName != "" {
+		args = append(args, "--agent", agentName)
+	}
 	if resumeSessionID != "" {
 		args = append(args, "--resume", resumeSessionID)
 	}
@@ -191,7 +199,25 @@ func (m *ChatManager) handleClaudeMessage(session *ChatSession, line []byte) {
 			}
 			session.MessageCount++
 			session.LastActivity = time.Now()
+			stats := domain.ChatStats{
+				InputTokens:      session.InputTokens,
+				OutputTokens:     session.OutputTokens,
+				CacheReadTokens:  session.CacheReadTokens,
+				CacheWriteTokens: session.CacheWriteTokens,
+				Model:            session.Model,
+			}
+			projectID := session.ProjectID
+			featureID := session.FeatureID
+			sessionID := session.ID
 			m.mu.Unlock()
+
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if err := m.uploadClient.UpdateStats(ctx, m.token, projectID, featureID, sessionID, stats); err != nil {
+					m.logger.WithError(err).WithField("session_id", sessionID).Warn("failed to persist stats")
+				}
+			}()
 		}
 	} else if envelope.Type == "assistant" {
 		m.mu.Lock()
@@ -290,10 +316,8 @@ func (m *ChatManager) StartSession(ctx context.Context, requestID string, req da
 		return
 	}
 
-	worktreePath, err := m.gitService.EnsureWorktree(ctx, req.ProjectID, project.GitURL, "")
-	if err != nil {
-		m.logger.WithError(err).WithField("project_id", req.ProjectID).Error("ensure worktree")
-		m.sendError(requestID, "", "failed to prepare worktree: "+err.Error())
+	if project.DefaultRole == "" {
+		m.sendError(requestID, "", "project must have a default agent set before starting a chat session")
 		return
 	}
 
@@ -301,6 +325,22 @@ func (m *ChatManager) StartSession(ctx context.Context, requestID string, req da
 	if sessionID == "" {
 		sessionID = uuid.New().String()
 	}
+
+	worktreePath, err := m.gitService.CreateSessionWorktree(ctx, req.ProjectID, sessionID, project.GitURL, "")
+	if err != nil {
+		m.logger.WithError(err).WithField("project_id", req.ProjectID).Error("create session worktree")
+		m.sendError(requestID, "", "failed to prepare worktree: "+err.Error())
+		return
+	}
+
+	// Download agents and skills, write them into the worktree
+	agentName, err := m.downloadAndWriteAgents(ctx, req.ProjectID, worktreePath, project.DefaultRole)
+	if err != nil {
+		m.logger.WithError(err).WithField("project_id", req.ProjectID).Error("download agents")
+		m.sendError(requestID, "", "failed to download agents: "+err.Error())
+		return
+	}
+
 	now := time.Now()
 
 	session := &ChatSession{
@@ -312,7 +352,7 @@ func (m *ChatManager) StartSession(ctx context.Context, requestID string, req da
 		LastActivity: now,
 	}
 
-	if err := m.startClaudeProcess(session, req.ResumeSessionID); err != nil {
+	if err := m.startClaudeProcess(session, req.ResumeSessionID, agentName); err != nil {
 		m.logger.WithError(err).WithField("session_id", sessionID).Error("start claude process")
 		m.sendError(requestID, sessionID, "failed to start claude: "+err.Error())
 		return
@@ -339,6 +379,60 @@ func (m *ChatManager) StartSession(ctx context.Context, requestID string, req da
 		RequestID: requestID,
 		Payload:   payload,
 	})
+}
+
+// downloadAndWriteAgents fetches the agent bundle from the server and writes
+// each file into the worktree under .claude/agents/ and .claude/skills/.
+// It returns the agent name (from frontmatter) to pass to `claude --agent <name>`.
+func (m *ChatManager) downloadAndWriteAgents(ctx context.Context, projectID, worktreePath, defaultRole string) (string, error) {
+	files, err := m.agentDownloader.DownloadAgents(ctx, m.token, projectID)
+	if err != nil {
+		return "", fmt.Errorf("download agent bundle: %w", err)
+	}
+
+	var agentName string
+	defaultAgentPath := fmt.Sprintf("agents/%s.md", defaultRole)
+
+	for _, f := range files {
+		dest := filepath.Join(worktreePath, ".claude", f.Path)
+
+		// Extract agent name from the default agent's frontmatter.
+		if f.Path == defaultAgentPath {
+			agentName = extractFrontmatterName(f.Content)
+		}
+
+		// Skip files that already exist in the repo — keep the user's version.
+		if _, err := os.Stat(dest); err == nil {
+			m.logger.WithField("path", f.Path).Debug("agent file already exists in repo, skipping")
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+			return "", fmt.Errorf("create directory for %s: %w", f.Path, err)
+		}
+		if err := os.WriteFile(dest, f.Content, 0644); err != nil {
+			return "", fmt.Errorf("write %s: %w", f.Path, err)
+		}
+	}
+
+	if agentName == "" {
+		return "", fmt.Errorf("default agent %q not found in downloaded bundle", defaultRole)
+	}
+
+	return agentName, nil
+}
+
+// extractFrontmatterName parses the "name:" value from YAML frontmatter.
+func extractFrontmatterName(content []byte) string {
+	const prefix = "name: "
+	for _, line := range strings.SplitN(string(content), "\n", 20) {
+		if line == "---" {
+			continue
+		}
+		if strings.HasPrefix(line, prefix) {
+			return strings.TrimSpace(line[len(prefix):])
+		}
+	}
+	return ""
 }
 
 func (m *ChatManager) GetSession(sessionID string) *ChatSession {
@@ -379,6 +473,15 @@ func (m *ChatManager) EndSession(sessionID, reason string) {
 				m.logger.WithField("session_id", sessionID).Info("JSONL uploaded successfully")
 				os.Remove(session.jsonlPath)
 			}
+		}
+	}
+
+	// Remove the session worktree (discard all local changes, no commits)
+	if m.gitService != nil {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cleanupCancel()
+		if err := m.gitService.RemoveSessionWorktree(cleanupCtx, session.ProjectID, sessionID); err != nil {
+			m.logger.WithError(err).WithField("session_id", sessionID).Warn("failed to remove session worktree")
 		}
 	}
 

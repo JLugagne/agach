@@ -40,7 +40,7 @@ func TestCreateRole_Success(t *testing.T) {
 	now := time.Now()
 
 	mock := &servicetest.MockCommands{
-		CreateAgentFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
+		CreateAgentFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) (domain.Role, error) {
 			assert.Equal(t, "engineer", slug)
 			assert.Equal(t, "Software Engineer", name)
 			return domain.Role{
@@ -112,7 +112,7 @@ func TestCreateRole_ValidationError(t *testing.T) {
 
 func TestCreateRole_DomainError(t *testing.T) {
 	mock := &servicetest.MockCommands{
-		CreateAgentFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) (domain.Role, error) {
+		CreateAgentFunc: func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) (domain.Role, error) {
 			return domain.Role{}, domain.ErrRoleAlreadyExists
 		},
 	}
@@ -144,7 +144,7 @@ func TestUpdateRole_Success(t *testing.T) {
 	roleID := domain.NewRoleID()
 
 	mockCmd := &servicetest.MockCommands{
-		UpdateAgentFunc: func(ctx context.Context, rID domain.RoleID, name, icon, color, description, promptHint, promptTemplate string, techStack []string, sortOrder int) error {
+		UpdateAgentFunc: func(ctx context.Context, rID domain.RoleID, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) error {
 			assert.Equal(t, roleID, rID)
 			assert.Equal(t, "Senior Engineer", name)
 			return nil
