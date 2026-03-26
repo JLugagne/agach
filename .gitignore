@@ -57,14 +57,6 @@ CLAUDE.md
 *.test
 
 .claude/*
-
-# Ré-inclure le dossier skills
-!.claude/skills/
-
-# Mais ignorer tout dans skills
-.claude/skills/*
-
-# Sauf les skills doc-
 !.claude/skills/doc-*/
 
 .code-indexer
