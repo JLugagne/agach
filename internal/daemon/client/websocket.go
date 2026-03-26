@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,10 +25,11 @@ type WSEvent = domain.WSEvent
 type WSEventHandler = domain.WSEventHandler
 
 type WSClient struct {
-	wsURL   string
-	token   string
-	logger  *logrus.Logger
-	handler domain.WSEventHandler
+	wsURL       string
+	token       string
+	logger      *logrus.Logger
+	handler     domain.WSEventHandler
+	onAuthError func() (string, error) // returns new token
 
 	conn       *websocket.Conn
 	connMu     sync.Mutex
@@ -45,6 +47,12 @@ func NewWSClient(wsURL, token string, logger *logrus.Logger, handler domain.WSEv
 		logger:  logger,
 		handler: handler,
 	}
+}
+
+// SetOnAuthError sets a callback invoked when the server returns 401.
+// The callback should refresh the token and return the new one.
+func (c *WSClient) SetOnAuthError(fn func() (string, error)) {
+	c.onAuthError = fn
 }
 
 func (c *WSClient) SetToken(token string) {
@@ -240,6 +248,14 @@ func (c *WSClient) RunWithReconnect(ctx context.Context) error {
 		err := c.Connect(ctx)
 		if err != nil {
 			c.logger.WithError(err).Warn("websocket connect failed, will retry")
+			if strings.Contains(err.Error(), "status 401") && c.onAuthError != nil {
+				c.logger.Info("got 401, refreshing token")
+				if newToken, refreshErr := c.onAuthError(); refreshErr == nil {
+					c.SetToken(newToken)
+				} else {
+					c.logger.WithError(refreshErr).Warn("token refresh failed")
+				}
+			}
 		} else {
 			c.reconnects = 0
 			c.logger.Debug("websocket connected")

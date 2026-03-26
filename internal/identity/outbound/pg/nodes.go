@@ -112,6 +112,20 @@ func (r *pgNodeRepository) UpdateLastSeen(ctx context.Context, id domain.NodeID)
 	return err
 }
 
+func (r *pgNodeRepository) ListAll(ctx context.Context) ([]domain.Node, error) {
+	qCtx, cancel := r.ctx(ctx)
+	defer cancel()
+
+	rows, err := r.pool.Query(qCtx, `
+		SELECT id, owner_user_id, name, mode, status, refresh_token_hash, last_seen_at, revoked_at, created_at, updated_at
+		FROM nodes ORDER BY created_at ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanNodes(rows)
+}
+
 func scanNodes(rows pgx.Rows) ([]domain.Node, error) {
 	var out []domain.Node
 	for rows.Next() {

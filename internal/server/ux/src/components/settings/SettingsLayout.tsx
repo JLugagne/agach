@@ -1,5 +1,5 @@
 import { Link, useParams, useLocation } from 'react-router-dom';
-import { FileText, Users, ChevronLeft } from 'lucide-react';
+import { FileText, Users, ChevronLeft, UserPlus } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface SettingsLayoutProps {
@@ -11,6 +11,7 @@ interface SettingsLayoutProps {
 const tabs = [
   { label: 'Project Settings', path: '', icon: FileText },
   { label: 'Agents', path: '/agents', icon: Users },
+  { label: 'Members', path: '/members', icon: UserPlus },
 ];
 
 export default function SettingsLayout({ projectName, children, rightDrawer }: SettingsLayoutProps) {

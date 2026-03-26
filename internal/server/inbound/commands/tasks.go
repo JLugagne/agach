@@ -42,8 +42,10 @@ func (h *TaskCommandsHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/move-to-project", h.MoveTaskToProject).Methods("POST")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/reorder", h.ReorderTask).Methods("POST")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/complete", h.CompleteTask).Methods("POST")
+	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/block", h.BlockTask).Methods("POST")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/unblock", h.UnblockTask).Methods("POST")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/wont-do", h.WontDo).Methods("POST")
+	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/dependencies", h.AddDependency).Methods("POST")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/approve-wont-do", h.ApproveWontDo).Methods("POST")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/reject-wont-do", h.RejectWontDo).Methods("POST")
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/session", h.UpdateTaskSession).Methods("PATCH")
@@ -361,6 +363,40 @@ func (h *TaskCommandsHandler) CompleteTask(w http.ResponseWriter, r *http.Reques
 	h.controller.SendSuccess(w, r, map[string]string{"message": "task completed"})
 }
 
+// BlockTask blocks a task with a reason
+func (h *TaskCommandsHandler) BlockTask(w http.ResponseWriter, r *http.Request) {
+	projectID := domain.ProjectID(mux.Vars(r)["id"])
+	taskID := domain.TaskID(mux.Vars(r)["taskId"])
+
+	var req pkgserver.BlockTaskRequest
+	if err := h.controller.DecodeAndValidate(r, &req, pkgserver.ErrInvalidTaskRequest); err != nil {
+		h.controller.SendFail(w, r, nil, errors.Join(pkgserver.ErrInvalidTaskRequest, err))
+		return
+	}
+
+	err := h.commands.BlockTask(r.Context(), projectID, taskID, req.BlockedReason, req.BlockedByAgent)
+	if err != nil {
+		if domain.IsDomainError(err) {
+			h.controller.SendFail(w, r, nil, err)
+		} else {
+			h.controller.SendError(w, r, err)
+		}
+		return
+	}
+
+	h.hub.Broadcast(websocket.Event{
+		Type:      "task_moved",
+		ProjectID: string(projectID),
+		Data: map[string]string{
+			"task_id":       string(taskID),
+			"target_column": "blocked",
+			"reason":        req.BlockedReason,
+		},
+	})
+
+	h.controller.SendSuccess(w, r, map[string]string{"message": "task blocked"})
+}
+
 // UnblockTask unblocks a task (human only)
 func (h *TaskCommandsHandler) UnblockTask(w http.ResponseWriter, r *http.Request) {
 	projectID := domain.ProjectID(mux.Vars(r)["id"])
@@ -591,4 +627,29 @@ func (h *TaskCommandsHandler) UpdateTaskSession(w http.ResponseWriter, r *http.R
 	}
 
 	h.controller.SendSuccess(w, r, map[string]string{"message": "session updated"})
+}
+
+// AddDependency adds a dependency between two tasks
+func (h *TaskCommandsHandler) AddDependency(w http.ResponseWriter, r *http.Request) {
+	projectID := domain.ProjectID(mux.Vars(r)["id"])
+	taskID := domain.TaskID(mux.Vars(r)["taskId"])
+
+	var req pkgserver.AddDependencyRequest
+	if err := h.controller.DecodeAndValidate(r, &req, pkgserver.ErrInvalidDependencyRequest); err != nil {
+		h.controller.SendFail(w, r, nil, errors.Join(pkgserver.ErrInvalidDependencyRequest, err))
+		return
+	}
+
+	dependsOnTaskID := domain.TaskID(req.DependsOnTaskID)
+	err := h.commands.AddDependency(r.Context(), projectID, taskID, dependsOnTaskID)
+	if err != nil {
+		if domain.IsDomainError(err) {
+			h.controller.SendFail(w, r, nil, err)
+		} else {
+			h.controller.SendError(w, r, err)
+		}
+		return
+	}
+
+	h.controller.SendSuccess(w, r, map[string]string{"message": "dependency added"})
 }

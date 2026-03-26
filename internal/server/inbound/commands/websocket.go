@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	identitydomain "github.com/JLugagne/agach-mcp/internal/identity/domain"
@@ -17,17 +18,20 @@ type wsAuthQueries interface {
 
 // WSHandler handles WebSocket upgrade with token-based authentication.
 type WSHandler struct {
-	authQueries wsAuthQueries
-	hub         *websocket.Hub
-	upgrader    gorillaws.Upgrader
-	logger      *logrus.Logger
+	authQueries          wsAuthQueries
+	hub                  *websocket.Hub
+	upgrader             gorillaws.Upgrader
+	logger               *logrus.Logger
+	resourceManifestJSON json.RawMessage // pre-marshaled manifest sent to daemons on connect
 }
 
 // NewWSHandler creates a WSHandler. authQueries may be nil to skip authentication.
-func NewWSHandler(authQueries wsAuthQueries, hub *websocket.Hub, logger *logrus.Logger) *WSHandler {
+// manifestData is the pre-marshaled JSON of the resource manifest entries.
+func NewWSHandler(authQueries wsAuthQueries, hub *websocket.Hub, logger *logrus.Logger, manifestData json.RawMessage) *WSHandler {
 	return &WSHandler{
-		authQueries: authQueries,
-		hub:         hub,
+		authQueries:          authQueries,
+		hub:                  hub,
+		resourceManifestJSON: manifestData,
 		upgrader: gorillaws.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -73,4 +77,13 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.logger.Info("WebSocket: browser client connected")
 	}
 	h.hub.ServeWS(conn, opts...)
+
+	// Send resource manifest to daemon after connection is established
+	if isDaemon && len(h.resourceManifestJSON) > 0 {
+		event, _ := json.Marshal(map[string]any{
+			"type": "resource_manifest",
+			"data": json.RawMessage(h.resourceManifestJSON),
+		})
+		h.hub.SendToDaemon(nodeID, event)
+	}
 }

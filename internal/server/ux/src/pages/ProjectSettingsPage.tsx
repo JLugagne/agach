@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, AlertTriangle, Star } from 'lucide-react';
-import { getProject, updateProject, deleteProject, listProjectAgents, listSpecializedAgents } from '../lib/api';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import { Loader2, AlertTriangle, Star, Users, User, ExternalLink } from 'lucide-react';
+import {
+  getProject, updateProject, deleteProject, listProjectAgents, listSpecializedAgents,
+  listTeams, listUsers,
+} from '../lib/api';
 import SettingsLayout from '../components/settings/SettingsLayout';
 import DeleteConfirmModal from '../components/ui/DeleteConfirmModal';
 import AddAgentToProjectDialog from '../components/AddAgentToProjectDialog';
 import RemoveAgentDialog from '../components/RemoveAgentDialog';
 import { useWebSocket } from '../hooks/useWebSocket';
-import type { ProjectResponse, AgentResponse, SpecializedAgentResponse, WSEvent } from '../lib/types';
+import type { ProjectResponse, AgentResponse, SpecializedAgentResponse, WSEvent, TeamResponse, UserResponse } from '../lib/types';
 
 interface ProjectSpecializedAgent {
   slug: string;
@@ -157,11 +160,138 @@ function ProjectAgentsSection({ projectId, defaultRole, onDefaultRoleChange }: {
   );
 }
 
+// ---------- Members Section ----------
+
+function MembersSection() {
+  const [teams, setTeams] = useState<TeamResponse[]>([]);
+  const [users, setUsers] = useState<UserResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [t, u] = await Promise.all([listTeams(), listUsers()]);
+      setTeams(t ?? []);
+      setUsers(u ?? []);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-[var(--text-dim)] text-sm py-8">
+        <Loader2 className="animate-spin" size={14} />
+        <span>Loading members...</span>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-xl font-semibold text-[var(--text-primary)]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>Members</h1>
+        <Link
+          to="/teams"
+          data-qa="manage-teams-link"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
+        >
+          Manage Teams
+          <ExternalLink size={12} />
+        </Link>
+      </div>
+
+      {/* Teams */}
+      {teams.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 gap-3">
+          <Users size={24} className="text-[var(--text-dim)]" />
+          <p className="text-sm text-[var(--text-dim)]">No teams yet.</p>
+          <Link
+            to="/teams"
+            className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
+          >
+            Create teams in admin settings
+          </Link>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {teams.map((team) => {
+            const members = users.filter((u) => u.team_ids.includes(team.id));
+            return (
+              <div key={team.id} className="border border-[var(--border-primary)] rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 bg-[var(--bg-primary)]">
+                  <div className="flex items-center gap-2.5">
+                    <Users size={14} className="text-[var(--primary)]" />
+                    <span className="text-sm font-medium text-[var(--text-primary)]">{team.name}</span>
+                    <span className="text-xs text-[var(--text-dim)] font-mono">{team.slug}</span>
+                    <span className="text-[10px] text-[var(--text-dim)]">
+                      {members.length} member{members.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
+                {members.length > 0 && (
+                  <div className="divide-y divide-[var(--border-primary)]">
+                    {members.map((u) => (
+                      <div key={u.id} className="flex items-center gap-2.5 px-4 py-2.5">
+                        <User size={13} className="text-[var(--text-dim)]" />
+                        <span className="text-sm text-[var(--text-primary)]">{u.display_name || u.email}</span>
+                        <span className="text-xs text-[var(--text-dim)]">{u.email}</span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                            u.role === 'admin'
+                              ? 'bg-[var(--primary)]/15 text-[var(--primary)]'
+                              : 'bg-[var(--bg-tertiary)] text-[var(--text-dim)]'
+                          }`}
+                        >
+                          {u.role}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Unassigned users */}
+      {users.filter((u) => u.team_ids.length === 0).length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-sm font-medium text-[var(--text-muted)] mb-3">Unassigned Users</h2>
+          <div className="border border-[var(--border-primary)] rounded-lg overflow-hidden divide-y divide-[var(--border-primary)]">
+            {users.filter((u) => u.team_ids.length === 0).map((u) => (
+              <div key={u.id} className="flex items-center gap-2.5 px-4 py-2.5">
+                <User size={13} className="text-[var(--text-dim)]" />
+                <span className="text-sm text-[var(--text-primary)]">{u.display_name || u.email}</span>
+                <span className="text-xs text-[var(--text-dim)]">{u.email}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                    u.role === 'admin'
+                      ? 'bg-[var(--primary)]/15 text-[var(--primary)]'
+                      : 'bg-[var(--bg-tertiary)] text-[var(--text-dim)]'
+                  }`}
+                >
+                  {u.role}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
 export default function ProjectSettingsPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const isAgentsTab = location.pathname.endsWith('/agents');
+  const isMembersTab = location.pathname.endsWith('/members');
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
@@ -244,7 +374,9 @@ export default function ProjectSettingsPage() {
 
   return (
     <SettingsLayout projectName={project.name}>
-      {isAgentsTab ? (
+      {isMembersTab ? (
+        <MembersSection />
+      ) : isAgentsTab ? (
         <>
           <h1 className="text-xl font-semibold text-[var(--text-primary)] mb-8" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>Agents</h1>
           {projectId && (

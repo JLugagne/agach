@@ -67,6 +67,11 @@ type ChatUploader interface {
 	UpdateStats(ctx context.Context, token, projectID, featureID, sessionID string, stats ChatStats) error
 }
 
+// ResourceDownloader downloads resources from the server.
+type ResourceDownloader interface {
+	DownloadResource(ctx context.Context, token, name string) ([]byte, error)
+}
+
 // ChatStats holds token usage stats to persist on the server.
 type ChatStats struct {
 	InputTokens      int    `json:"input_tokens"`

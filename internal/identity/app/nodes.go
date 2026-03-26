@@ -96,6 +96,32 @@ func (s *nodeService) UpdateNodeAccess(ctx context.Context, actor domain.Actor, 
 	return nil
 }
 
+func (s *nodeService) ListAllNodes(ctx context.Context, actor domain.Actor) ([]domain.Node, error) {
+	if !actor.IsAdmin() {
+		return nil, domain.ErrForbidden
+	}
+	return s.nodes.ListAll(ctx)
+}
+
+func (s *nodeService) AdminRevokeNode(ctx context.Context, actor domain.Actor, nodeID domain.NodeID) error {
+	if !actor.IsAdmin() {
+		return domain.ErrForbidden
+	}
+	node, err := s.nodes.FindByID(ctx, nodeID)
+	if err != nil {
+		return err
+	}
+	if node.IsRevoked() {
+		return domain.ErrNodeRevoked
+	}
+	now := time.Now()
+	node.Status = domain.NodeStatusRevoked
+	node.RevokedAt = &now
+	node.RefreshTokenHash = ""
+	node.UpdatedAt = now
+	return s.nodes.Update(ctx, node)
+}
+
 func (s *nodeService) RenameNode(ctx context.Context, actor domain.Actor, nodeID domain.NodeID, name string) error {
 	node, err := s.nodes.FindByID(ctx, nodeID)
 	if err != nil {

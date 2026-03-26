@@ -42,6 +42,8 @@ func (h *NodesHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/nodes/{id}", h.RevokeNode).Methods("DELETE")
 	router.HandleFunc("/api/nodes/{id}/name", h.RenameNode).Methods("PATCH")
 	router.HandleFunc("/api/nodes/{id}/access", h.UpdateAccess).Methods("PUT")
+	router.HandleFunc("/api/admin/nodes", h.AdminListNodes).Methods("GET")
+	router.HandleFunc("/api/admin/nodes/{id}", h.AdminRevokeNode).Methods("DELETE")
 }
 
 // Response types
@@ -204,6 +206,74 @@ func (h *NodesHandler) UpdateAccess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type nodeDetailWithOwnerResponse struct {
+	ID          string     `json:"id"`
+	OwnerUserID string     `json:"owner_user_id"`
+	Name        string     `json:"name"`
+	Mode        string     `json:"mode"`
+	Status      string     `json:"status"`
+	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
+	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+}
+
+// AdminListNodes handles GET /api/admin/nodes.
+func (h *NodesHandler) AdminListNodes(w http.ResponseWriter, r *http.Request) {
+	actor, ok := ActorFromRequest(w, r, h.controller, h.authQueries)
+	if !ok {
+		return
+	}
+	nodes, err := h.nodeQueries.ListAllNodes(r.Context(), actor)
+	if err != nil {
+		if errors.Is(err, domain.ErrForbidden) {
+			status := http.StatusForbidden
+			h.controller.SendFail(w, r, &status, &apierror.Error{Code: "FORBIDDEN", Message: "access denied"})
+			return
+		}
+		h.controller.SendError(w, r, err)
+		return
+	}
+	out := make([]nodeDetailWithOwnerResponse, len(nodes))
+	for i, n := range nodes {
+		out[i] = nodeDetailWithOwnerResponse{
+			ID:          n.ID.String(),
+			OwnerUserID: n.OwnerUserID.String(),
+			Name:        n.Name,
+			Mode:        string(n.Mode),
+			Status:      string(n.Status),
+			LastSeenAt:  n.LastSeenAt,
+			RevokedAt:   n.RevokedAt,
+			CreatedAt:   n.CreatedAt,
+		}
+	}
+	h.controller.SendSuccess(w, r, map[string]any{"nodes": out})
+}
+
+// AdminRevokeNode handles DELETE /api/admin/nodes/{id}.
+func (h *NodesHandler) AdminRevokeNode(w http.ResponseWriter, r *http.Request) {
+	actor, ok := ActorFromRequest(w, r, h.controller, h.authQueries)
+	if !ok {
+		return
+	}
+	vars := mux.Vars(r)
+	nodeID, err := domain.ParseNodeID(vars["id"])
+	if err != nil {
+		status := http.StatusBadRequest
+		h.controller.SendFail(w, r, &status, &apierror.Error{Code: "INVALID_NODE_ID", Message: "invalid node ID format"})
+		return
+	}
+	if err := h.nodeCommands.AdminRevokeNode(r.Context(), actor, nodeID); err != nil {
+		if errors.Is(err, domain.ErrForbidden) {
+			status := http.StatusForbidden
+			h.controller.SendFail(w, r, &status, &apierror.Error{Code: "FORBIDDEN", Message: "access denied"})
+			return
+		}
+		h.handleNodeError(w, r, err)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

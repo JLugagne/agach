@@ -25,7 +25,6 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import type { AgentResponse, CreateAgentRequest, UpdateAgentRequest, SpecializedAgentResponse } from '../lib/types';
 import MarkdownContent from '../components/ui/MarkdownContent';
 import CloneAgentDialog from '../components/CloneAgentDialog';
-import AgentSkillsPanel from '../components/AgentSkillsPanel';
 import EditSpecializedAgentDialog from '../components/EditSpecializedAgentDialog';
 
 const PRESET_COLORS = [
@@ -725,6 +724,8 @@ interface RoleModalProps {
   onDeleted: () => void;
 }
 
+type ModalTab = 'template' | 'hint';
+
 function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalProps) {
   const isEdit = !!role;
   // Local role state for optimistic updates of description/prompt_hint
@@ -740,6 +741,7 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
   const [deleting, setDeleting] = useState(false);
   const [autoSlug, setAutoSlug] = useState(!isEdit);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<ModalTab>('hint');
 
   const apiUpdate = (slug: string, data: UpdateAgentRequest) =>
     projectId ? updateProjectAgent(projectId, slug, data) : updateAgent(slug, data);
@@ -958,61 +960,79 @@ function RoleModal({ role, projectId, onClose, onSaved, onDeleted }: RoleModalPr
             </div>
           )}
 
-          {/* Prompt Template */}
-          {isEdit ? (
-            <InlineEditField
-              label="Prompt Template"
-              value={localRole?.prompt_template ?? promptTemplate}
-              placeholder="Go template for rendering agent prompts..."
-              monoFont
-              onSave={handleSavePromptTemplate}
-            />
-          ) : (
-            <div>
-              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Prompt Template</label>
-              <textarea
-                value={promptTemplate}
-                onChange={(e) => setPromptTemplate(e.target.value)}
-                placeholder="Go template for rendering agent prompts..."
-                rows={6}
-                data-qa="agent-modal-prompt-template-textarea"
-                className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50 resize-y font-mono text-xs"
-              />
-            </div>
+          {/* Tabs */}
+          <div className="flex border-b border-[var(--border-primary)]">
+            {(['hint', 'template'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                data-qa={`agent-modal-tab-${tab}`}
+                className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${
+                  activeTab === tab
+                    ? 'text-[var(--text-primary)]'
+                    : 'text-[var(--text-dim)] hover:text-[var(--text-muted)]'
+                }`}
+              >
+                {tab === 'template' ? 'Prompt Template' : 'Prompt Hint'}
+                {activeTab === tab && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]" />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          {activeTab === 'template' && (
+            <>
+              {isEdit ? (
+                <InlineEditField
+                  label="Prompt Template"
+                  value={localRole?.prompt_template ?? promptTemplate}
+                  placeholder="Go template for rendering agent prompts..."
+                  monoFont
+                  onSave={handleSavePromptTemplate}
+                />
+              ) : (
+                <div>
+                  <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Prompt Template</label>
+                  <textarea
+                    value={promptTemplate}
+                    onChange={(e) => setPromptTemplate(e.target.value)}
+                    placeholder="Go template for rendering agent prompts..."
+                    rows={6}
+                    data-qa="agent-modal-prompt-template-textarea"
+                    className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50 resize-y font-mono text-xs"
+                  />
+                </div>
+              )}
+              <TemplateVariablesPanel />
+            </>
           )}
 
-          {/* Template Variables Info */}
-          <TemplateVariablesPanel />
-
-          {/* Prompt Hint */}
-          {isEdit ? (
-            <InlineEditField
-              label="Prompt Hint"
-              value={localRole?.prompt_hint ?? promptHint}
-              placeholder="System prompt context for this agent..."
-              monoFont
-              onSave={handleSavePromptHint}
-            />
-          ) : (
-            <div>
-              <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Prompt Hint</label>
-              <textarea
-                value={promptHint}
-                onChange={(e) => setPromptHint(e.target.value)}
-                placeholder="System prompt context for this agent..."
-                rows={6}
-                data-qa="agent-modal-prompt-hint-textarea"
-                className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50 resize-y font-mono text-xs"
-              />
-            </div>
-          )}
-
-          {/* Agent Skills */}
-          {isEdit && localRole && (
-            <AgentSkillsPanel
-              agentSlug={localRole.slug}
-              agentName={localRole.name}
-            />
+          {activeTab === 'hint' && (
+            <>
+              {isEdit ? (
+                <InlineEditField
+                  label="Prompt Hint"
+                  value={localRole?.prompt_hint ?? promptHint}
+                  placeholder="System prompt context for this agent..."
+                  monoFont
+                  onSave={handleSavePromptHint}
+                />
+              ) : (
+                <div>
+                  <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Prompt Hint</label>
+                  <textarea
+                    value={promptHint}
+                    onChange={(e) => setPromptHint(e.target.value)}
+                    placeholder="System prompt context for this agent..."
+                    rows={6}
+                    data-qa="agent-modal-prompt-hint-textarea"
+                    className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50 resize-y font-mono text-xs"
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
 

@@ -14,7 +14,10 @@ RUN go mod download
 COPY internal/ internal/
 COPY pkg/ pkg/
 COPY cmd/ cmd/
+COPY resources/ resources/
 COPY --from=frontend /app/internal/server/ux/dist internal/server/ux/dist/
+# Build sidecar into resources/ so it gets embedded into the server binary
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o resources/agach-sidecar ./cmd/agach-sidecar
 RUN go build -ldflags="-extldflags '-static'" -o /agach-server ./cmd/agach-server
 
 # Stage 3: Final image

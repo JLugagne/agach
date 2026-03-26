@@ -14,4 +14,7 @@ type UserRepository interface {
 	ListAll(ctx context.Context) ([]domain.User, error)
 	ListByTeam(ctx context.Context, teamID domain.TeamID) ([]domain.User, error)
 	FindBySSO(ctx context.Context, provider, subject string) (domain.User, error)
+	AddToTeam(ctx context.Context, userID domain.UserID, teamID domain.TeamID) error
+	RemoveFromTeam(ctx context.Context, userID domain.UserID, teamID domain.TeamID) error
+	ListTeamIDs(ctx context.Context, userID domain.UserID) ([]domain.TeamID, error)
 }

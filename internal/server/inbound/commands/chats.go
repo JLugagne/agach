@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -22,15 +23,17 @@ import (
 // ChatsHandler handles chat session write operations
 type ChatsHandler struct {
 	chatService service.ChatService
+	queries     service.Queries
 	controller  *controller.Controller
 	hub         *websocket.Hub
 	dataDir     string
 }
 
 // NewChatsHandler creates a new chat commands handler
-func NewChatsHandler(chatService service.ChatService, ctrl *controller.Controller, hub *websocket.Hub, dataDir string) *ChatsHandler {
+func NewChatsHandler(chatService service.ChatService, queries service.Queries, ctrl *controller.Controller, hub *websocket.Hub, dataDir string) *ChatsHandler {
 	return &ChatsHandler{
 		chatService: chatService,
+		queries:     queries,
 		controller:  ctrl,
 		hub:         hub,
 		dataDir:     dataDir,
@@ -76,6 +79,9 @@ func (h *ChatsHandler) StartSession(w http.ResponseWriter, r *http.Request) {
 		Data: resp,
 	})
 
+	// Build initial message from the project's default agent template + feature description
+	initialMessage := h.buildInitialMessage(r.Context(), projectID, featureID)
+
 	// Send chat.start to the targeted daemon so it spawns a Claude session
 	log.Printf("[chats] StartSession: node_id=%q session_id=%s feature_id=%s project_id=%s", req.NodeID, session.ID, featureID, projectID)
 	if req.NodeID != "" {
@@ -85,6 +91,7 @@ func (h *ChatsHandler) StartSession(w http.ResponseWriter, r *http.Request) {
 			ProjectID:       projectID.String(),
 			NodeID:          req.NodeID,
 			ResumeSessionID: derefString(req.ResumeSessionID),
+			InitialMessage:  initialMessage,
 		})
 		chatStartMsg, _ := json.Marshal(struct {
 			Type    string          `json:"type"`
@@ -259,6 +266,58 @@ func (h *ChatsHandler) UploadJSONL(w http.ResponseWriter, r *http.Request) {
 		"message": "JSONL file uploaded successfully",
 		"path":    relativePath,
 	})
+}
+
+// buildInitialMessage renders the default agent's prompt_template with the
+// feature description. If the template is empty, a default message is used.
+// Returns "" for resumed sessions or if the feature cannot be fetched.
+func (h *ChatsHandler) buildInitialMessage(ctx context.Context, projectID domain.ProjectID, featureID domain.FeatureID) string {
+	if h.queries == nil {
+		return ""
+	}
+
+	feature, err := h.queries.GetFeature(ctx, featureID)
+	if err != nil || feature == nil {
+		return ""
+	}
+
+	project, err := h.queries.GetProject(ctx, projectID)
+	if err != nil || project == nil || project.DefaultRole == "" {
+		return ""
+	}
+
+	agent, err := h.queries.GetProjectAgentBySlug(ctx, projectID, project.DefaultRole)
+	if err != nil || agent == nil {
+		// Fall back to global agent
+		agent, err = h.queries.GetAgentBySlug(ctx, project.DefaultRole)
+		if err != nil || agent == nil {
+			return renderDefaultFeatureMessage(feature.Description)
+		}
+	}
+
+	if agent.PromptTemplate == "" {
+		return renderDefaultFeatureMessage(feature.Description)
+	}
+
+	return renderFeatureTemplate(agent.PromptTemplate, feature)
+}
+
+// renderDefaultFeatureMessage returns the fallback initial message.
+func renderDefaultFeatureMessage(description string) string {
+	return "Here is a feature I want to implement, help me refining it:\n\n" + description
+}
+
+// renderFeatureTemplate renders an agent's prompt_template with feature data.
+// Template slots use {{key.field}} notation (same as prompt.go).
+func renderFeatureTemplate(tmpl string, feature *domain.Feature) string {
+	// Simple string replacement for feature-scoped templates.
+	r := strings.NewReplacer(
+		"{{task.description}}", feature.Description,
+		"{{task.title}}", feature.Name,
+		"{{feature.description}}", feature.Description,
+		"{{feature.name}}", feature.Name,
+	)
+	return r.Replace(tmpl)
 }
 
 func derefString(s *string) string {

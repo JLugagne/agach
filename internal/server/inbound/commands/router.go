@@ -32,6 +32,6 @@ func NewRouter(router *mux.Router, app App, ctrl *controller.Controller, hub *we
 	NewNotificationCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
 
 	if len(chatSvc) > 0 && chatSvc[0] != nil {
-		NewChatsHandler(chatSvc[0], ctrl, hub, dataDir).RegisterRoutes(router)
+		NewChatsHandler(chatSvc[0], app, ctrl, hub, dataDir).RegisterRoutes(router)
 	}
 }

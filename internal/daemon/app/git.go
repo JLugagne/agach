@@ -185,23 +185,29 @@ func (s *GitService) fetchAndPull(ctx context.Context, path, mainBranch string) 
 		return fmt.Errorf("fetch: %w", fetchErr)
 	}
 
+	// Resolve the remote tracking branch to reset to.
+	branch := mainBranch
+	if branch == "" {
+		branch = "main"
+	}
+	remoteRef, err := repo.Reference(gogitconfig.NewRemoteReferenceName("origin", branch), true)
+	if err != nil {
+		return fmt.Errorf("resolve origin/%s: %w", branch, err)
+	}
+
 	w, err := repo.Worktree()
 	if err != nil {
 		return fmt.Errorf("get worktree: %w", err)
 	}
 
-	pullOpts := &git.PullOptions{
-		RemoteName: "origin",
-		Auth:       auth,
-		Force:      true,
-	}
-	if mainBranch != "" {
-		pullOpts.ReferenceName = gogitconfig.NewBranchReferenceName(mainBranch)
-	}
-
-	pullErr := w.PullContext(ctx, pullOpts)
-	if pullErr != nil && !errors.Is(pullErr, git.NoErrAlreadyUpToDate) {
-		return fmt.Errorf("pull: %w", pullErr)
+	// Hard reset to origin/<branch> instead of pulling. This cache repo
+	// has no local work to preserve, and reset handles force-pushed remotes
+	// that would cause "non-fast-forward update" errors with pull.
+	if err := w.Reset(&git.ResetOptions{
+		Commit: remoteRef.Hash(),
+		Mode:   git.HardReset,
+	}); err != nil {
+		return fmt.Errorf("reset to origin/%s: %w", branch, err)
 	}
 
 	return nil

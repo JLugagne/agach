@@ -566,6 +566,38 @@ export interface TaskSummaryResponse {
   model: string;
 }
 
+// Teams & Users (identity)
+export interface TeamResponse {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserResponse {
+  id: string;
+  email: string;
+  display_name: string;
+  role: 'admin' | 'member';
+  team_ids: string[];
+  blocked_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminNodeResponse {
+  id: string;
+  owner_user_id: string;
+  name: string;
+  mode: 'default' | 'shared';
+  status: 'active' | 'revoked';
+  last_seen_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+}
+
 // WebSocket
 export interface WSEvent {
   type: string;

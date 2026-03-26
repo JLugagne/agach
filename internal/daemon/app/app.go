@@ -68,8 +68,10 @@ type App struct {
 	dockerService *DockerService
 	buildRepo     builds.DockerBuildRepository
 	gitService    *GitService
-	projectClient domain.ProjectFetcher
-	chatManager   *ChatManager
+	projectClient    domain.ProjectFetcher
+	chatManager      *ChatManager
+	resourceCache    *ResourceCache
+	resourceClient   domain.ResourceDownloader
 }
 
 func New(cfg *config.Config, logger *logrus.Logger, opts ...Option) (*App, error) {
@@ -122,16 +124,36 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	a.gitService = gitService
 	a.projectClient = client.NewProjectClient(a.cfg.BaseURL)
+	a.resourceClient = client.NewResourceClient(a.cfg.BaseURL)
+	resourceCache, err := NewResourceCache(a.logger)
+	if err != nil {
+		return fmt.Errorf("init resource cache: %w", err)
+	}
+	a.resourceCache = resourceCache
 	uploadClient := client.NewChatUploadClient(a.cfg.BaseURL)
 	agentDownloader := client.NewAgentDownloadClient(a.cfg.BaseURL)
-	a.chatManager = NewChatManager(a.logger, a.gitService, a.projectClient, uploadClient, agentDownloader, a.tokens.AccessToken, a.sendWSMessage)
+	a.chatManager = NewChatManager(
+		a.logger, a.gitService, a.projectClient, uploadClient, agentDownloader,
+		a.tokens.AccessToken, a.sendWSMessage,
+		a.cfg.BaseURL,
+		func() string { return a.tokens.AccessToken },
+		func() error { return a.refreshAccessToken(ctx) },
+		a.resourceCache,
+	)
 
-	a.wsClient = client.NewWSClient(
+	wsConn := client.NewWSClient(
 		a.cfg.WebSocketURL(),
 		a.tokens.AccessToken,
 		a.logger,
 		a.handleWSEvent,
 	)
+	wsConn.SetOnAuthError(func() (string, error) {
+		if err := a.refreshAccessToken(ctx); err != nil {
+			return "", err
+		}
+		return a.tokens.AccessToken, nil
+	})
+	a.wsClient = wsConn
 
 	a.state = StateConnected
 	a.logger.WithField("node_id", a.tokens.NodeID).Info("Daemon connected")
@@ -224,7 +246,23 @@ func (a *App) handleWSEvent(event domain.WSEvent) {
 		a.handleChatEndRequest(event)
 	case daemonws.TypeChatPing:
 		a.handleChatPing(event)
+	case "resource_manifest":
+		a.handleResourceManifest(event)
 	}
+}
+
+func (a *App) handleResourceManifest(event domain.WSEvent) {
+	var entries []ResourceEntry
+	if err := json.Unmarshal(event.Data, &entries); err != nil {
+		a.logger.WithError(err).Error("failed to parse resource_manifest")
+		return
+	}
+	if a.resourceCache == nil {
+		return
+	}
+	go a.resourceCache.Sync(a.ctx, entries, func(ctx context.Context, name string) ([]byte, error) {
+		return a.resourceClient.DownloadResource(ctx, a.tokens.AccessToken, name)
+	})
 }
 
 func (a *App) handleDockerList(event domain.WSEvent) {

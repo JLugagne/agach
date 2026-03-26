@@ -193,13 +193,12 @@ func TestTeamService_AddUserToTeam_Success(t *testing.T) {
 	userID := domain.NewUserID()
 	teamID := domain.NewTeamID()
 
-	var updatedUser domain.User
+	var calledUserID domain.UserID
+	var calledTeamID domain.TeamID
 	mockUsers := &userstest.MockUserRepository{
-		FindByIDFunc: func(_ context.Context, id domain.UserID) (domain.User, error) {
-			return domain.User{ID: id, Email: "user@example.com"}, nil
-		},
-		UpdateFunc: func(_ context.Context, u domain.User) error {
-			updatedUser = u
+		AddToTeamFunc: func(_ context.Context, uid domain.UserID, tid domain.TeamID) error {
+			calledUserID = uid
+			calledTeamID = tid
 			return nil
 		},
 	}
@@ -209,8 +208,8 @@ func TestTeamService_AddUserToTeam_Success(t *testing.T) {
 	err := svc.AddUserToTeam(ctx, adminActor(), userID, teamID)
 
 	require.NoError(t, err)
-	require.NotNil(t, updatedUser.TeamID)
-	assert.Equal(t, teamID, *updatedUser.TeamID)
+	assert.Equal(t, userID, calledUserID)
+	assert.Equal(t, teamID, calledTeamID)
 }
 
 func TestTeamService_AddUserToTeam_NonAdmin_ReturnsForbidden(t *testing.T) {
@@ -228,8 +227,8 @@ func TestTeamService_AddUserToTeam_UserNotFound_ReturnsError(t *testing.T) {
 	ctx := context.Background()
 
 	mockUsers := &userstest.MockUserRepository{
-		FindByIDFunc: func(_ context.Context, id domain.UserID) (domain.User, error) {
-			return domain.User{}, domain.ErrUserNotFound
+		AddToTeamFunc: func(_ context.Context, _ domain.UserID, _ domain.TeamID) error {
+			return domain.ErrUserNotFound
 		},
 	}
 
@@ -248,24 +247,26 @@ func TestTeamService_AddUserToTeam_UserNotFound_ReturnsError(t *testing.T) {
 func TestTeamService_RemoveUserFromTeam_Success(t *testing.T) {
 	ctx := context.Background()
 
+	userID := domain.NewUserID()
 	teamID := domain.NewTeamID()
-	var updatedUser domain.User
+
+	var calledUserID domain.UserID
+	var calledTeamID domain.TeamID
 	mockUsers := &userstest.MockUserRepository{
-		FindByIDFunc: func(_ context.Context, id domain.UserID) (domain.User, error) {
-			return domain.User{ID: id, TeamID: &teamID}, nil
-		},
-		UpdateFunc: func(_ context.Context, u domain.User) error {
-			updatedUser = u
+		RemoveFromTeamFunc: func(_ context.Context, uid domain.UserID, tid domain.TeamID) error {
+			calledUserID = uid
+			calledTeamID = tid
 			return nil
 		},
 	}
 
 	svc := app.NewTeamService(&teamstest.MockTeamRepository{}, mockUsers)
 
-	err := svc.RemoveUserFromTeam(ctx, adminActor(), domain.NewUserID())
+	err := svc.RemoveUserFromTeam(ctx, adminActor(), userID, teamID)
 
 	require.NoError(t, err)
-	assert.Nil(t, updatedUser.TeamID, "TeamID should be cleared")
+	assert.Equal(t, userID, calledUserID)
+	assert.Equal(t, teamID, calledTeamID)
 }
 
 func TestTeamService_RemoveUserFromTeam_NonAdmin_ReturnsForbidden(t *testing.T) {
@@ -273,7 +274,7 @@ func TestTeamService_RemoveUserFromTeam_NonAdmin_ReturnsForbidden(t *testing.T) 
 
 	svc := app.NewTeamService(&teamstest.MockTeamRepository{}, &userstest.MockUserRepository{})
 
-	err := svc.RemoveUserFromTeam(ctx, memberActor(), domain.NewUserID())
+	err := svc.RemoveUserFromTeam(ctx, memberActor(), domain.NewUserID(), domain.NewTeamID())
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrForbidden)
@@ -454,14 +455,14 @@ func TestTeamService_RemoveUserFromTeam_UserNotFound_ReturnsError(t *testing.T) 
 	ctx := context.Background()
 
 	mockUsers := &userstest.MockUserRepository{
-		FindByIDFunc: func(_ context.Context, id domain.UserID) (domain.User, error) {
-			return domain.User{}, domain.ErrUserNotFound
+		RemoveFromTeamFunc: func(_ context.Context, _ domain.UserID, _ domain.TeamID) error {
+			return domain.ErrUserNotFound
 		},
 	}
 
 	svc := app.NewTeamService(&teamstest.MockTeamRepository{}, mockUsers)
 
-	err := svc.RemoveUserFromTeam(ctx, adminActor(), domain.NewUserID())
+	err := svc.RemoveUserFromTeam(ctx, adminActor(), domain.NewUserID(), domain.NewTeamID())
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrUserNotFound)

@@ -33,6 +33,8 @@ func (h *TeamsHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/identity/users/{id}/team", h.SetUserTeam).Methods("PUT")
 	router.HandleFunc("/api/identity/users/{id}/team", h.RemoveUserFromTeam).Methods("DELETE")
 	router.HandleFunc("/api/identity/users/{id}/role", h.SetUserRole).Methods("PUT")
+	router.HandleFunc("/api/identity/users/{id}/block", h.BlockUser).Methods("PUT")
+	router.HandleFunc("/api/identity/users/{id}/block", h.UnblockUser).Methods("DELETE")
 }
 
 type createTeamRequest struct {
@@ -200,7 +202,20 @@ func (h *TeamsHandler) RemoveUserFromTeam(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := h.commands.RemoveUserFromTeam(r.Context(), actor, userID); err != nil {
+	var req setUserTeamRequest
+	if err := h.ctrl.DecodeAndValidate(r, &req, &apierror.Error{Code: "INVALID_REQUEST", Message: "invalid request body"}); err != nil {
+		h.ctrl.SendFail(w, r, nil, err)
+		return
+	}
+
+	teamID, err := domain.ParseTeamID(req.TeamID)
+	if err != nil {
+		status := http.StatusBadRequest
+		h.ctrl.SendFail(w, r, &status, &apierror.Error{Code: "INVALID_TEAM_ID", Message: "invalid team id"})
+		return
+	}
+
+	if err := h.commands.RemoveUserFromTeam(r.Context(), actor, userID, teamID); err != nil {
 		h.handleTeamError(w, r, err)
 		return
 	}
@@ -237,6 +252,46 @@ func (h *TeamsHandler) SetUserRole(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// BlockUser handles PUT /api/identity/users/{id}/block.
+func (h *TeamsHandler) BlockUser(w http.ResponseWriter, r *http.Request) {
+	actor, ok := ActorFromRequest(w, r, h.ctrl, h.authQueries)
+	if !ok {
+		return
+	}
+	vars := mux.Vars(r)
+	userID, err := domain.ParseUserID(vars["id"])
+	if err != nil {
+		status := http.StatusBadRequest
+		h.ctrl.SendFail(w, r, &status, &apierror.Error{Code: "INVALID_USER_ID", Message: "invalid user id"})
+		return
+	}
+	if err := h.commands.BlockUser(r.Context(), actor, userID); err != nil {
+		h.handleTeamError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// UnblockUser handles DELETE /api/identity/users/{id}/block.
+func (h *TeamsHandler) UnblockUser(w http.ResponseWriter, r *http.Request) {
+	actor, ok := ActorFromRequest(w, r, h.ctrl, h.authQueries)
+	if !ok {
+		return
+	}
+	vars := mux.Vars(r)
+	userID, err := domain.ParseUserID(vars["id"])
+	if err != nil {
+		status := http.StatusBadRequest
+		h.ctrl.SendFail(w, r, &status, &apierror.Error{Code: "INVALID_USER_ID", Message: "invalid user id"})
+		return
+	}
+	if err := h.commands.UnblockUser(r.Context(), actor, userID); err != nil {
+		h.handleTeamError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *TeamsHandler) handleTeamError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, domain.ErrForbidden):
@@ -265,21 +320,23 @@ func teamToMap(t domain.Team) map[string]interface{} {
 }
 
 func userToPublicMap(u domain.User, callerRole domain.MemberRole) map[string]interface{} {
-	var teamID *string
-	if u.TeamID != nil {
-		s := u.TeamID.String()
-		teamID = &s
+	teamIDs := make([]string, 0, len(u.TeamIDs))
+	for _, tid := range u.TeamIDs {
+		teamIDs = append(teamIDs, tid.String())
 	}
 	m := map[string]interface{}{
 		"id":           u.ID.String(),
 		"display_name": u.DisplayName,
 		"role":         string(u.Role),
-		"team_id":      teamID,
+		"team_ids":     teamIDs,
 		"created_at":   u.CreatedAt,
 		"updated_at":   u.UpdatedAt,
 	}
 	if callerRole == domain.RoleAdmin {
 		m["email"] = u.Email
+	}
+	if u.BlockedAt != nil {
+		m["blocked_at"] = u.BlockedAt
 	}
 	return m
 }

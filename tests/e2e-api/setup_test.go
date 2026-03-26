@@ -91,6 +91,9 @@ func startTestServer(t *testing.T) {
 	// Auth middleware
 	requireAuth := middleware.NewRequireAuth(&authAdapter{q: identitySystem.AuthQueries})
 
+	dataDir, dirErr := os.MkdirTemp("", "agach-e2e-data-*")
+	require.NoError(t, dirErr)
+
 	serverRouter := httpRouter.PathPrefix("").Subrouter()
 	serverRouter.Use(requireAuth)
 	_, err = server.InitHTTP(server.Config{
@@ -98,6 +101,7 @@ func startTestServer(t *testing.T) {
 		Logger:      logger,
 		AuthQueries: identitySystem.AuthQueries,
 		WSRouter:    httpRouter,
+		DataDir:     dataDir,
 	}, serverRouter)
 	require.NoError(t, err)
 

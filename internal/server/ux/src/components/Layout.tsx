@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { LayoutGrid, Users, Settings, Plus, AlertTriangle, Sun, Moon, BarChart3, BookOpen, Container, Key, LogOut, UserCircle, ChevronUp, Menu, X, Server } from 'lucide-react';
+import { LayoutGrid, Users, Settings, Plus, AlertTriangle, Sun, Moon, BarChart3, BookOpen, Container, Key, LogOut, UserCircle, ChevronUp, Menu, X, Server, Shield } from 'lucide-react';
 import { listFeatures, getProject } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useTheme } from './ThemeContext';
@@ -331,6 +331,19 @@ export function Layout({ children }: LayoutProps) {
         )}
 
         </div>
+
+        {/* Admin Settings — only for admins */}
+        {user?.role === 'admin' && (
+          <div className="px-5 pb-1">
+            <NavItem
+              icon={<Shield size={18} />}
+              label="Admin Settings"
+              active={isActivePrefix('/admin')}
+              onClick={() => navigate_('/admin')}
+              data-qa="nav-admin-settings-btn"
+            />
+          </div>
+        )}
 
         {/* User Menu */}
         <div ref={userMenuRef} className="p-[16px_20px] relative">

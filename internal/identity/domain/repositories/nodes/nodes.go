@@ -13,4 +13,5 @@ type NodeRepository interface {
 	ListActiveByOwner(ctx context.Context, ownerID domain.UserID) ([]domain.Node, error)
 	Update(ctx context.Context, node domain.Node) error
 	UpdateLastSeen(ctx context.Context, id domain.NodeID) error
+	ListAll(ctx context.Context) ([]domain.Node, error)
 }

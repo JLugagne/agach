@@ -84,26 +84,14 @@ func (s *teamService) AddUserToTeam(ctx context.Context, actor domain.Actor, use
 	if !actor.IsAdmin() {
 		return domain.ErrForbidden
 	}
-	u, err := s.users.FindByID(ctx, userID)
-	if err != nil {
-		return err
-	}
-	u.TeamID = &teamID
-	u.UpdatedAt = time.Now()
-	return s.users.Update(ctx, u)
+	return s.users.AddToTeam(ctx, userID, teamID)
 }
 
-func (s *teamService) RemoveUserFromTeam(ctx context.Context, actor domain.Actor, userID domain.UserID) error {
+func (s *teamService) RemoveUserFromTeam(ctx context.Context, actor domain.Actor, userID domain.UserID, teamID domain.TeamID) error {
 	if !actor.IsAdmin() {
 		return domain.ErrForbidden
 	}
-	u, err := s.users.FindByID(ctx, userID)
-	if err != nil {
-		return err
-	}
-	u.TeamID = nil
-	u.UpdatedAt = time.Now()
-	return s.users.Update(ctx, u)
+	return s.users.RemoveFromTeam(ctx, userID, teamID)
 }
 
 func (s *teamService) SetUserRole(ctx context.Context, actor domain.Actor, userID domain.UserID, role domain.MemberRole) error {
@@ -115,6 +103,33 @@ func (s *teamService) SetUserRole(ctx context.Context, actor domain.Actor, userI
 		return err
 	}
 	u.Role = role
+	u.UpdatedAt = time.Now()
+	return s.users.Update(ctx, u)
+}
+
+func (s *teamService) BlockUser(ctx context.Context, actor domain.Actor, userID domain.UserID) error {
+	if !actor.IsAdmin() {
+		return domain.ErrForbidden
+	}
+	u, err := s.users.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	u.BlockedAt = &now
+	u.UpdatedAt = now
+	return s.users.Update(ctx, u)
+}
+
+func (s *teamService) UnblockUser(ctx context.Context, actor domain.Actor, userID domain.UserID) error {
+	if !actor.IsAdmin() {
+		return domain.ErrForbidden
+	}
+	u, err := s.users.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	u.BlockedAt = nil
 	u.UpdatedAt = time.Now()
 	return s.users.Update(ctx, u)
 }

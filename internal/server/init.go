@@ -1,6 +1,8 @@
 package server
 
 import (
+	"encoding/json"
+
 	"github.com/JLugagne/agach-mcp/internal/server/app"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/commands"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/queries"
@@ -16,10 +18,11 @@ import (
 
 // Config holds the configuration for the Kanban system
 type Config struct {
-	Pool        *pgxpool.Pool
-	Logger      *logrus.Logger
-	AuthQueries AuthQueries
-	DataDir     string // Directory for storing chat session JSONL files
+	Pool             *pgxpool.Pool
+	Logger           *logrus.Logger
+	AuthQueries      AuthQueries
+	DataDir          string // Directory for storing chat session JSONL files
+	ResourceManifest *ResourceManifest
 	// WSRouter is the router on which to register the /ws endpoint.
 	// Use a router without auth middleware, since browsers cannot send
 	// Authorization headers on WebSocket connections; auth is done via
@@ -104,11 +107,20 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	commands.NewRouter(router, appInstance, ctrl, hub, sseHub, cfg.DataDir, chatService)
 	queries.NewRouter(router, appInstance, ctrl, sseHub, cfg.DataDir, chatService)
 
+	// Register resource download routes
+	if cfg.ResourceManifest != nil {
+		cfg.ResourceManifest.RegisterRoutes(router)
+	}
+
 	wsRouter := router
 	if cfg.WSRouter != nil {
 		wsRouter = cfg.WSRouter
 	}
-	wsHandler := commands.NewWSHandler(cfg.AuthQueries, hub, logger)
+	var manifestJSON json.RawMessage
+	if cfg.ResourceManifest != nil {
+		manifestJSON, _ = json.Marshal(cfg.ResourceManifest.Entries())
+	}
+	wsHandler := commands.NewWSHandler(cfg.AuthQueries, hub, logger, manifestJSON)
 	wsRouter.Handle("/ws", wsHandler).Methods("GET")
 
 	logger.Info("REST API and WebSocket initialized successfully")

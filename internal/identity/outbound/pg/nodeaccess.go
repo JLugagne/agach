@@ -123,7 +123,7 @@ func (r *pgNodeAccessRepository) HasAccess(ctx context.Context, nodeID domain.No
 			SELECT 1 FROM node_access
 			WHERE node_id = $1 AND (
 				user_id = $2
-				OR team_id IN (SELECT team_id FROM users WHERE id = $2 AND team_id IS NOT NULL)
+				OR team_id IN (SELECT team_id FROM team_members WHERE user_id = $2)
 			)
 		)`,
 		uuid.UUID(nodeID),

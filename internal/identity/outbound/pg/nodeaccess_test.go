@@ -132,8 +132,8 @@ func TestNodeAccessRepository_HasAccess_ViaTeam(t *testing.T) {
 
 	// Create a user belonging to the team
 	teamUser := makeTestUser(t)
-	teamUser.TeamID = &team.ID
 	require.NoError(t, repos.Users.Create(ctx, teamUser))
+	require.NoError(t, repos.Users.AddToTeam(ctx, teamUser.ID, team.ID))
 
 	node := makeTestNode(owner.ID)
 	require.NoError(t, repos.Nodes.Create(ctx, node))

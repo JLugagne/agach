@@ -19,6 +19,7 @@ type ChatStartRequest struct {
 	ProjectID       string `json:"project_id"`
 	NodeID          string `json:"node_id,omitempty"`
 	ResumeSessionID string `json:"resume_session_id,omitempty"`
+	InitialMessage  string `json:"initial_message,omitempty"`
 }
 
 type ChatStartResponse struct {

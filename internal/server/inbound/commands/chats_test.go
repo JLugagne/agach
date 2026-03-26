@@ -32,7 +32,7 @@ func newTestChatHandler(t *testing.T, mock *chatstest.MockChatSession) *commands
 	hub := websocket.NewHub(logger)
 	go hub.Run()
 	dataDir := t.TempDir()
-	return commands.NewChatsHandler(chatService, ctrl, hub, dataDir)
+	return commands.NewChatsHandler(chatService, nil, ctrl, hub, dataDir)
 }
 
 // TestChatStartSession_Success verifies that a valid POST creates a session and

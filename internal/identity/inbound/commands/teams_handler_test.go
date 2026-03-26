@@ -26,8 +26,10 @@ type mockTeamCommands struct {
 	updateTeamFunc        func(ctx context.Context, actor domain.Actor, team domain.Team) error
 	deleteTeamFunc        func(ctx context.Context, actor domain.Actor, id domain.TeamID) error
 	addUserToTeamFunc     func(ctx context.Context, actor domain.Actor, userID domain.UserID, teamID domain.TeamID) error
-	removeUserFromTeamFunc func(ctx context.Context, actor domain.Actor, userID domain.UserID) error
+	removeUserFromTeamFunc func(ctx context.Context, actor domain.Actor, userID domain.UserID, teamID domain.TeamID) error
 	setUserRoleFunc       func(ctx context.Context, actor domain.Actor, userID domain.UserID, role domain.MemberRole) error
+	blockUserFunc         func(ctx context.Context, actor domain.Actor, userID domain.UserID) error
+	unblockUserFunc       func(ctx context.Context, actor domain.Actor, userID domain.UserID) error
 }
 
 func (m *mockTeamCommands) CreateTeam(ctx context.Context, actor domain.Actor, name, slug, description string) (domain.Team, error) {
@@ -42,11 +44,23 @@ func (m *mockTeamCommands) DeleteTeam(ctx context.Context, actor domain.Actor, i
 func (m *mockTeamCommands) AddUserToTeam(ctx context.Context, actor domain.Actor, userID domain.UserID, teamID domain.TeamID) error {
 	return m.addUserToTeamFunc(ctx, actor, userID, teamID)
 }
-func (m *mockTeamCommands) RemoveUserFromTeam(ctx context.Context, actor domain.Actor, userID domain.UserID) error {
-	return m.removeUserFromTeamFunc(ctx, actor, userID)
+func (m *mockTeamCommands) RemoveUserFromTeam(ctx context.Context, actor domain.Actor, userID domain.UserID, teamID domain.TeamID) error {
+	return m.removeUserFromTeamFunc(ctx, actor, userID, teamID)
 }
 func (m *mockTeamCommands) SetUserRole(ctx context.Context, actor domain.Actor, userID domain.UserID, role domain.MemberRole) error {
 	return m.setUserRoleFunc(ctx, actor, userID, role)
+}
+func (m *mockTeamCommands) BlockUser(ctx context.Context, actor domain.Actor, userID domain.UserID) error {
+	if m.blockUserFunc == nil {
+		return nil
+	}
+	return m.blockUserFunc(ctx, actor, userID)
+}
+func (m *mockTeamCommands) UnblockUser(ctx context.Context, actor domain.Actor, userID domain.UserID) error {
+	if m.unblockUserFunc == nil {
+		return nil
+	}
+	return m.unblockUserFunc(ctx, actor, userID)
 }
 
 type mockTeamQueries struct {
@@ -395,16 +409,19 @@ func TestTeamsHandler_SetUserTeam_UserNotFound_ReturnsNotFound(t *testing.T) {
 
 func TestTeamsHandler_RemoveUserFromTeam_AdminSuccess(t *testing.T) {
 	userID := domain.NewUserID()
+	teamID := domain.NewTeamID()
 
 	cmds := &mockTeamCommands{
-		removeUserFromTeamFunc: func(_ context.Context, _ domain.Actor, _ domain.UserID) error {
+		removeUserFromTeamFunc: func(_ context.Context, _ domain.Actor, _ domain.UserID, _ domain.TeamID) error {
 			return nil
 		},
 	}
 
 	router := newTeamsTestHandler(cmds, &mockTeamQueries{}, adminAuthQueries())
 
-	req := httptest.NewRequest("DELETE", "/api/identity/users/"+userID.String()+"/team", nil)
+	body, _ := json.Marshal(map[string]string{"team_id": teamID.String()})
+	req := httptest.NewRequest("DELETE", "/api/identity/users/"+userID.String()+"/team", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer admin-token")
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
@@ -415,7 +432,9 @@ func TestTeamsHandler_RemoveUserFromTeam_AdminSuccess(t *testing.T) {
 func TestTeamsHandler_RemoveUserFromTeam_InvalidUserID_ReturnsBadRequest(t *testing.T) {
 	router := newTeamsTestHandler(&mockTeamCommands{}, &mockTeamQueries{}, adminAuthQueries())
 
-	req := httptest.NewRequest("DELETE", "/api/identity/users/not-uuid/team", nil)
+	body, _ := json.Marshal(map[string]string{"team_id": domain.NewTeamID().String()})
+	req := httptest.NewRequest("DELETE", "/api/identity/users/not-uuid/team", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer admin-token")
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
@@ -425,16 +444,19 @@ func TestTeamsHandler_RemoveUserFromTeam_InvalidUserID_ReturnsBadRequest(t *test
 
 func TestTeamsHandler_RemoveUserFromTeam_Forbidden_ReturnsForbidden(t *testing.T) {
 	userID := domain.NewUserID()
+	teamID := domain.NewTeamID()
 
 	cmds := &mockTeamCommands{
-		removeUserFromTeamFunc: func(_ context.Context, _ domain.Actor, _ domain.UserID) error {
+		removeUserFromTeamFunc: func(_ context.Context, _ domain.Actor, _ domain.UserID, _ domain.TeamID) error {
 			return domain.ErrForbidden
 		},
 	}
 
 	router := newTeamsTestHandler(cmds, &mockTeamQueries{}, memberAuthQueries())
 
-	req := httptest.NewRequest("DELETE", "/api/identity/users/"+userID.String()+"/team", nil)
+	body, _ := json.Marshal(map[string]string{"team_id": teamID.String()})
+	req := httptest.NewRequest("DELETE", "/api/identity/users/"+userID.String()+"/team", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer member-token")
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
@@ -553,10 +575,10 @@ func TestTeamsHandler_SetUserTeam_TeamNotFound_ReturnsNotFound(t *testing.T) {
 // userToPublicMap - user with team_id set
 // ─────────────────────────────────────────────────────────────────────────────
 
-func TestTeamsHandler_ListUsers_UserWithTeamID(t *testing.T) {
+func TestTeamsHandler_ListUsers_UserWithTeamIDs(t *testing.T) {
 	teamID := domain.NewTeamID()
 	users := []domain.User{
-		{ID: domain.NewUserID(), Email: "a@example.com", TeamID: &teamID},
+		{ID: domain.NewUserID(), Email: "a@example.com", TeamIDs: []domain.TeamID{teamID}},
 	}
 
 	qrs := &mockTeamQueries{
@@ -578,7 +600,9 @@ func TestTeamsHandler_ListUsers_UserWithTeamID(t *testing.T) {
 	data, _ := resp["data"].([]interface{})
 	require.Len(t, data, 1)
 	user, _ := data[0].(map[string]interface{})
-	assert.NotNil(t, user["team_id"], "team_id should be set")
+	teamIDs, _ := user["team_ids"].([]interface{})
+	require.Len(t, teamIDs, 1, "team_ids should contain one entry")
+	assert.Equal(t, teamID.String(), teamIDs[0], "team_ids[0] should match")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

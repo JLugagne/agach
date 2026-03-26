@@ -26,6 +26,7 @@ type mockNodeCommands struct {
 	revokeNodeFunc       func(ctx context.Context, actor domain.Actor, nodeID domain.NodeID) error
 	updateNodeAccessFunc func(ctx context.Context, actor domain.Actor, nodeID domain.NodeID, grantUserIDs []domain.UserID, grantTeamIDs []domain.TeamID, revokeUserIDs []domain.UserID, revokeTeamIDs []domain.TeamID) error
 	renameNodeFunc       func(ctx context.Context, actor domain.Actor, nodeID domain.NodeID, name string) error
+	adminRevokeNodeFunc  func(ctx context.Context, actor domain.Actor, nodeID domain.NodeID) error
 }
 
 func (m *mockNodeCommands) RevokeNode(ctx context.Context, actor domain.Actor, nodeID domain.NodeID) error {
@@ -40,9 +41,17 @@ func (m *mockNodeCommands) RenameNode(ctx context.Context, actor domain.Actor, n
 	return m.renameNodeFunc(ctx, actor, nodeID, name)
 }
 
+func (m *mockNodeCommands) AdminRevokeNode(ctx context.Context, actor domain.Actor, nodeID domain.NodeID) error {
+	if m.adminRevokeNodeFunc == nil {
+		return nil
+	}
+	return m.adminRevokeNodeFunc(ctx, actor, nodeID)
+}
+
 type mockNodeQueries struct {
-	listNodesFunc func(ctx context.Context, actor domain.Actor) ([]domain.Node, error)
-	getNodeFunc   func(ctx context.Context, actor domain.Actor, nodeID domain.NodeID) (domain.Node, error)
+	listNodesFunc    func(ctx context.Context, actor domain.Actor) ([]domain.Node, error)
+	getNodeFunc      func(ctx context.Context, actor domain.Actor, nodeID domain.NodeID) (domain.Node, error)
+	listAllNodesFunc func(ctx context.Context, actor domain.Actor) ([]domain.Node, error)
 }
 
 func (m *mockNodeQueries) ListNodes(ctx context.Context, actor domain.Actor) ([]domain.Node, error) {
@@ -51,6 +60,13 @@ func (m *mockNodeQueries) ListNodes(ctx context.Context, actor domain.Actor) ([]
 
 func (m *mockNodeQueries) GetNode(ctx context.Context, actor domain.Actor, nodeID domain.NodeID) (domain.Node, error) {
 	return m.getNodeFunc(ctx, actor, nodeID)
+}
+
+func (m *mockNodeQueries) ListAllNodes(ctx context.Context, actor domain.Actor) ([]domain.Node, error) {
+	if m.listAllNodesFunc == nil {
+		return nil, nil
+	}
+	return m.listAllNodesFunc(ctx, actor)
 }
 
 

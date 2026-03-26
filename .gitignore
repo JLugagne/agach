@@ -51,6 +51,8 @@ CLAUDE.md
 /agach-server
 /agach-daemon
 /agach
+/resources/agach-sidecar
+/agach-sidecar
 *.pen
 /features
 /qa-seed

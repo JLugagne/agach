@@ -13,6 +13,7 @@ type MockNodeRepository struct {
 	ListActiveByOwnerFunc func(ctx context.Context, ownerID domain.UserID) ([]domain.Node, error)
 	UpdateFunc           func(ctx context.Context, node domain.Node) error
 	UpdateLastSeenFunc   func(ctx context.Context, id domain.NodeID) error
+	ListAllFunc          func(ctx context.Context) ([]domain.Node, error)
 }
 
 func (m *MockNodeRepository) Create(ctx context.Context, node domain.Node) error {
@@ -55,4 +56,11 @@ func (m *MockNodeRepository) UpdateLastSeen(ctx context.Context, id domain.NodeI
 		panic("called not defined UpdateLastSeenFunc")
 	}
 	return m.UpdateLastSeenFunc(ctx, id)
+}
+
+func (m *MockNodeRepository) ListAll(ctx context.Context) ([]domain.Node, error) {
+	if m.ListAllFunc == nil {
+		panic("called not defined ListAllFunc")
+	}
+	return m.ListAllFunc(ctx)
 }

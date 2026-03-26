@@ -20,6 +20,8 @@ import AccountPage from './pages/AccountPage';
 import ApiKeysPage from './pages/ApiKeysPage';
 import NotificationsPage from './pages/NotificationsPage';
 import NodesPage from './pages/NodesPage';
+import TeamsPage from './pages/TeamsPage';
+import AdminSettingsPage from './pages/AdminSettingsPage';
 import NodeSettingsPage from './pages/NodeSettingsPage';
 import FeatureChatPage from './pages/FeatureChatPage';
 import SpecializedAgentDetailPage from './pages/SpecializedAgentDetailPage';
@@ -60,6 +62,7 @@ function App() {
                 <Route path="/projects/:projectId/backlog" element={<BacklogPage />} />
                 <Route path="/projects/:projectId/settings" element={<ProjectSettingsPage />} />
                 <Route path="/projects/:projectId/settings/agents" element={<ProjectSettingsPage />} />
+                <Route path="/projects/:projectId/settings/members" element={<ProjectSettingsPage />} />
                 <Route path="/projects/:projectId/features" element={<FeaturesPage />} />
                 <Route path="/projects/:projectId/features/:featureId" element={<FeatureDetailPage />} />
                 <Route path="/projects/:projectId/features/:featureId/chat" element={<FeatureChatPage />} />
@@ -72,6 +75,10 @@ function App() {
                 <Route path="/skills" element={<SkillsPage />} />
                 <Route path="/dockerfiles" element={<DockerfilesPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
+                <Route path="/teams" element={<TeamsPage />} />
+                <Route path="/admin" element={<AdminSettingsPage />} />
+                <Route path="/admin/teams" element={<AdminSettingsPage />} />
+                <Route path="/admin/users" element={<AdminSettingsPage />} />
                 <Route path="/nodes" element={<NodesPage />} />
                 <Route path="/nodes/:nodeId/settings" element={<NodeSettingsPage />} />
                 <Route path="/account" element={<AccountPage />} />

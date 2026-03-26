@@ -3,7 +3,6 @@ import { useParams, Link } from 'react-router-dom';
 import {
   Plus,
   Loader2,
-  ExternalLink,
   Pencil,
   Trash2,
   CheckCircle2,
@@ -11,7 +10,12 @@ import {
   Clock,
   AlertTriangle,
   BookOpen,
+  GripVertical,
 } from 'lucide-react';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   listFeatures,
   createFeature,
@@ -43,6 +47,7 @@ const STATUS_BADGE_COLORS: Record<FeatureStatus, string> = {
 export default function FeaturesPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [features, setFeatures] = useState<FeatureWithSummaryResponse[]>([]);
+  const [localOrder, setLocalOrder] = useState<FeatureWithSummaryResponse[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -68,6 +73,7 @@ export default function FeaturesPage() {
     try {
       const feats = await listFeatures(projectId, statusFilter || undefined);
       setFeatures(feats ?? []);
+      setLocalOrder(null);
     } catch {
       // ignore
     } finally {
@@ -144,9 +150,25 @@ export default function FeaturesPage() {
     }
   };
 
+  // Drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+
+  const displayFeatures = localOrder ?? features;
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = displayFeatures.findIndex((f) => f.id === active.id);
+    const newIndex = displayFeatures.findIndex((f) => f.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    setLocalOrder(arrayMove(displayFeatures, oldIndex, newIndex));
+  };
+
   return (
     <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)]">
-      <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-8 py-6 sm:py-12">
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-[28px] font-semibold text-[var(--text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -214,22 +236,27 @@ export default function FeaturesPage() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {features.map((feat) => (
-              <FeatureCard
-                key={feat.id}
-                feature={feat}
-                projectId={projectId!}
-                onEdit={() => {
-                  setEditName(feat.name);
-                  setEditDesc(feat.description || '');
-                  setEditStatus(feat.status);
-                  setEditTarget(feat);
-                }}
-                onDelete={() => setDeleteTarget(feat)}
-              />
-            ))}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={displayFeatures.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-1">
+                {displayFeatures.map((feat, index) => (
+                  <FeatureRow
+                    key={feat.id}
+                    feature={feat}
+                    index={index}
+                    projectId={projectId!}
+                    onEdit={() => {
+                      setEditName(feat.name);
+                      setEditDesc(feat.description || '');
+                      setEditStatus(feat.status);
+                      setEditTarget(feat);
+                    }}
+                    onDelete={() => setDeleteTarget(feat)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
 
         {/* Create Feature Modal */}
@@ -365,15 +392,17 @@ export default function FeaturesPage() {
   );
 }
 
-// ---------- Feature Card ----------
+// ---------- Sortable Feature Row ----------
 
-function FeatureCard({
+function FeatureRow({
   feature,
+  index,
   projectId,
   onEdit,
   onDelete,
 }: {
   feature: FeatureWithSummaryResponse;
+  index: number;
   projectId: string;
   onEdit: () => void;
   onDelete: () => void;
@@ -384,110 +413,114 @@ function FeatureCard({
   const done = summary?.done_count ?? 0;
   const blocked = summary?.blocked_count ?? 0;
   const total = todo + inProgress + done + blocked;
-
-  // Progress bar percentages
-  const pctDone = total > 0 ? (done / total) * 100 : 0;
-  const pctInProgress = total > 0 ? (inProgress / total) * 100 : 0;
-  const pctBlocked = total > 0 ? (blocked / total) * 100 : 0;
+  const pctDone = total > 0 ? Math.round((done / total) * 100) : 0;
 
   const statusColor = STATUS_BADGE_COLORS[feature.status] ?? 'var(--text-muted)';
 
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: feature.id });
+
+  const dndStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : undefined,
+  };
+
   return (
     <div
-      className="rounded-lg border bg-[var(--bg-primary)] border-[var(--border-primary)] hover:border-[var(--border-secondary)] p-5 transition-colors"
-      data-qa="feature-card"
+      ref={setNodeRef}
+      style={dndStyle}
+      data-qa="feature-row"
+      className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] hover:border-[var(--border-secondary)] transition-colors group"
     >
-      {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <Link
-              to={`/projects/${projectId}/features/${feature.id}`}
-              className="text-sm font-medium text-[var(--text-primary)] truncate hover:text-[var(--primary)] transition-colors"
-              data-qa="feature-card-link"
-            >
-              {feature.name}
-            </Link>
-            <span
-              className="text-[10px] px-1.5 py-0.5 rounded-full font-mono shrink-0"
-              style={{
-                color: statusColor,
-                backgroundColor: `color-mix(in srgb, ${statusColor} 15%, transparent)`,
-              }}
-              data-qa="feature-status-badge"
-            >
-              {feature.status.replace('_', ' ')}
-            </span>
-          </div>
-          {feature.description && (
-            <p className="text-xs text-[var(--text-muted)] mt-1 line-clamp-2">{feature.description}</p>
-          )}
-        </div>
-        <div className="flex items-center gap-1 ml-2 shrink-0">
-          <button
-            onClick={onEdit}
-            data-qa="edit-feature-btn"
-            className="p-1 text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors rounded"
-          >
-            <Pencil size={12} />
-          </button>
-          <button
-            onClick={onDelete}
-            data-qa="delete-feature-btn"
-            className="p-1 text-[var(--text-dim)] hover:text-[#FF3B30] transition-colors rounded"
-          >
-            <Trash2 size={12} />
-          </button>
-        </div>
+      {/* Drag handle */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="text-[var(--text-dim)] hover:text-[var(--text-muted)] cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+        data-qa="feature-drag-handle"
+      >
+        <GripVertical size={14} />
+      </button>
+
+      {/* Position number */}
+      <span className="text-[11px] font-mono text-[var(--text-dim)] w-5 text-right shrink-0">
+        {index + 1}
+      </span>
+
+      {/* Status dot */}
+      <div
+        className="w-2 h-2 rounded-full shrink-0"
+        style={{ backgroundColor: statusColor }}
+        title={feature.status.replace('_', ' ')}
+      />
+
+      {/* Name */}
+      <Link
+        to={`/projects/${projectId}/features/${feature.id}`}
+        className="text-sm text-[var(--text-primary)] hover:text-[var(--primary)] transition-colors truncate min-w-0 flex-1"
+        data-qa="feature-row-link"
+      >
+        {feature.name}
+      </Link>
+
+      {/* Status badge */}
+      <span
+        className="text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0"
+        style={{
+          color: statusColor,
+          backgroundColor: `color-mix(in srgb, ${statusColor} 12%, transparent)`,
+        }}
+        data-qa="feature-status-badge"
+      >
+        {feature.status.replace('_', ' ')}
+      </span>
+
+      {/* Task counts */}
+      <div className="flex items-center gap-2 shrink-0">
+        <StatusDot icon={<Circle size={9} />} count={todo} color="var(--text-muted)" title="Todo" />
+        <StatusDot icon={<Clock size={9} />} count={inProgress} color="var(--status-progress)" title="In Progress" />
+        <StatusDot icon={<CheckCircle2 size={9} />} count={done} color="var(--status-done)" title="Done" />
+        {blocked > 0 && <StatusDot icon={<AlertTriangle size={9} />} count={blocked} color="#FF3B30" title="Blocked" />}
       </div>
 
-      {/* Task status row */}
-      <div className="flex items-center gap-3 mb-3 flex-wrap">
-        <StatusPill icon={<Circle size={10} />} label="Todo" count={todo} color="var(--text-muted)" />
-        <StatusPill icon={<Clock size={10} />} label="In Progress" count={inProgress} color="var(--primary)" />
-        <StatusPill icon={<CheckCircle2 size={10} />} label="Done" count={done} color="var(--status-done)" />
-        {blocked > 0 && (
-          <StatusPill icon={<AlertTriangle size={10} />} label="Blocked" count={blocked} color="#FF3B30" />
-        )}
-      </div>
-
-      {/* Progress bar */}
+      {/* Progress */}
       {total > 0 && (
-        <div className="h-1.5 bg-[var(--bg-tertiary)] rounded-full overflow-hidden flex mb-3">
-          {pctDone > 0 && (
-            <div className="h-full" style={{ width: `${pctDone}%`, backgroundColor: 'var(--status-done)' }} />
-          )}
-          {pctInProgress > 0 && (
-            <div className="h-full" style={{ width: `${pctInProgress}%`, backgroundColor: 'var(--primary)' }} />
-          )}
-          {pctBlocked > 0 && (
-            <div className="h-full" style={{ width: `${pctBlocked}%`, backgroundColor: '#FF3B30' }} />
-          )}
-        </div>
+        <span className="text-[10px] font-mono text-[var(--text-dim)] shrink-0 w-10 text-right">
+          {pctDone}%
+        </span>
       )}
 
-      {/* Footer */}
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-mono text-[var(--text-dim)]">
-          {total} task{total !== 1 ? 's' : ''}
-          {total > 0 && ` · ${Math.round(pctDone)}% done`}
-        </span>
-        <Link
-          to={`/projects/${projectId}/features/${feature.id}`}
-          data-qa="open-feature-detail-link"
-          className="flex items-center gap-1 text-[10px] text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
+      {/* Actions */}
+      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={onEdit}
+          data-qa="edit-feature-btn"
+          className="p-1 text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors rounded"
         >
-          View Details
-          <ExternalLink size={9} />
-        </Link>
+          <Pencil size={12} />
+        </button>
+        <button
+          onClick={onDelete}
+          data-qa="delete-feature-btn"
+          className="p-1 text-[var(--text-dim)] hover:text-[#FF3B30] transition-colors rounded"
+        >
+          <Trash2 size={12} />
+        </button>
       </div>
     </div>
   );
 }
 
-function StatusPill({ icon, label, count, color }: { icon: React.ReactNode; label: string; count: number; color: string }) {
+function StatusDot({ icon, count, color, title }: { icon: React.ReactNode; count: number; color: string; title: string }) {
   return (
-    <div className="flex items-center gap-1" title={label}>
+    <div className="flex items-center gap-0.5" title={title}>
       <span style={{ color }}>{icon}</span>
       <span className="text-[10px] font-mono" style={{ color }}>{count}</span>
     </div>

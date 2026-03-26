@@ -12,13 +12,16 @@ import (
 )
 
 type MockUserRepository struct {
-	CreateFunc      func(ctx context.Context, user domain.User) error
-	FindByIDFunc    func(ctx context.Context, id domain.UserID) (domain.User, error)
-	FindByEmailFunc func(ctx context.Context, email string) (domain.User, error)
-	UpdateFunc      func(ctx context.Context, user domain.User) error
-	ListAllFunc     func(ctx context.Context) ([]domain.User, error)
-	ListByTeamFunc  func(ctx context.Context, teamID domain.TeamID) ([]domain.User, error)
-	FindBySSOFunc   func(ctx context.Context, provider, subject string) (domain.User, error)
+	CreateFunc         func(ctx context.Context, user domain.User) error
+	FindByIDFunc       func(ctx context.Context, id domain.UserID) (domain.User, error)
+	FindByEmailFunc    func(ctx context.Context, email string) (domain.User, error)
+	UpdateFunc         func(ctx context.Context, user domain.User) error
+	ListAllFunc        func(ctx context.Context) ([]domain.User, error)
+	ListByTeamFunc     func(ctx context.Context, teamID domain.TeamID) ([]domain.User, error)
+	FindBySSOFunc      func(ctx context.Context, provider, subject string) (domain.User, error)
+	AddToTeamFunc      func(ctx context.Context, userID domain.UserID, teamID domain.TeamID) error
+	RemoveFromTeamFunc func(ctx context.Context, userID domain.UserID, teamID domain.TeamID) error
+	ListTeamIDsFunc    func(ctx context.Context, userID domain.UserID) ([]domain.TeamID, error)
 }
 
 func (m *MockUserRepository) Create(ctx context.Context, user domain.User) error {
@@ -68,6 +71,27 @@ func (m *MockUserRepository) FindBySSO(ctx context.Context, provider, subject st
 		panic("called not defined FindBySSOFunc")
 	}
 	return m.FindBySSOFunc(ctx, provider, subject)
+}
+
+func (m *MockUserRepository) AddToTeam(ctx context.Context, userID domain.UserID, teamID domain.TeamID) error {
+	if m.AddToTeamFunc == nil {
+		panic("called not defined AddToTeamFunc")
+	}
+	return m.AddToTeamFunc(ctx, userID, teamID)
+}
+
+func (m *MockUserRepository) RemoveFromTeam(ctx context.Context, userID domain.UserID, teamID domain.TeamID) error {
+	if m.RemoveFromTeamFunc == nil {
+		panic("called not defined RemoveFromTeamFunc")
+	}
+	return m.RemoveFromTeamFunc(ctx, userID, teamID)
+}
+
+func (m *MockUserRepository) ListTeamIDs(ctx context.Context, userID domain.UserID) ([]domain.TeamID, error) {
+	if m.ListTeamIDsFunc == nil {
+		panic("called not defined ListTeamIDsFunc")
+	}
+	return m.ListTeamIDsFunc(ctx, userID)
 }
 
 // UsersContractTesting runs a standard contract test suite against any UserRepository implementation.

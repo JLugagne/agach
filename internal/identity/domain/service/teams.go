@@ -12,8 +12,10 @@ type TeamCommands interface {
 	UpdateTeam(ctx context.Context, actor domain.Actor, team domain.Team) error
 	DeleteTeam(ctx context.Context, actor domain.Actor, id domain.TeamID) error
 	AddUserToTeam(ctx context.Context, actor domain.Actor, userID domain.UserID, teamID domain.TeamID) error
-	RemoveUserFromTeam(ctx context.Context, actor domain.Actor, userID domain.UserID) error
+	RemoveUserFromTeam(ctx context.Context, actor domain.Actor, userID domain.UserID, teamID domain.TeamID) error
 	SetUserRole(ctx context.Context, actor domain.Actor, userID domain.UserID, role domain.MemberRole) error
+	BlockUser(ctx context.Context, actor domain.Actor, userID domain.UserID) error
+	UnblockUser(ctx context.Context, actor domain.Actor, userID domain.UserID) error
 }
 
 // TeamQueries handles team and membership lookups.

@@ -17,6 +17,7 @@ import (
 	service "github.com/JLugagne/agach-mcp/internal/identity/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server"
 	"github.com/JLugagne/agach-mcp/internal/server/ux"
+	"github.com/JLugagne/agach-mcp/resources"
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/JLugagne/agach-mcp/internal/pkg/middleware"
 	"github.com/gorilla/mux"
@@ -98,14 +99,18 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *serverConfig, jwtSe
 	// Auth middleware for protected routes
 	requireAuth := middleware.NewRequireAuth(&authValidatorAdapter{q: identitySystem.AuthQueries})
 
+	// Compute resource manifest from embedded binaries
+	resourceManifest := server.ComputeManifest(resources.FS, logger)
+
 	// Initialize server HTTP system under auth middleware
 	serverRouter := httpRouter.PathPrefix("").Subrouter()
 	serverRouter.Use(requireAuth)
 	if _, err := server.InitHTTP(server.Config{
-		Pool:        pool,
-		Logger:      logger,
-		AuthQueries: identitySystem.AuthQueries,
-		WSRouter:    httpRouter,
+		Pool:             pool,
+		Logger:           logger,
+		AuthQueries:      identitySystem.AuthQueries,
+		WSRouter:         httpRouter,
+		ResourceManifest: resourceManifest,
 	}, serverRouter); err != nil {
 		logger.WithError(err).Fatal("Failed to initialize HTTP server")
 	}

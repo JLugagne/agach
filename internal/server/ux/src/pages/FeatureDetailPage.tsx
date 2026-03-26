@@ -13,7 +13,6 @@ import {
   Clock,
   AlertTriangle,
   Flag,
-  Calendar,
   User,
   Timer,
   DollarSign,
@@ -41,14 +40,6 @@ const STATUS_BADGE_COLORS: Record<FeatureStatus, string> = {
   done: 'var(--status-done)',
   blocked: '#FF3B30',
 };
-
-const ALL_STATUSES: { value: FeatureStatus; label: string }[] = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'ready', label: 'Ready' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'done', label: 'Done' },
-  { value: 'blocked', label: 'Blocked' },
-];
 
 // Task groups in display order
 const TASK_GROUPS: { slug: string; label: string; dot: string; icon: React.ReactNode }[] = [
@@ -441,26 +432,38 @@ export default function FeatureDetailPage() {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1E2030] border border-[#2A2A2E] text-[#8B8FA3] text-xs font-medium cursor-default"
           >
             <Flag size={14} style={{ color: prioStyle.icon }} />
-            {/* Use feature's first task priority or 'Medium' as default */}
             {tasks.length > 0 ? `${tasks[0].priority.charAt(0).toUpperCase() + tasks[0].priority.slice(1)} Priority` : 'No Priority'}
           </button>
-          {/* Status pill */}
-          <div
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium"
-            style={{
-              backgroundColor: `color-mix(in srgb, ${statusColor} 8%, transparent)`,
-              borderColor: `color-mix(in srgb, ${statusColor} 25%, transparent)`,
-              color: statusColor,
-            }}
-          >
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColor }} />
-            {feature.status.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
-          </div>
-          {/* Sprint pill - placeholder */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1E2030] border border-[#2A2A2E] text-[#8B8FA3] text-xs font-medium">
-            <Calendar size={14} />
-            Sprint
-          </div>
+          {/* Status pill with Mark Ready action */}
+          {feature.status === 'draft' ? (
+            <button
+              onClick={() => handleStatusChange('ready')}
+              disabled={changingStatus}
+              data-qa="feature-mark-ready-btn"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors hover:brightness-125"
+              style={{
+                backgroundColor: `color-mix(in srgb, ${statusColor} 8%, transparent)`,
+                borderColor: `color-mix(in srgb, ${statusColor} 25%, transparent)`,
+                color: statusColor,
+                opacity: changingStatus ? 0.5 : 1,
+              }}
+            >
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColor }} />
+              {changingStatus ? 'Updating...' : 'Draft — Mark Ready'}
+            </button>
+          ) : (
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium"
+              style={{
+                backgroundColor: `color-mix(in srgb, ${statusColor} 8%, transparent)`,
+                borderColor: `color-mix(in srgb, ${statusColor} 25%, transparent)`,
+                color: statusColor,
+              }}
+            >
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColor }} />
+              {feature.status.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+            </div>
+          )}
           {/* Owner pill */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1E2030] border border-[#2A2A2E] text-[#8B8FA3] text-xs font-medium">
             <User size={14} />
@@ -501,36 +504,9 @@ export default function FeatureDetailPage() {
         {/* Tab Content */}
         {activeTab === 'overview' && (
           <div>
-            {/* Status controls */}
-            <div className="mb-8">
-              <label className="block text-xs font-mono text-[var(--text-dim)] mb-2">Status</label>
-              <div className="flex items-center gap-2 flex-wrap">
-                {ALL_STATUSES.map((s) => {
-                  const isActive = feature.status === s.value;
-                  const sColor = STATUS_BADGE_COLORS[s.value];
-                  return (
-                    <button
-                      key={s.value}
-                      onClick={() => !isActive && handleStatusChange(s.value)}
-                      disabled={changingStatus || isActive}
-                      data-qa="feature-detail-status-btn"
-                      className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors cursor-pointer border ${
-                        isActive
-                          ? 'border-current'
-                          : 'border-[var(--border-primary)] hover:border-current'
-                      }`}
-                      style={{
-                        color: isActive ? sColor : 'var(--text-muted)',
-                        backgroundColor: isActive ? `color-mix(in srgb, ${sColor} 15%, transparent)` : 'var(--bg-tertiary)',
-                        opacity: changingStatus ? 0.5 : 1,
-                      }}
-                    >
-                      {s.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <p className="text-sm text-[var(--text-muted)] font-['Inter']">
+              {feature.description || 'No description.'}
+            </p>
           </div>
         )}
 

@@ -177,7 +177,7 @@ func (r *agentRepository) FindBySlugInProject(ctx context.Context, projectID dom
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
 	row := r.pool.QueryRow(ctx, `
-		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.prompt_template, ro.content, ro.sort_order, ro.created_at
+		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.prompt_template, ro.content, ro.model, ro.thinking, ro.sort_order, ro.created_at
 		FROM roles ro
 		JOIN project_roles pr ON pr.role_id = ro.id
 		WHERE pr.project_id = $1 AND ro.slug = $2`, string(projectID), slug)
@@ -192,7 +192,7 @@ func (r *agentRepository) FindByIDInProject(ctx context.Context, projectID domai
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
 	row := r.pool.QueryRow(ctx, `
-		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.prompt_template, ro.content, ro.sort_order, ro.created_at
+		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.prompt_template, ro.content, ro.model, ro.thinking, ro.sort_order, ro.created_at
 		FROM roles ro
 		JOIN project_roles pr ON pr.role_id = ro.id
 		WHERE pr.project_id = $1 AND ro.id = $2`, string(projectID), string(id))
@@ -207,7 +207,7 @@ func (r *agentRepository) ListInProject(ctx context.Context, projectID domain.Pr
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
 	rows, err := r.pool.Query(ctx, `
-		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.prompt_template, ro.content, ro.sort_order, ro.created_at
+		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.prompt_template, ro.content, ro.model, ro.thinking, ro.sort_order, ro.created_at
 		FROM roles ro
 		JOIN project_roles pr ON pr.role_id = ro.id
 		WHERE pr.project_id = $1
@@ -292,7 +292,7 @@ func (r *agentRepository) ListByProject(ctx context.Context, projectID domain.Pr
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
 	rows, err := r.pool.Query(ctx, `
-		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.prompt_template, ro.content, ro.sort_order, ro.created_at
+		SELECT ro.id, ro.slug, ro.name, ro.icon, ro.color, ro.description, ro.tech_stack, ro.prompt_hint, ro.prompt_template, ro.content, ro.model, ro.thinking, ro.sort_order, ro.created_at
 		FROM roles ro
 		JOIN project_agents pa ON pa.role_id = ro.id
 		WHERE pa.project_id = $1

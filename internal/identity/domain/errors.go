@@ -51,4 +51,5 @@ var (
 	ErrOnboardingCodeNotFound = &Error{Code: "ONBOARDING_CODE_NOT_FOUND", Message: "onboarding code not found"}
 	ErrOnboardingCodeExpired  = &Error{Code: "ONBOARDING_CODE_EXPIRED", Message: "onboarding code has expired"}
 	ErrOnboardingCodeUsed     = &Error{Code: "ONBOARDING_CODE_USED", Message: "onboarding code has already been used"}
+	ErrUserBlocked            = &Error{Code: "USER_BLOCKED", Message: "user account is blocked"}
 )

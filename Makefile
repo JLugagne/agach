@@ -1,4 +1,4 @@
-.PHONY: generate build build-server build-daemon run dev test clean docker docker_build
+.PHONY: generate build build-server build-daemon build-sidecar run dev test clean docker docker_build
 
 GO_TAGS := sqlite_fts5
 
@@ -10,7 +10,10 @@ build: build-server
 build-daemon:
 	CGO_ENABLED=1 go build -tags $(GO_TAGS) -o agach-daemon ./cmd/agach-daemon
 
-build-server: generate
+build-sidecar:
+	CGO_ENABLED=0 go build -o resources/agach-sidecar ./cmd/agach-sidecar
+
+build-server: generate build-sidecar
 	go build -tags $(GO_TAGS) -o agach-server ./cmd/agach-server
 
 run: build-server
@@ -24,6 +27,7 @@ test:
 
 clean:
 	rm -f agach-server agach-daemon
+	rm -f resources/agach-sidecar
 	rm -rf internal/server/ux/dist
 
 docker:

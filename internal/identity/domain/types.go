@@ -58,10 +58,13 @@ type User struct {
 	SSOProvider  string     // e.g. "google", "github"
 	SSOSubject   string     // provider's sub/user ID
 	Role         MemberRole // system-wide role
-	TeamID       *TeamID    // optional team membership
+	TeamIDs      []TeamID   // team memberships (many-to-many)
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	BlockedAt    *time.Time
 }
+
+func (u User) IsBlocked() bool { return u.BlockedAt != nil }
 
 // Actor represents the authenticated caller for a request.
 type Actor struct {

@@ -17,6 +17,7 @@ import type {
   NodeResponse, OnboardingCodeResponse, GenerateOnboardingCodeRequest,
   ChatSessionResponse,
   TaskSummaryResponse,
+  TeamResponse, UserResponse, AdminNodeResponse,
 } from './types';
 import { refreshAccessToken, setToken } from './auth';
 
@@ -282,6 +283,27 @@ export const getNode = (nodeId: string) => request<{ node: NodeResponse }>('GET'
 export const revokeNode = (nodeId: string) => request<void>('DELETE', `/api/nodes/${nodeId}`);
 export const renameNode = (nodeId: string, name: string) =>
   request<{ node: NodeResponse }>('PATCH', `/api/nodes/${nodeId}/name`, { name });
+
+// Teams & Users (identity)
+export const listTeams = () => request<TeamResponse[]>('GET', '/api/identity/teams');
+export const createTeam = (data: { name: string; slug: string; description?: string }) =>
+  request<TeamResponse>('POST', '/api/identity/teams', data);
+export const deleteTeam = (id: string) => request<void>('DELETE', `/api/identity/teams/${id}`);
+export const listUsers = () => request<UserResponse[]>('GET', '/api/identity/users');
+export const setUserTeam = (userId: string, teamId: string) =>
+  request<void>('PUT', `/api/identity/users/${userId}/team`, { team_id: teamId });
+export const removeUserFromTeam = (userId: string, teamId: string) =>
+  request<void>('DELETE', `/api/identity/users/${userId}/team`, { team_id: teamId });
+export const setUserRole = (userId: string, role: 'admin' | 'member') =>
+  request<void>('PUT', `/api/identity/users/${userId}/role`, { role });
+export const blockUser = (userId: string) =>
+  request<void>('PUT', `/api/identity/users/${userId}/block`);
+export const unblockUser = (userId: string) =>
+  request<void>('DELETE', `/api/identity/users/${userId}/block`);
+
+// Admin nodes
+export const adminListNodes = () => request<{ nodes: AdminNodeResponse[] }>('GET', '/api/admin/nodes');
+export const adminRevokeNode = (nodeId: string) => request<void>('DELETE', `/api/admin/nodes/${nodeId}`);
 
 // Chat sessions
 export const listChatSessions = (projectId: string, featureId: string) =>

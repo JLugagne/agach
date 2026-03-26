@@ -23,6 +23,12 @@ var migrationSQL string
 //go:embed migrations/002_nodes.sql
 var migration002SQL string
 
+//go:embed migrations/003_team_members.sql
+var migration003SQL string
+
+//go:embed migrations/004_user_blocked.sql
+var migration004SQL string
+
 const queryTimeout = 30 * time.Second
 
 // Repositories holds all identity PostgreSQL repository implementations.
@@ -43,6 +49,12 @@ func NewRepositories(ctx context.Context, pool *pgxpool.Pool, encKey string) (*R
 		return nil, err
 	}
 	if _, err := pool.Exec(mCtx, migration002SQL); err != nil {
+		return nil, err
+	}
+	if _, err := pool.Exec(mCtx, migration003SQL); err != nil {
+		return nil, err
+	}
+	if _, err := pool.Exec(mCtx, migration004SQL); err != nil {
 		return nil, err
 	}
 	base := &baseRepository{pool: pool, encKey: encKey}
@@ -81,15 +93,9 @@ func (r *userRepository) Create(ctx context.Context, u domain.User) error {
 	qCtx, cancel := r.ctx(ctx)
 	defer cancel()
 
-	var teamID *uuid.UUID
-	if u.TeamID != nil {
-		id := uuid.UUID(*u.TeamID)
-		teamID = &id
-	}
-
 	_, err := r.pool.Exec(qCtx, `
-		INSERT INTO users (id, email, display_name, password_hash, sso_provider, sso_subject, role, team_id, created_at, updated_at)
-		VALUES ($1, $2, $3, pgp_sym_encrypt($4, $9), $5, pgp_sym_encrypt($6, $9), $7, $8, $10, $11)`,
+		INSERT INTO users (id, email, display_name, password_hash, sso_provider, sso_subject, role, created_at, updated_at, blocked_at)
+		VALUES ($1, $2, $3, pgp_sym_encrypt($4, $8), $5, pgp_sym_encrypt($6, $8), $7, $9, $10, $11)`,
 		uuid.UUID(u.ID),
 		u.Email,
 		u.DisplayName,
@@ -97,10 +103,10 @@ func (r *userRepository) Create(ctx context.Context, u domain.User) error {
 		u.SSOProvider,
 		u.SSOSubject,
 		string(u.Role),
-		teamID,
 		r.encKey,
 		u.CreatedAt,
 		u.UpdatedAt,
+		u.BlockedAt,
 	)
 	return err
 }
@@ -110,7 +116,7 @@ func (r *userRepository) FindByID(ctx context.Context, id domain.UserID) (domain
 	defer cancel()
 
 	row := r.pool.QueryRow(qCtx, `
-		SELECT id, email, display_name, pgp_sym_decrypt(password_hash, $2)::text, sso_provider, pgp_sym_decrypt(sso_subject, $2)::text, role, team_id, created_at, updated_at
+		SELECT id, email, display_name, pgp_sym_decrypt(password_hash, $2)::text, sso_provider, pgp_sym_decrypt(sso_subject, $2)::text, role, created_at, updated_at, blocked_at
 		FROM users WHERE id = $1`, uuid.UUID(id), r.encKey)
 	return scanUser(row)
 }
@@ -120,7 +126,7 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (domain.
 	defer cancel()
 
 	row := r.pool.QueryRow(qCtx, `
-		SELECT id, email, display_name, pgp_sym_decrypt(password_hash, $2)::text, sso_provider, pgp_sym_decrypt(sso_subject, $2)::text, role, team_id, created_at, updated_at
+		SELECT id, email, display_name, pgp_sym_decrypt(password_hash, $2)::text, sso_provider, pgp_sym_decrypt(sso_subject, $2)::text, role, created_at, updated_at, blocked_at
 		FROM users WHERE email = $1`, email, r.encKey)
 	return scanUser(row)
 }
@@ -130,7 +136,7 @@ func (r *userRepository) FindBySSO(ctx context.Context, provider, subject string
 	defer cancel()
 
 	row := r.pool.QueryRow(qCtx, `
-		SELECT id, email, display_name, pgp_sym_decrypt(password_hash, $3)::text, sso_provider, pgp_sym_decrypt(sso_subject, $3)::text, role, team_id, created_at, updated_at
+		SELECT id, email, display_name, pgp_sym_decrypt(password_hash, $3)::text, sso_provider, pgp_sym_decrypt(sso_subject, $3)::text, role, created_at, updated_at, blocked_at
 		FROM users WHERE sso_provider = $1 AND pgp_sym_decrypt(sso_subject, $3)::text = $2`, provider, subject, r.encKey)
 	return scanUser(row)
 }
@@ -139,14 +145,8 @@ func (r *userRepository) Update(ctx context.Context, u domain.User) error {
 	qCtx, cancel := r.ctx(ctx)
 	defer cancel()
 
-	var teamID *uuid.UUID
-	if u.TeamID != nil {
-		id := uuid.UUID(*u.TeamID)
-		teamID = &id
-	}
-
 	_, err := r.pool.Exec(qCtx, `
-		UPDATE users SET email=$2, display_name=$3, password_hash=pgp_sym_encrypt($4, $9), sso_provider=$5, sso_subject=pgp_sym_encrypt($6, $9), role=$7, team_id=$8, updated_at=$10
+		UPDATE users SET email=$2, display_name=$3, password_hash=pgp_sym_encrypt($4, $8), sso_provider=$5, sso_subject=pgp_sym_encrypt($6, $8), role=$7, updated_at=$9, blocked_at=$10
 		WHERE id=$1`,
 		uuid.UUID(u.ID),
 		u.Email,
@@ -155,9 +155,9 @@ func (r *userRepository) Update(ctx context.Context, u domain.User) error {
 		u.SSOProvider,
 		u.SSOSubject,
 		string(u.Role),
-		teamID,
 		r.encKey,
 		u.UpdatedAt,
+		u.BlockedAt,
 	)
 	return err
 }
@@ -181,13 +181,18 @@ func (r *userRepository) ListAll(ctx context.Context) ([]domain.User, error) {
 	defer cancel()
 
 	rows, err := r.pool.Query(qCtx, `
-		SELECT id, email, display_name, sso_provider, role, team_id, created_at, updated_at
+		SELECT id, email, display_name, sso_provider, role, created_at, updated_at, blocked_at
 		FROM users ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	return scanUsersWithoutHash(rows)
+	users, err := scanUsersWithoutHash(rows)
+	if err != nil {
+		return nil, err
+	}
+	// Populate team IDs for all users in one query
+	return r.populateTeamIDs(qCtx, users)
 }
 
 func (r *userRepository) ListByTeam(ctx context.Context, teamID domain.TeamID) ([]domain.User, error) {
@@ -195,13 +200,77 @@ func (r *userRepository) ListByTeam(ctx context.Context, teamID domain.TeamID) (
 	defer cancel()
 
 	rows, err := r.pool.Query(qCtx, `
-		SELECT id, email, display_name, pgp_sym_decrypt(password_hash, $2)::text, sso_provider, pgp_sym_decrypt(sso_subject, $2)::text, role, team_id, created_at, updated_at
-		FROM users WHERE team_id = $1 ORDER BY created_at ASC`, uuid.UUID(teamID), r.encKey)
+		SELECT u.id, u.email, u.display_name, pgp_sym_decrypt(u.password_hash, $2)::text, u.sso_provider, pgp_sym_decrypt(u.sso_subject, $2)::text, u.role, u.created_at, u.updated_at, u.blocked_at
+		FROM users u JOIN team_members tm ON tm.user_id = u.id
+		WHERE tm.team_id = $1 ORDER BY u.created_at ASC`, uuid.UUID(teamID), r.encKey)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	return scanUsers(rows)
+}
+
+func (r *userRepository) AddToTeam(ctx context.Context, userID domain.UserID, teamID domain.TeamID) error {
+	qCtx, cancel := r.ctx(ctx)
+	defer cancel()
+	_, err := r.pool.Exec(qCtx, `
+		INSERT INTO team_members (team_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+		uuid.UUID(teamID), uuid.UUID(userID))
+	return err
+}
+
+func (r *userRepository) RemoveFromTeam(ctx context.Context, userID domain.UserID, teamID domain.TeamID) error {
+	qCtx, cancel := r.ctx(ctx)
+	defer cancel()
+	_, err := r.pool.Exec(qCtx, `
+		DELETE FROM team_members WHERE team_id = $1 AND user_id = $2`,
+		uuid.UUID(teamID), uuid.UUID(userID))
+	return err
+}
+
+func (r *userRepository) ListTeamIDs(ctx context.Context, userID domain.UserID) ([]domain.TeamID, error) {
+	qCtx, cancel := r.ctx(ctx)
+	defer cancel()
+	rows, err := r.pool.Query(qCtx, `SELECT team_id FROM team_members WHERE user_id = $1`, uuid.UUID(userID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []domain.TeamID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, domain.TeamID(id))
+	}
+	return ids, rows.Err()
+}
+
+func (r *userRepository) populateTeamIDs(ctx context.Context, users []domain.User) ([]domain.User, error) {
+	if len(users) == 0 {
+		return users, nil
+	}
+	rows, err := r.pool.Query(ctx, `SELECT user_id, team_id FROM team_members`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	m := make(map[uuid.UUID][]domain.TeamID)
+	for rows.Next() {
+		var uid, tid uuid.UUID
+		if err := rows.Scan(&uid, &tid); err != nil {
+			return nil, err
+		}
+		m[uid] = append(m[uid], domain.TeamID(tid))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range users {
+		users[i].TeamIDs = m[uuid.UUID(users[i].ID)]
+	}
+	return users, nil
 }
 
 func scanUsers(rows pgx.Rows) ([]domain.User, error) {
@@ -237,12 +306,12 @@ func scanUser(row pgx.Row) (domain.User, error) {
 		ssoProvider  string
 		ssoSubject   string
 		role         string
-		teamID       *uuid.UUID
 		createdAt    time.Time
 		updatedAt    time.Time
+		blockedAt    *time.Time
 	)
 
-	err := row.Scan(&id, &email, &displayName, &passwordHash, &ssoProvider, &ssoSubject, &role, &teamID, &createdAt, &updatedAt)
+	err := row.Scan(&id, &email, &displayName, &passwordHash, &ssoProvider, &ssoSubject, &role, &createdAt, &updatedAt, &blockedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.User{}, domain.ErrUserNotFound
@@ -250,7 +319,7 @@ func scanUser(row pgx.Row) (domain.User, error) {
 		return domain.User{}, err
 	}
 
-	u := domain.User{
+	return domain.User{
 		ID:           domain.UserID(id),
 		Email:        email,
 		DisplayName:  displayName,
@@ -260,12 +329,8 @@ func scanUser(row pgx.Row) (domain.User, error) {
 		Role:         domain.MemberRole(role),
 		CreatedAt:    createdAt,
 		UpdatedAt:    updatedAt,
-	}
-	if teamID != nil {
-		tid := domain.TeamID(*teamID)
-		u.TeamID = &tid
-	}
-	return u, nil
+		BlockedAt:    blockedAt,
+	}, nil
 }
 
 func scanUserWithoutHash(row pgx.Row) (domain.User, error) {
@@ -275,12 +340,12 @@ func scanUserWithoutHash(row pgx.Row) (domain.User, error) {
 		displayName string
 		ssoProvider string
 		role        string
-		teamID      *uuid.UUID
 		createdAt   time.Time
 		updatedAt   time.Time
+		blockedAt   *time.Time
 	)
 
-	err := row.Scan(&id, &email, &displayName, &ssoProvider, &role, &teamID, &createdAt, &updatedAt)
+	err := row.Scan(&id, &email, &displayName, &ssoProvider, &role, &createdAt, &updatedAt, &blockedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.User{}, domain.ErrUserNotFound
@@ -288,7 +353,7 @@ func scanUserWithoutHash(row pgx.Row) (domain.User, error) {
 		return domain.User{}, err
 	}
 
-	u := domain.User{
+	return domain.User{
 		ID:          domain.UserID(id),
 		Email:       email,
 		DisplayName: displayName,
@@ -296,12 +361,8 @@ func scanUserWithoutHash(row pgx.Row) (domain.User, error) {
 		Role:        domain.MemberRole(role),
 		CreatedAt:   createdAt,
 		UpdatedAt:   updatedAt,
-	}
-	if teamID != nil {
-		tid := domain.TeamID(*teamID)
-		u.TeamID = &tid
-	}
-	return u, nil
+		BlockedAt:   blockedAt,
+	}, nil
 }
 
 type rowScanner interface {

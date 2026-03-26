@@ -37,6 +37,9 @@ type ChatSession struct {
 	claudeStderr     *bytes.Buffer
 	jsonlFile        *os.File
 	jsonlPath        string
+	proxy            *SidecarProxy
+	socketPath       string
+	apiKey           string
 	MessageCount     int
 	InputTokens      int
 	OutputTokens     int
@@ -58,6 +61,10 @@ type ChatManager struct {
 	sendMessage     func(daemonws.Message)
 	stopCh          chan struct{}
 	ttl             time.Duration
+	serverURL       string
+	getToken        func() string
+	refreshToken    func() error
+	resourceCache   *ResourceCache
 }
 
 func NewChatManager(
@@ -68,6 +75,10 @@ func NewChatManager(
 	agentDownloader domain.AgentDownloader,
 	token string,
 	sendMessage func(daemonws.Message),
+	serverURL string,
+	getToken func() string,
+	refreshToken func() error,
+	resourceCache *ResourceCache,
 ) *ChatManager {
 	m := &ChatManager{
 		sessions:        make(map[string]*ChatSession),
@@ -80,6 +91,10 @@ func NewChatManager(
 		sendMessage:     sendMessage,
 		stopCh:          make(chan struct{}),
 		ttl:             30 * time.Minute,
+		serverURL:       serverURL,
+		getToken:        getToken,
+		refreshToken:    refreshToken,
+		resourceCache:   resourceCache,
 	}
 	go m.ttlChecker()
 	go m.statsBroadcaster()
@@ -105,6 +120,11 @@ func (m *ChatManager) startClaudeProcess(session *ChatSession, resumeSessionID, 
 
 	cmd := exec.Command("claude", args...)
 	cmd.Dir = session.WorktreePath
+	cmd.Env = append(os.Environ(),
+		"AGACH_PROXY="+session.socketPath,
+		"AGACH_PROXY_KEY="+session.apiKey,
+		"AGACH_FEATURE_ID="+session.FeatureID,
+	)
 
 	session.claudeStderr = &bytes.Buffer{}
 	cmd.Stderr = session.claudeStderr
@@ -341,6 +361,25 @@ func (m *ChatManager) StartSession(ctx context.Context, requestID string, req da
 		return
 	}
 
+	// Create sidecar proxy
+	socketPath := fmt.Sprintf("/tmp/agach-sidecar-%s.sock", sessionID)
+	apiKey, err := generateAPIKey()
+	if err != nil {
+		m.logger.WithError(err).Error("generate api key")
+		m.sendError(requestID, "", "failed to generate api key: "+err.Error())
+		return
+	}
+
+	proxy := NewSidecarProxy(
+		socketPath, apiKey, req.ProjectID, req.FeatureID,
+		m.serverURL, m.getToken, m.refreshToken, m.logger,
+	)
+	if err := proxy.Start(ctx); err != nil {
+		m.logger.WithError(err).Error("start sidecar proxy")
+		m.sendError(requestID, "", "failed to start sidecar proxy: "+err.Error())
+		return
+	}
+
 	now := time.Now()
 
 	session := &ChatSession{
@@ -350,6 +389,9 @@ func (m *ChatManager) StartSession(ctx context.Context, requestID string, req da
 		WorktreePath: worktreePath,
 		StartedAt:    now,
 		LastActivity: now,
+		proxy:        proxy,
+		socketPath:   socketPath,
+		apiKey:       apiKey,
 	}
 
 	if err := m.startClaudeProcess(session, req.ResumeSessionID, agentName); err != nil {
@@ -361,6 +403,13 @@ func (m *ChatManager) StartSession(ctx context.Context, requestID string, req da
 	m.mu.Lock()
 	m.sessions[sessionID] = session
 	m.mu.Unlock()
+
+	// Send the initial message automatically for new sessions
+	if req.ResumeSessionID == "" && req.InitialMessage != "" {
+		if err := m.SendMessage(sessionID, req.InitialMessage); err != nil {
+			m.logger.WithError(err).WithField("session_id", sessionID).Warn("failed to send initial message")
+		}
+	}
 
 	m.logger.WithFields(logrus.Fields{
 		"session_id": sessionID,
@@ -462,6 +511,10 @@ func (m *ChatManager) EndSession(sessionID, reason string) {
 	}
 
 	m.stopClaudeProcess(session)
+
+	if session.proxy != nil {
+		session.proxy.Stop()
+	}
 
 	if session.jsonlPath != "" {
 		if _, err := os.Stat(session.jsonlPath); err == nil {
