@@ -8,13 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testPool returns a pgxpool connected to the e2e database.
+// testPool returns the shared pgxpool (started by the test server).
 func testPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	pool, err := pgxpool.New(context.Background(), dbConnStr())
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	return pool
+	ensureServer(t)
+	require.NotNil(t, dbPool, "database pool not initialized")
+	return dbPool
 }
 
 // countRows returns the number of rows in a table matching an optional WHERE clause.

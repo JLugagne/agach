@@ -6,25 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-// env reads an environment variable or returns the fallback.
-func env(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-// baseURL returns the API base URL from E2E_BASE_URL or default.
-func baseURL() string { return env("E2E_BASE_URL", "http://localhost:18322") }
-
-// apiURL builds an absolute API URL.
-func apiURL(path string) string { return baseURL() + path }
+// apiURL builds an absolute API URL using the in-process test server.
+func apiURL(path string) string { return serverURL + path }
 
 // ---------- JSON helpers ---------------------------------------------------
 
@@ -78,6 +67,7 @@ type publicUser struct {
 // login authenticates and returns the access token.
 func login(t *testing.T, email, password string) string {
 	t.Helper()
+	ensureServer(t)
 	resp, err := http.Post(apiURL("/api/auth/login"), "application/json",
 		jsonBody(t, map[string]any{"email": email, "password": password}))
 	require.NoError(t, err)
@@ -87,10 +77,19 @@ func login(t *testing.T, email, password string) string {
 	return lr.AccessToken
 }
 
-// adminToken logs in as admin and returns the token.
+// adminToken logs in as admin once and caches the token to avoid rate limits.
+var (
+	cachedAdminToken string
+	adminOnce        sync.Once
+)
+
 func adminToken(t *testing.T) string {
 	t.Helper()
-	return login(t, "admin@agach.local", "admin")
+	adminOnce.Do(func() {
+		cachedAdminToken = login(t, "admin@agach.local", "admin")
+	})
+	require.NotEmpty(t, cachedAdminToken, "admin login failed")
+	return cachedAdminToken
 }
 
 // authReq builds an authenticated request.
@@ -106,6 +105,7 @@ func authReq(t *testing.T, method, url, token string, body io.Reader) *http.Requ
 // doAuth performs an authenticated request and returns the response.
 func doAuth(t *testing.T, method, path, token string, body any) *http.Response {
 	t.Helper()
+	ensureServer(t)
 	var r io.Reader
 	if body != nil {
 		r = jsonBody(t, body)
@@ -126,19 +126,13 @@ func requireStatus(t *testing.T, resp *http.Response, expected int) {
 	}
 }
 
-// ---------- DB helpers -----------------------------------------------------
-
-func dbConnStr() string {
-	return env("E2E_DATABASE_URL", "postgres://agach:agach@localhost:15432/agach?sslmode=disable")
-}
-
 // ---------- Generic CRUD helpers -------------------------------------------
 
-// createAndDecode does a POST, asserts 201, and decodes the response data.
+// createAndDecode does a POST, asserts 200, and decodes the response data.
 func createAndDecode[T any](t *testing.T, path, token string, body any) T {
 	t.Helper()
 	resp := doAuth(t, "POST", path, token, body)
-	requireStatus(t, resp, http.StatusCreated)
+	requireStatus(t, resp, http.StatusOK)
 	return decode[T](t, resp)
 }
 
@@ -158,18 +152,20 @@ func patchAndDecode[T any](t *testing.T, path, token string, body any) T {
 	return decode[T](t, resp)
 }
 
-// deleteResource does a DELETE and asserts 204.
+// deleteResource does a DELETE and asserts 200.
 func deleteResource(t *testing.T, path, token string) {
 	t.Helper()
 	resp := doAuth(t, "DELETE", path, token, nil)
-	requireStatus(t, resp, http.StatusNoContent)
+	requireStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
 }
 
-// deleteResourceWithBody does a DELETE with a JSON body and asserts 204.
+// deleteResourceWithBody does a DELETE with a JSON body and asserts 200.
 func deleteResourceWithBody(t *testing.T, path, token string, body any) {
 	t.Helper()
 	resp := doAuth(t, "DELETE", path, token, body)
-	requireStatus(t, resp, http.StatusNoContent)
+	requireStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
 }
 
 // ptr returns a pointer to v.

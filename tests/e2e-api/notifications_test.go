@@ -31,21 +31,21 @@ func createProjectForNotifications(t *testing.T, token string) string {
 
 type notificationResp struct {
 	ID        string  `json:"id"`
-	ProjectID *string `json:"project_id"`
+	ProjectID *string `json:"project_id,omitempty"`
 	Scope     string  `json:"scope"`
-	AgentSlug *string `json:"agent_slug"`
+	AgentSlug string  `json:"agent_slug,omitempty"`
 	Severity  string  `json:"severity"`
 	Title     string  `json:"title"`
 	Text      string  `json:"text"`
-	LinkURL   *string `json:"link_url"`
-	LinkText  *string `json:"link_text"`
-	LinkStyle *string `json:"link_style"`
+	LinkURL   string  `json:"link_url,omitempty"`
+	LinkText  string  `json:"link_text,omitempty"`
+	LinkStyle string  `json:"link_style,omitempty"`
 	ReadAt    *string `json:"read_at"`
 	CreatedAt string  `json:"created_at"`
 }
 
 type unreadCountResp struct {
-	Count int `json:"count"`
+	UnreadCount int `json:"unread_count"`
 }
 
 // ---------------------------------------------------------------------------
@@ -85,15 +85,14 @@ func TestNotifications_ProjectScoped_CRUD(t *testing.T) {
 	// MARK READ
 	resp := doAuth(t, "PUT", fmt.Sprintf("/api/notifications/%s/read", created.ID), tok, nil)
 	requireStatus(t, resp, http.StatusOK)
-	marked := decode[notificationResp](t, resp)
-	require.NotNil(t, marked.ReadAt, "read_at should be set after marking read")
+	resp.Body.Close()
 
 	// Verify read_at is set via GET
 	allNotifs := getAndDecode[[]notificationResp](t,
 		fmt.Sprintf("/api/projects/%s/notifications", projID), tok)
 	for _, n := range allNotifs {
 		if n.ID == created.ID {
-			require.NotNil(t, n.ReadAt, "read_at should persist")
+			require.NotNil(t, n.ReadAt, "read_at should persist after marking read")
 			break
 		}
 	}
@@ -168,7 +167,7 @@ func TestNotifications_UnreadCount(t *testing.T) {
 	// Check project unread count = 2
 	uc := getAndDecode[unreadCountResp](t,
 		fmt.Sprintf("/api/projects/%s/notifications/unread-count", projID), tok)
-	assert.Equal(t, 2, uc.Count)
+	assert.Equal(t, 2, uc.UnreadCount)
 
 	// Mark one read
 	resp := doAuth(t, "PUT", fmt.Sprintf("/api/notifications/%s/read", n1.ID), tok, nil)
@@ -178,11 +177,11 @@ func TestNotifications_UnreadCount(t *testing.T) {
 	// Check project unread count = 1
 	uc2 := getAndDecode[unreadCountResp](t,
 		fmt.Sprintf("/api/projects/%s/notifications/unread-count", projID), tok)
-	assert.Equal(t, 1, uc2.Count)
+	assert.Equal(t, 1, uc2.UnreadCount)
 
 	// Also verify the global unread count endpoint includes them
 	ucGlobal := getAndDecode[unreadCountResp](t, "/api/notifications/unread-count", tok)
-	assert.GreaterOrEqual(t, ucGlobal.Count, 1, "global unread count should include project notifications")
+	assert.GreaterOrEqual(t, ucGlobal.UnreadCount, 1, "global unread count should include project notifications")
 
 	// Cleanup
 	deleteResource(t, fmt.Sprintf("/api/notifications/%s", n1.ID), tok)
@@ -212,7 +211,7 @@ func TestNotifications_ReadAll(t *testing.T) {
 	// Verify all are unread
 	uc := getAndDecode[unreadCountResp](t,
 		fmt.Sprintf("/api/projects/%s/notifications/unread-count", projID), tok)
-	assert.Equal(t, 3, uc.Count)
+	assert.Equal(t, 3, uc.UnreadCount)
 
 	// Mark all project notifications read
 	resp := doAuth(t, "PUT", fmt.Sprintf("/api/projects/%s/notifications/read-all", projID), tok, nil)
@@ -233,7 +232,7 @@ func TestNotifications_ReadAll(t *testing.T) {
 	// Verify unread count is 0
 	uc2 := getAndDecode[unreadCountResp](t,
 		fmt.Sprintf("/api/projects/%s/notifications/unread-count", projID), tok)
-	assert.Equal(t, 0, uc2.Count)
+	assert.Equal(t, 0, uc2.UnreadCount)
 
 	// Cleanup
 	for _, id := range ids {

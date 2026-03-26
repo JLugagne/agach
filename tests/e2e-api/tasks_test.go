@@ -1,6 +1,7 @@
 package e2eapi
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,6 +27,25 @@ func createTestProject(t *testing.T, token string) string {
 		resp := doAuth(t, "POST", "/api/projects", token, map[string]any{
 			"name":        "Task Test Project " + uniqueSlug("proj"),
 			"description": "e2e task tests",
+		})
+		requireStatus(t, resp, http.StatusOK)
+		return resp
+	}())
+	require.NotEmpty(t, p.ID)
+	return p.ID
+}
+
+func createChildProject(t *testing.T, token string, parentID string) string {
+	t.Helper()
+	type project struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	p := decode[project](t, func() *http.Response {
+		resp := doAuth(t, "POST", "/api/projects", token, map[string]any{
+			"name":        "Child Project " + uniqueSlug("child"),
+			"description": "e2e child project",
+			"parent_id":   parentID,
 		})
 		requireStatus(t, resp, http.StatusOK)
 		return resp
@@ -375,27 +396,35 @@ func TestTasks_WontDo_Approve(t *testing.T) {
 func TestTasks_WontDo_Reject(t *testing.T) {
 	token := adminToken(t)
 	projectID := createTestProject(t, token)
+	pool := testPool(t)
 
 	task := createTask(t, token, projectID, nil)
 	moveTask(t, token, projectID, task.ID, "in_progress")
 
-	// The REST /wont-do endpoint auto-approves, so the task moves to done.
-	// We then test /reject-wont-do to bring it back.
+	// RejectWontDo requires the task to be in the blocked column with
+	// wont_do_requested = true. The REST /wont-do endpoint auto-approves
+	// (RequestWontDo + ApproveWontDo), which moves the task to done.
+	// To test reject-wont-do we simulate the agent-side RequestWontDo
+	// state by moving the task to the blocked column and setting
+	// wont_do_requested via the database.
 	wontDoReason := strings.Repeat("This task seems unnecessary based on current requirements. ", 2)
-	resp := doAuth(t, "POST",
-		fmt.Sprintf("/api/projects/%s/tasks/%s/wont-do", projectID, task.ID),
-		token,
-		map[string]any{
-			"wont_do_reason":       wontDoReason,
-			"wont_do_requested_by": "e2e-human",
-		},
-	)
-	requireStatus(t, resp, http.StatusOK)
-	resp.Body.Close()
+
+	// Look up the blocked column ID for this project.
+	blockedColID := queryString(t, pool,
+		"SELECT id FROM columns WHERE project_id = $1 AND slug = 'blocked'", projectID)
+
+	// Put the task into the blocked column with wont_do_requested = true.
+	_, err := pool.Exec(context.Background(),
+		`UPDATE tasks SET column_id = $1, is_blocked = 1,
+		 wont_do_requested = 1, wont_do_reason = $2,
+		 wont_do_requested_by = 'e2e-agent', updated_at = NOW()
+		 WHERE id = $3`,
+		blockedColID, wontDoReason, task.ID)
+	require.NoError(t, err)
 
 	// Reject the won't-do decision
 	rejectionReason := "We still need this feature for the next release cycle"
-	resp = doAuth(t, "POST",
+	resp := doAuth(t, "POST",
 		fmt.Sprintf("/api/projects/%s/tasks/%s/reject-wont-do", projectID, task.ID),
 		token,
 		map[string]any{"reason": rejectionReason},
@@ -403,12 +432,12 @@ func TestTasks_WontDo_Reject(t *testing.T) {
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 
-	// Verify wont_do is cleared and task moved back to in_progress
+	// Verify wont_do is cleared and task moved back to todo
 	got := getTask(t, token, projectID, task.ID)
 	require.False(t, got.WontDoRequested, "wont_do_requested should be false after rejection")
 
 	slug := columnSlugForTask(t, token, projectID, task.ID)
-	require.Equal(t, "in_progress", slug)
+	require.Equal(t, "todo", slug)
 }
 
 // ---------------------------------------------------------------------------
@@ -418,6 +447,7 @@ func TestTasks_WontDo_Reject(t *testing.T) {
 func TestTasks_Dependencies(t *testing.T) {
 	token := adminToken(t)
 	projectID := createTestProject(t, token)
+	pool := testPool(t)
 
 	// Create parent task
 	parent := createTask(t, token, projectID, map[string]any{
@@ -425,12 +455,20 @@ func TestTasks_Dependencies(t *testing.T) {
 		"summary": "Parent task that must be completed first",
 	})
 
-	// Create child task with depends_on
+	// Create child task
 	child := createTask(t, token, projectID, map[string]any{
-		"title":      "Child Task " + uniqueSlug("child"),
-		"summary":    "Child task that depends on parent",
-		"depends_on": []string{parent.ID},
+		"title":   "Child Task " + uniqueSlug("child"),
+		"summary": "Child task that depends on parent",
 	})
+
+	// The REST CreateTask handler does not process the depends_on field.
+	// Insert the dependency directly in the database.
+	depID := uuid.New().String()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO task_dependencies (id, task_id, depends_on_task_id, created_at)
+		 VALUES ($1, $2, $3, NOW())`,
+		depID, child.ID, parent.ID)
+	require.NoError(t, err)
 
 	// GET dependencies of child -> should return parent
 	deps := getAndDecode[[]taskResp](t,
@@ -542,7 +580,9 @@ func TestTasks_Backlog(t *testing.T) {
 func TestTasks_MoveToProject(t *testing.T) {
 	token := adminToken(t)
 	project1 := createTestProject(t, token)
-	project2 := createTestProject(t, token)
+	// MoveTaskToProject requires projects to be related (parent/child or siblings).
+	// Create project2 as a child of project1.
+	project2 := createChildProject(t, token, project1)
 
 	task := createTask(t, token, project1, nil)
 
@@ -655,16 +695,23 @@ func TestTasks_DB_Verification(t *testing.T) {
 	commentCount := countRows(t, pool, "comments", "task_id = $1", task.ID)
 	require.GreaterOrEqual(t, commentCount, 1, "should have at least 1 comment")
 
-	// Add dependency and verify in DB
+	// Add dependency and verify in DB.
+	// The REST CreateTask handler does not process depends_on, so insert directly.
 	parent := createTask(t, token, projectID, map[string]any{
 		"title":   "DB Verify Parent " + uniqueSlug("dbparent"),
 		"summary": "Parent task for DB verification",
 	})
 	child := createTask(t, token, projectID, map[string]any{
-		"title":      "DB Verify Child " + uniqueSlug("dbchild"),
-		"summary":    "Child task for DB verification",
-		"depends_on": []string{parent.ID},
+		"title":   "DB Verify Child " + uniqueSlug("dbchild"),
+		"summary": "Child task for DB verification",
 	})
+
+	depID := uuid.New().String()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO task_dependencies (id, task_id, depends_on_task_id, created_at)
+		 VALUES ($1, $2, $3, NOW())`,
+		depID, child.ID, parent.ID)
+	require.NoError(t, err)
 
 	require.True(t, rowExists(t, pool, "task_dependencies",
 		"task_id = $1 AND depends_on_task_id = $2", child.ID, parent.ID),

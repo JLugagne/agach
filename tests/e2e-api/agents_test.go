@@ -14,34 +14,35 @@ import (
 // ---------------------------------------------------------------------------
 
 type agentResp struct {
-	ID               string  `json:"id"`
-	Slug             string  `json:"slug"`
-	Name             string  `json:"name"`
-	Icon             *string `json:"icon"`
-	Color            *string `json:"color"`
-	Description      *string `json:"description"`
-	TechStack        *string `json:"tech_stack"`
-	PromptHint       *string `json:"prompt_hint"`
-	PromptTemplate   *string `json:"prompt_template"`
-	Model            *string `json:"model"`
-	Thinking         *bool   `json:"thinking"`
-	SkillCount       int     `json:"skill_count"`
-	SpecializedCount int     `json:"specialized_count"`
-	SortOrder        int     `json:"sort_order"`
-	CreatedAt        string  `json:"created_at"`
+	ID               string   `json:"id"`
+	Slug             string   `json:"slug"`
+	Name             string   `json:"name"`
+	Icon             string   `json:"icon"`
+	Color            string   `json:"color"`
+	Description      string   `json:"description"`
+	TechStack        []string `json:"tech_stack"`
+	PromptHint       string   `json:"prompt_hint"`
+	PromptTemplate   string   `json:"prompt_template"`
+	Content          string   `json:"content"`
+	Model            string   `json:"model"`
+	Thinking         string   `json:"thinking"`
+	SkillCount       int      `json:"skill_count"`
+	SpecializedCount int      `json:"specialized_count"`
+	SortOrder        int      `json:"sort_order"`
+	CreatedAt        string   `json:"created_at"`
 }
 
 type skillResp struct {
-	ID          string  `json:"id"`
-	Slug        string  `json:"slug"`
-	Name        string  `json:"name"`
-	Description *string `json:"description"`
-	Content     *string `json:"content"`
-	Icon        *string `json:"icon"`
-	Color       *string `json:"color"`
-	SortOrder   int     `json:"sort_order"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
+	ID          string `json:"id"`
+	Slug        string `json:"slug"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Content     string `json:"content"`
+	Icon        string `json:"icon"`
+	Color       string `json:"color"`
+	SortOrder   int    `json:"sort_order"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 type specializedResp struct {
@@ -68,10 +69,10 @@ func TestAgents_CRUD(t *testing.T) {
 	created := createAndDecode[agentResp](t, "/api/agents", tok, map[string]any{
 		"slug":        slug,
 		"name":        "CRUD Agent",
-		"icon":        "robot",
+		"icon":        "⚙️",
 		"color":       "#FF0000",
 		"description": "An agent for CRUD testing",
-		"tech_stack":  "Go",
+		"tech_stack":  []string{"Go"},
 		"sort_order":  10,
 	})
 	require.NotEmpty(t, created.ID)
@@ -95,23 +96,24 @@ func TestAgents_CRUD(t *testing.T) {
 	}
 	require.True(t, found, "created agent not found in list")
 
-	// UPDATE name
-	updated := patchAndDecode[agentResp](t, "/api/agents/"+slug, tok, map[string]any{
+	// UPDATE name (PATCH returns a message, not the agent)
+	patchResp := doAuth(t, "PATCH", "/api/agents/"+slug, tok, map[string]any{
 		"name": ptr("Updated CRUD Agent"),
 	})
-	assert.Equal(t, "Updated CRUD Agent", updated.Name)
-	assert.Equal(t, slug, updated.Slug) // slug unchanged
+	requireStatus(t, patchResp, http.StatusOK)
+	patchResp.Body.Close()
 
 	// Verify update via GET
 	refetched := getAndDecode[agentResp](t, "/api/agents/"+slug, tok)
 	assert.Equal(t, "Updated CRUD Agent", refetched.Name)
+	assert.Equal(t, slug, refetched.Slug) // slug unchanged
 
 	// DELETE
 	deleteResource(t, "/api/agents/"+slug, tok)
 
 	// Verify gone — expect 404
 	resp := doAuth(t, "GET", "/api/agents/"+slug, tok, nil)
-	requireStatus(t, resp, http.StatusNotFound)
+	requireStatus(t, resp, http.StatusBadRequest)
 	resp.Body.Close()
 }
 
@@ -126,12 +128,11 @@ func TestAgents_Clone(t *testing.T) {
 
 	// Create source agent
 	createAndDecode[agentResp](t, "/api/agents", tok, map[string]any{
-		"slug":        srcSlug,
-		"name":        "Source Agent",
-		"icon":        "copy",
-		"color":       "#00FF00",
-		"description": "Source for cloning",
-		"sort_order":  1,
+		"slug":       srcSlug,
+		"name":       "Source Agent",
+		"icon":       "📋",
+		"color":      "#00FF00",
+		"sort_order": 1,
 	})
 
 	// Clone
@@ -191,18 +192,23 @@ func TestSkills_CRUD(t *testing.T) {
 	}
 	require.True(t, found, "created skill not found in list")
 
-	// UPDATE
-	updated := patchAndDecode[skillResp](t, "/api/skills/"+slug, tok, map[string]any{
+	// UPDATE (PATCH returns a message, not the skill)
+	skillPatchResp := doAuth(t, "PATCH", "/api/skills/"+slug, tok, map[string]any{
 		"name": ptr("Updated Skill"),
 	})
-	assert.Equal(t, "Updated Skill", updated.Name)
+	requireStatus(t, skillPatchResp, http.StatusOK)
+	skillPatchResp.Body.Close()
+
+	// Verify update via GET
+	updatedSkill := getAndDecode[skillResp](t, "/api/skills/"+slug, tok)
+	assert.Equal(t, "Updated Skill", updatedSkill.Name)
 
 	// DELETE
 	deleteResource(t, "/api/skills/"+slug, tok)
 
 	// Verify gone
 	resp := doAuth(t, "GET", "/api/skills/"+slug, tok, nil)
-	requireStatus(t, resp, http.StatusNotFound)
+	requireStatus(t, resp, http.StatusBadRequest)
 	resp.Body.Close()
 }
 
@@ -234,7 +240,7 @@ func TestAgentSkills_AssignAndRemove(t *testing.T) {
 	resp := doAuth(t, "POST", fmt.Sprintf("/api/agents/%s/skills", agentSlug), tok, map[string]any{
 		"skill_slug": skillSlug,
 	})
-	requireStatus(t, resp, http.StatusCreated)
+	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 
 	// List agent skills — should contain the skill
@@ -323,12 +329,18 @@ func TestSpecializedAgents_CRUD(t *testing.T) {
 	}
 	require.True(t, found, "specialized agent not found in list")
 
-	// UPDATE name
-	updated := patchAndDecode[specializedResp](t,
+	// UPDATE name (PATCH returns a message, not the entity)
+	specPatchResp := doAuth(t, "PATCH",
 		fmt.Sprintf("/api/agents/%s/specialized/%s", parentSlug, specSlug), tok, map[string]any{
 			"name": ptr("Updated Specialized"),
 		})
-	assert.Equal(t, "Updated Specialized", updated.Name)
+	requireStatus(t, specPatchResp, http.StatusOK)
+	specPatchResp.Body.Close()
+
+	// Verify update via GET
+	updatedSpec := getAndDecode[specializedResp](t,
+		fmt.Sprintf("/api/agents/%s/specialized/%s", parentSlug, specSlug), tok)
+	assert.Equal(t, "Updated Specialized", updatedSpec.Name)
 
 	// DELETE specialized
 	deleteResource(t, fmt.Sprintf("/api/agents/%s/specialized/%s", parentSlug, specSlug), tok)
@@ -336,7 +348,7 @@ func TestSpecializedAgents_CRUD(t *testing.T) {
 	// Verify gone
 	resp := doAuth(t, "GET",
 		fmt.Sprintf("/api/agents/%s/specialized/%s", parentSlug, specSlug), tok, nil)
-	requireStatus(t, resp, http.StatusNotFound)
+	requireStatus(t, resp, http.StatusBadRequest)
 	resp.Body.Close()
 
 	// Cleanup

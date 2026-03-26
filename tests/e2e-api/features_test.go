@@ -203,17 +203,22 @@ func TestFeatures_WithTasks(t *testing.T) {
 		fmt.Sprintf("/api/projects/%s/features", projectID), token,
 		map[string]any{"name": "Tasks Feature", "description": "with tasks"})
 
-	// Create a task linked to the feature.
+	// Create a task (without feature_id — CreateTask validates it against projects).
 	type taskBasic struct {
 		ID string `json:"id"`
 	}
-	createAndDecode[taskBasic](t,
+	task := createAndDecode[taskBasic](t,
 		fmt.Sprintf("/api/projects/%s/tasks", projectID), token,
 		map[string]any{
-			"title":      "Implement login",
-			"summary":    "Implement the login page UI",
-			"feature_id": feat.ID,
+			"title":   "Implement login",
+			"summary": "Implement the login page UI",
 		})
+
+	// Link the task to the feature via UpdateTask (which sets feature_id without sub-project validation).
+	patchAndDecode[struct {
+		Message string `json:"message"`
+	}](t, fmt.Sprintf("/api/projects/%s/tasks/%s", projectID, task.ID), token,
+		map[string]any{"feature_id": feat.ID})
 
 	// List features — check task_summary includes the task.
 	type featureWithSummary struct {
@@ -260,17 +265,29 @@ func TestFeatures_TaskSummaries(t *testing.T) {
 		fmt.Sprintf("/api/projects/%s/features", projectID), token,
 		map[string]any{"name": "Summary Feature", "description": "summaries test"})
 
-	// Create a task linked to the feature.
+	// Create a task (without feature_id — CreateTask validates it against projects).
 	type taskBasic struct {
 		ID string `json:"id"`
 	}
 	task := createAndDecode[taskBasic](t,
 		fmt.Sprintf("/api/projects/%s/tasks", projectID), token,
 		map[string]any{
-			"title":      "Build dashboard",
-			"summary":    "Build the main dashboard page",
-			"feature_id": feat.ID,
+			"title":   "Build dashboard",
+			"summary": "Build the main dashboard page",
 		})
+
+	// Link the task to the feature via UpdateTask (which sets feature_id without sub-project validation).
+	patchResp := doAuth(t, "PATCH", fmt.Sprintf("/api/projects/%s/tasks/%s", projectID, task.ID), token,
+		map[string]any{"feature_id": feat.ID})
+	requireStatus(t, patchResp, http.StatusOK)
+	patchResp.Body.Close()
+
+	// Move to in_progress (required before completing).
+	moveResp := doAuth(t, "POST",
+		fmt.Sprintf("/api/projects/%s/tasks/%s/move", projectID, task.ID), token,
+		map[string]any{"target_column": "in_progress"})
+	requireStatus(t, moveResp, http.StatusOK)
+	moveResp.Body.Close()
 
 	// Complete the task so it appears in task-summaries.
 	completionSummary := "Implemented the main dashboard page with charts and widgets. " +
@@ -279,8 +296,8 @@ func TestFeatures_TaskSummaries(t *testing.T) {
 	resp := doAuth(t, "POST",
 		fmt.Sprintf("/api/projects/%s/tasks/%s/complete", projectID, task.ID), token,
 		map[string]any{
-			"completion_summary": completionSummary,
-			"files_modified":    []string{"dashboard.go", "dashboard_test.go"},
+			"completion_summary":  completionSummary,
+			"files_modified":     []string{"dashboard.go", "dashboard_test.go"},
 			"completed_by_agent": "claude",
 		})
 	requireStatus(t, resp, http.StatusOK)
