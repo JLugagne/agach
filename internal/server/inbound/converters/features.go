@@ -46,6 +46,12 @@ func ToPublicTaskSummary(ts domain.FeatureTaskSummary) pkgserver.TaskSummaryResp
 		CompletedByAgent:  ts.CompletedByAgent,
 		CompletedAt:       ts.CompletedAt,
 		FilesModified:     ts.FilesModified,
+		DurationSeconds:   ts.DurationSeconds,
+		InputTokens:       ts.InputTokens,
+		OutputTokens:      ts.OutputTokens,
+		CacheReadTokens:   ts.CacheReadTokens,
+		CacheWriteTokens:  ts.CacheWriteTokens,
+		Model:             ts.Model,
 	}
 }
 

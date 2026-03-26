@@ -558,6 +558,12 @@ export interface TaskSummaryResponse {
   completed_by_agent: string;
   completed_at: string;
   files_modified: string[];
+  duration_seconds: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  model: string;
 }
 
 // WebSocket

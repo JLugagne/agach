@@ -508,6 +508,12 @@ type FeatureTaskSummary struct {
 	CompletedByAgent  string     `json:"completed_by_agent"`
 	CompletedAt       time.Time  `json:"completed_at"`
 	FilesModified     []string   `json:"files_modified"`
+	DurationSeconds   int        `json:"duration_seconds"`
+	InputTokens       int        `json:"input_tokens"`
+	OutputTokens      int        `json:"output_tokens"`
+	CacheReadTokens   int        `json:"cache_read_tokens"`
+	CacheWriteTokens  int        `json:"cache_write_tokens"`
+	Model             string     `json:"model"`
 }
 
 // ModelPricing holds per-model pricing rates (per million tokens)
