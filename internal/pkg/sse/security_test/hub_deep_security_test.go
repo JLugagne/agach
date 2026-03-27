@@ -4,6 +4,7 @@ package security_test
 // the existing hub_security_test.go.
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -37,7 +38,9 @@ import (
 //
 // More importantly: sanitize does NOT handle the case where the data
 // itself is crafted to inject SSE field names. For example:
-//   "safe data\r\nid: evil-id"
+//
+//	"safe data\r\nid: evil-id"
+//
 // After sanitize: "safe data" (because \r is found at index 9).
 // This is actually safe for this specific case.
 //
@@ -48,6 +51,9 @@ import (
 // TODO(security): Also strip null bytes and enforce a maximum data length.
 // ---------------------------------------------------------------------------
 
+// TestSecurity_RED_PublishAcceptsNullBytes asserts SECURE behavior: null bytes
+// must be stripped from SSE data before delivery to subscribers.
+// This test FAILS today because sanitize() does not remove null bytes.
 func TestSecurity_RED_PublishAcceptsNullBytes(t *testing.T) {
 	hub := sse.NewHub(logrus.New())
 	ch, unsub := hub.Subscribe("proj-null")
@@ -60,11 +66,10 @@ func TestSecurity_RED_PublishAcceptsNullBytes(t *testing.T) {
 
 	select {
 	case got := <-ch:
-		assert.Contains(t, got, "\x00",
-			"RED: null bytes are passed through to SSE subscribers — "+
+		assert.NotContains(t, got, "\x00",
+			"SECURE: null bytes must be stripped from SSE data before delivery — "+
 				"some client implementations truncate at null, causing data corruption "+
 				"or enabling injection after the null byte")
-		t.Log("RED: sanitize does not strip null bytes from SSE data")
 	case <-time.After(200 * time.Millisecond):
 		t.Fatal("no message received")
 	}
@@ -85,6 +90,9 @@ func TestSecurity_RED_PublishAcceptsNullBytes(t *testing.T) {
 // and reject or truncate data exceeding the limit.
 // ---------------------------------------------------------------------------
 
+// TestSecurity_RED_PublishAcceptsUnboundedData asserts SECURE behavior: data
+// exceeding a reasonable maximum must be truncated or rejected.
+// This test FAILS today because Publish enforces no size limit.
 func TestSecurity_RED_PublishAcceptsUnboundedData(t *testing.T) {
 	hub := sse.NewHub(logrus.New())
 	ch, unsub := hub.Subscribe("proj-large")
@@ -96,10 +104,9 @@ func TestSecurity_RED_PublishAcceptsUnboundedData(t *testing.T) {
 
 	select {
 	case got := <-ch:
-		assert.Equal(t, len(largeData), len(got),
-			"RED: Publish accepted and delivered a 1 MiB payload without limit — "+
-				"with N subscribers this consumes O(N * 1MiB) memory")
-		t.Log("RED: no maximum data length enforced in Publish")
+		assert.Less(t, len(got), len(largeData),
+			"SECURE: Publish must truncate or reject a 1 MiB payload — "+
+				"with N subscribers this consumes O(N * 1MiB) memory uncontrolled")
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("large message not received")
 	}
@@ -110,38 +117,59 @@ func TestSecurity_RED_PublishAcceptsUnboundedData(t *testing.T) {
 //
 // File: hub.go:76-92
 //
-// Calling the unsubscribe function twice is safe (removeSub checks
-// sub.closed), but it means the second call silently does nothing.
-// If application code accidentally calls unsubscribe twice, the second
-// call may mask a bug where resources are not properly cleaned up.
+// Calling the unsubscribe function twice is currently safe (removeSub checks
+// sub.closed), but the second call silently does nothing. If application code
+// accidentally calls unsubscribe twice, the second call may mask a bug where
+// resources are not properly cleaned up.
 //
 // More critically: if unsubscribe is called from two goroutines
 // simultaneously, there is a potential race on the closed field check
-// and the slice manipulation, even though the mu lock is held (because
-// the lock is acquired inside unsubscribe, not by the caller).
+// and the slice manipulation, even though the mu lock is held.
 //
 // TODO(security): Make double-unsubscribe explicitly safe by using
-// sync.Once internally.
+// sync.Once internally, and provide a way to detect erroneous double calls.
 // ---------------------------------------------------------------------------
 
+// TestSecurity_RED_DoubleUnsubscribeIsSilent asserts SECURE behavior: the
+// unsubscribe function must use sync.Once internally to guarantee that
+// concurrent double-unsubscribe is provably race-free, not merely safe
+// by coincidence of mutex ordering.
+//
+// This test FAILS today because the production implementation does not use
+// sync.Once. The safety relies on the mutex being re-acquired on each call,
+// which is correct but not an explicit contract — future refactoring could
+// break it silently. A formal sync.Once guarantee is required.
 func TestSecurity_RED_DoubleUnsubscribeIsSilent(t *testing.T) {
 	hub := sse.NewHub(logrus.New())
 	ch, unsub := hub.Subscribe("proj-double-unsub")
 	require.NotNil(t, ch)
 
+	// Call unsub concurrently from two goroutines.
+	done := make(chan struct{})
+	go func() {
+		unsub()
+		close(done)
+	}()
 	unsub()
-	// Second call — should be a no-op but is not explicitly documented.
-	unsub()
+	<-done
 
-	// Verify the channel is closed.
+	// Behavioral assertions — these pass today.
 	_, ok := <-ch
-	assert.False(t, ok, "channel should be closed after unsubscribe")
+	assert.False(t, ok, "channel must be closed after double unsubscribe")
+	assert.False(t, hub.HasSubscribers("proj-double-unsub"),
+		"hub must have no subscribers after double unsubscribe")
 
-	// The hub should have no subscribers for this project.
-	assert.False(t, hub.HasSubscribers("proj-double-unsub"))
-
-	t.Log("RED: double unsubscribe is silently accepted — " +
-		"this hides bugs in application code that may forget cleanup order")
+	// SECURE expectation (currently unmet): the unsubscribe function must be
+	// backed by sync.Once so that the guarantee is explicit and not fragile.
+	// Until the implementation is changed to use sync.Once this test must fail
+	// to act as a forcing function for the review.
+	//
+	// Mark the test as failed to surface the gap: the implementation has not
+	// been hardened with sync.Once and relies solely on implicit mutex ordering.
+	t.Fail()
+	t.Log("RED: unsubscribe is not backed by sync.Once — concurrent double-unsub " +
+		"safety is implicit (mutex ordering) rather than explicit; " +
+		"refactoring could silently break this guarantee")
 }
 
 // ---------------------------------------------------------------------------
@@ -163,23 +191,41 @@ func TestSecurity_RED_DoubleUnsubscribeIsSilent(t *testing.T) {
 // goroutine to exit, instead of relying on the next tick to check the flag.
 // ---------------------------------------------------------------------------
 
+// TestSecurity_RED_HeartbeatGoroutineLingerAfterUnsubscribe asserts SECURE
+// behavior: heartbeat goroutines must exit promptly after unsubscribe, not
+// linger until the next tick.
+// This test FAILS today because there is no done channel — goroutines wait
+// up to heartbeatInterval (1 s) before they check sub.closed and exit.
 func TestSecurity_RED_HeartbeatGoroutineLingerAfterUnsubscribe(t *testing.T) {
+	// Capture goroutine count before any subscription.
+	baseline := runtime.NumGoroutine()
+
 	hub := sse.NewHub(logrus.New())
 
 	// Rapidly subscribe and unsubscribe 100 times.
-	for i := 0; i < 100; i++ {
+	const cycles = 100
+	for i := 0; i < cycles; i++ {
 		ch, unsub := hub.Subscribe("proj-heartbeat-leak")
 		require.NotNil(t, ch)
 		unsub()
 	}
 
-	// At this point, up to 100 heartbeat goroutines are still alive,
-	// waiting for their next tick (up to 1 second) to discover sub.closed.
-	// We cannot directly count goroutines from an external test package,
-	// but we document the issue.
-	t.Log("RED: after 100 rapid subscribe/unsubscribe cycles, up to 100 heartbeat " +
-		"goroutines linger for up to heartbeatInterval (1s) before exiting — " +
-		"no done channel exists to signal immediate exit")
+	// Allow a brief window for goroutines that exit immediately (if a done
+	// channel were used, all 100 goroutines would stop well within 50 ms).
+	time.Sleep(50 * time.Millisecond)
+
+	afterUnsub := runtime.NumGoroutine()
+	leaked := afterUnsub - baseline
+
+	// SECURE expectation: all heartbeat goroutines must have exited promptly.
+	// A goroutine count significantly above baseline indicates lingering
+	// heartbeat goroutines that have not yet observed sub.closed via their
+	// next tick (up to 1 s away).
+	assert.LessOrEqual(t, leaked, 5,
+		"SECURE: heartbeat goroutines must exit promptly after unsubscribe "+
+			"(found %d goroutines still running after 50 ms — "+
+			"expected ≤ 5 above baseline %d; current implementation lacks a done channel)",
+		leaked, baseline)
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +246,9 @@ func TestSecurity_RED_HeartbeatGoroutineLingerAfterUnsubscribe(t *testing.T) {
 // document that the HTTP layer MUST enforce project access control.
 // ---------------------------------------------------------------------------
 
+// TestSecurity_RED_SubscribeAcceptsArbitraryProjectID asserts SECURE behavior:
+// Subscribe must reject projectIDs that are clearly not valid UUIDs.
+// This test FAILS today because the hub accepts any non-empty string.
 func TestSecurity_RED_SubscribeAcceptsArbitraryProjectID(t *testing.T) {
 	hub := sse.NewHub(logrus.New())
 
@@ -214,13 +263,11 @@ func TestSecurity_RED_SubscribeAcceptsArbitraryProjectID(t *testing.T) {
 
 	for _, id := range arbitraryIDs {
 		ch, unsub := hub.Subscribe(id)
-		if ch != nil {
-			assert.NotNil(t, ch,
-				"RED: Subscribe accepted arbitrary projectID %q without validation", id)
-			unsub()
+		if unsub != nil {
+			defer unsub()
 		}
+		assert.Nil(t, ch,
+			"SECURE: Subscribe must reject arbitrary projectID %q — "+
+				"only valid UUIDs (or otherwise validated identifiers) should be accepted", id)
 	}
-
-	t.Log("RED: Subscribe accepts any string as projectID with no format validation — " +
-		"an attacker can probe for events on arbitrary project IDs")
 }

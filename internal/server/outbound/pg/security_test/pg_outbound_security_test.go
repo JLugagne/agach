@@ -101,7 +101,7 @@ func TestSecurity_RED_FeatureFindByIDNoProjectFilter(t *testing.T) {
 	hasProjectFilter := strings.Contains(body, "WHERE") &&
 		(strings.Contains(body, "project_id = $") || strings.Contains(body, "project_id=$"))
 
-	assert.False(t, hasProjectFilter,
+	assert.True(t, hasProjectFilter,
 		"RED: featureRepository.FindByID does not filter by project_id in WHERE; "+
 			"any user with a feature UUID can read features from other projects")
 	t.Log("RED: featureRepository.FindByID queries only by id, not project_id — cross-project data leakage")
@@ -121,7 +121,7 @@ func TestSecurity_RED_FeatureDeleteNoProjectFilter(t *testing.T) {
 
 	hasProjectFilter := strings.Contains(body, "project_id")
 
-	assert.False(t, hasProjectFilter,
+	assert.True(t, hasProjectFilter,
 		"RED: featureRepository.Delete does not filter by project_id; "+
 			"a user can delete features from other projects")
 	t.Log("RED: featureRepository.Delete queries only by id — cross-project destructive operation")
@@ -142,7 +142,7 @@ func TestSecurity_RED_FeatureUpdateNoProjectFilter(t *testing.T) {
 	// The WHERE clause should contain project_id but it does not.
 	hasProjectFilter := strings.Contains(body, "project_id")
 
-	assert.False(t, hasProjectFilter,
+	assert.True(t, hasProjectFilter,
 		"RED: featureRepository.Update does not filter by project_id; "+
 			"a user can modify features belonging to other projects")
 	t.Log("RED: featureRepository.Update WHERE clause lacks project_id — cross-project modification")
@@ -161,7 +161,7 @@ func TestSecurity_RED_FeatureUpdateStatusNoProjectFilter(t *testing.T) {
 
 	hasProjectFilter := strings.Contains(body, "project_id")
 
-	assert.False(t, hasProjectFilter,
+	assert.True(t, hasProjectFilter,
 		"RED: featureRepository.UpdateStatus does not filter by project_id; "+
 			"a user can change feature status across projects")
 	t.Log("RED: featureRepository.UpdateStatus WHERE clause lacks project_id — cross-project status change")
@@ -181,7 +181,7 @@ func TestSecurity_RED_FeatureUpdateChangelogsNoProjectFilter(t *testing.T) {
 
 	hasProjectFilter := strings.Contains(body, "project_id")
 
-	assert.False(t, hasProjectFilter,
+	assert.True(t, hasProjectFilter,
 		"RED: featureRepository.UpdateChangelogs does not filter by project_id; "+
 			"a user can overwrite changelogs of features in other projects")
 	t.Log("RED: featureRepository.UpdateChangelogs WHERE clause lacks project_id — cross-project changelog overwrite")
@@ -204,7 +204,7 @@ func TestSecurity_RED_FeatureListTaskSummariesNoProjectFilter(t *testing.T) {
 
 	hasProjectFilter := strings.Contains(body, "project_id")
 
-	assert.False(t, hasProjectFilter,
+	assert.True(t, hasProjectFilter,
 		"RED: featureRepository.ListTaskSummaries does not filter by project_id; "+
 			"task data (titles, summaries, tokens, files) leaks across projects")
 	t.Log("RED: featureRepository.ListTaskSummaries queries only by feature_id — cross-project task data leakage")
@@ -228,7 +228,7 @@ func TestSecurity_RED_ProjectAccessTablesNoRLS(t *testing.T) {
 
 	hasRLS := strings.Contains(upper, "ROW LEVEL SECURITY")
 
-	assert.False(t, hasRLS,
+	assert.True(t, hasRLS,
 		"RED: migration 010 does not enable RLS on project_user_access or project_team_access; "+
 			"any DB role has unrestricted access to access-control rows")
 	t.Log("RED: project_user_access and project_team_access have no Row Level Security")
@@ -252,7 +252,7 @@ func TestSecurity_RED_RevokeUserSilentNoop(t *testing.T) {
 
 	checksRowsAffected := strings.Contains(body, "RowsAffected")
 
-	assert.False(t, checksRowsAffected,
+	assert.True(t, checksRowsAffected,
 		"RED: projectAccessRepository.RevokeUser does not check RowsAffected; "+
 			"revoking a non-existent grant silently succeeds")
 	t.Log("RED: RevokeUser is a silent no-op when the user was never granted access")
@@ -275,7 +275,7 @@ func TestSecurity_RED_UpdateUserRoleSilentNoop(t *testing.T) {
 
 	checksRowsAffected := strings.Contains(body, "RowsAffected")
 
-	assert.False(t, checksRowsAffected,
+	assert.True(t, checksRowsAffected,
 		"RED: projectAccessRepository.UpdateUserRole does not check RowsAffected; "+
 			"updating role on a non-existent grant silently succeeds")
 	t.Log("RED: UpdateUserRole is a silent no-op for non-existent grants — can mask privilege escalation bugs")
@@ -306,7 +306,7 @@ func TestSecurity_RED_GetTimelineDaysUnbounded(t *testing.T) {
 		strings.Contains(body, "math.Min") ||
 		strings.Contains(body, "math.Max")
 
-	assert.False(t, hasBoundsCheck,
+	assert.True(t, hasBoundsCheck,
 		"RED: taskRepository.GetTimeline does not validate the days parameter; "+
 			"a large value can cause generate_series resource exhaustion (DoS)")
 	t.Log("RED: GetTimeline days parameter is unbounded — potential DB-level DoS via generate_series")
@@ -333,7 +333,7 @@ func TestSecurity_RED_NoMigrationVersioning(t *testing.T) {
 		strings.Contains(src, "migration_version") ||
 		strings.Contains(src, "applied_migrations")
 
-	assert.False(t, hasVersionTracking,
+	assert.True(t, hasVersionTracking,
 		"RED: NewRepositories has no migration versioning; all migrations "+
 			"re-execute on every startup, risking data corruption from non-idempotent DML")
 	t.Log("RED: No migration tracking table — all migrations re-run on every startup")
@@ -362,7 +362,7 @@ func TestSecurity_RED_HasUnresolvedDepsIgnoresProjectID(t *testing.T) {
 
 	assert.True(t, acceptsProjectID || true, // method definitely accepts it (from signature)
 		"precondition: method accepts projectID parameter")
-	assert.False(t, queryUsesProjectID,
+	assert.True(t, queryUsesProjectID,
 		"RED: HasUnresolvedDependencies accepts projectID but never uses it in the query; "+
 			"dependency resolution state is not scoped to a project")
 	t.Log("RED: HasUnresolvedDependencies ignores projectID parameter — dependency state leaks across projects")
@@ -384,7 +384,7 @@ func TestSecurity_RED_GetDependentsNotDoneIgnoresProjectID(t *testing.T) {
 
 	queryUsesProjectID := strings.Contains(body, "string(projectID)")
 
-	assert.False(t, queryUsesProjectID,
+	assert.True(t, queryUsesProjectID,
 		"RED: GetDependentsNotDone accepts projectID but never uses it in the query; "+
 			"dependent tasks are not scoped to a project")
 	t.Log("RED: GetDependentsNotDone ignores projectID — can return tasks from other projects")

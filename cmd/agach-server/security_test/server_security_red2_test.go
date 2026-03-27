@@ -7,6 +7,7 @@ package security_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,34 +22,30 @@ import (
 //
 // File: cmd/agach-server/config.go line 33 — os.WriteFile(path, data, 0644)
 
-// TestSecurity_RED_ConfigFileWrittenWorldReadable documents that
-// writeDefaultConfig creates files with 0644 permissions instead of 0600.
-// TODO(security): change os.WriteFile permission from 0644 to 0600
+// TestSecurity_RED_ConfigFileWrittenWorldReadable asserts that the production
+// code must write the config file with 0600 (owner-only) permissions.
+// This test FAILS today because config.go uses 0644.
+// Fix: change os.WriteFile(path, data, 0644) to os.WriteFile(path, data, 0600).
 func TestSecurity_RED_ConfigFileWrittenWorldReadable(t *testing.T) {
-	// We verify the constant used in the source by simulating what
-	// writeDefaultConfig does: write a file with the same mode.
-	dir := t.TempDir()
-	path := filepath.Join(dir, "test-config.yml")
+	sourceFile := filepath.Join(
+		findProjectRoot(t),
+		"cmd", "agach-server", "config.go",
+	)
+	data, err := os.ReadFile(sourceFile)
+	require.NoError(t, err, "must be able to read cmd/agach-server/config.go")
+	source := string(data)
 
-	// This mirrors the production code: os.WriteFile(path, data, 0644)
-	err := os.WriteFile(path, []byte("test: config\n"), 0644)
-	require.NoError(t, err)
+	// The file must not be written with 0644 (group- and world-readable).
+	assert.False(t, strings.Contains(source, "WriteFile(path, data, 0644)"),
+		"SEC-SRV-06: config.go must not use 0644 for WriteFile — "+
+			"config file may contain SSO configuration; fix: use 0600")
 
-	info, err := os.Stat(path)
-	require.NoError(t, err)
-
-	mode := info.Mode().Perm()
-	// 0644 means group-readable and world-readable
-	isWorldReadable := mode&0o004 != 0
-	isGroupReadable := mode&0o040 != 0
-
-	assert.True(t, isWorldReadable,
-		"RED SEC-SRV-06: config file is world-readable (mode %04o) — "+
-			"writeDefaultConfig uses 0644 instead of 0600", mode)
-	assert.True(t, isGroupReadable,
-		"RED SEC-SRV-06: config file is group-readable (mode %04o) — "+
-			"should be restricted to owner only", mode)
-	t.Log("RED: writeDefaultConfig creates config files with 0644 permissions — should use 0600 for files containing SSO config")
+	// The file must be written with 0600 (owner-read/write only).
+	isWorldReadable := !strings.Contains(source, "WriteFile(path, data, 0600)")
+	assert.False(t, isWorldReadable,
+		"SEC-SRV-06: config.go must use 0600 for the config file so only the "+
+			"owner can read it; current code uses 0644 which exposes SSO config to "+
+			"other local users")
 }
 
 // ---- SEC-SRV-07 -------------------------------------------------------------
@@ -60,28 +57,29 @@ func TestSecurity_RED_ConfigFileWrittenWorldReadable(t *testing.T) {
 //
 // File: cmd/agach-server/config.go lines 40-55
 
-// TestSecurity_RED_ZeroRateLimitDisablesProtection documents that a zero
-// AuthRateLimitPerSecond effectively disables rate limiting.
-// TODO(security): validate that rate limit values are positive when set
+// TestSecurity_RED_ZeroRateLimitDisablesProtection asserts that loadConfig must
+// validate AuthRateLimitPerSecond > 0. This test FAILS today because no such
+// validation exists in the production code.
+// Fix: after Unmarshal, check that cfg.AuthRateLimitPerSecond > 0 when set,
+// and return an error or clamp to a safe default.
 func TestSecurity_RED_ZeroRateLimitDisablesProtection(t *testing.T) {
-	// A config with zero rate limit would disable brute-force protection.
-	// The server applies these values directly to the rate limiter:
-	//   AuthRateLimitPerSecond: 0  -> effectively no rate limiting
-	//   AuthRateLimitBurst: 0      -> no burst capacity
-	//
-	// loadConfig does not reject these values.
+	sourceFile := filepath.Join(
+		findProjectRoot(t),
+		"cmd", "agach-server", "config.go",
+	)
+	data, err := os.ReadFile(sourceFile)
+	require.NoError(t, err, "must be able to read cmd/agach-server/config.go")
+	source := string(data)
 
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.yml")
-	err := os.WriteFile(path, []byte("auth_rate_limit_per_second: 0\nauth_rate_limit_burst: 0\n"), 0644)
-	require.NoError(t, err)
-
-	// Read back and verify the zero values are accepted
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Contains(t, string(data), "auth_rate_limit_per_second: 0",
-		"RED SEC-SRV-07: zero rate limit accepted in config — brute-force protection disabled")
-	t.Log("RED: loadConfig accepts zero auth_rate_limit_per_second — rate limiting is effectively disabled")
+	// loadConfig must validate that rate limit values are positive.
+	hasRateLimitValidation := strings.Contains(source, "AuthRateLimitPerSecond") &&
+		(strings.Contains(source, "AuthRateLimitPerSecond > 0") ||
+			strings.Contains(source, "AuthRateLimitPerSecond <= 0") ||
+			strings.Contains(source, "invalid") && strings.Contains(source, "rate"))
+	assert.True(t, hasRateLimitValidation,
+		"SEC-SRV-07: loadConfig in config.go must validate that "+
+			"AuthRateLimitPerSecond > 0 when set; a zero value disables brute-force "+
+			"protection; fix: return error or set safe default when value is zero or negative")
 }
 
 // ---- SEC-SRV-08 -------------------------------------------------------------
@@ -94,21 +92,26 @@ func TestSecurity_RED_ZeroRateLimitDisablesProtection(t *testing.T) {
 //
 // File: cmd/agach-server/main.go lines 167-201
 
-// TestSecurity_RED_SPAHandlerNoPathCleaning documents that the SPA handler
-// does not explicitly clean the path before using it.
-// TODO(security): apply path.Clean() to the trimmed path before fs.Stat
+// TestSecurity_RED_SPAHandlerNoPathCleaning asserts that the spaHandler must
+// call path.Clean (or filepath.Clean) on the URL path before using it with
+// fs.Stat. This test FAILS today because the production spaHandler does not
+// clean the path.
+// Fix: apply path.Clean() to the trimmed path before fs.Stat.
 func TestSecurity_RED_SPAHandlerNoPathCleaning(t *testing.T) {
-	// The spaHandler trims the leading "/" then passes directly to fs.Stat.
-	// While Go's http.ServeMux and embedded FS provide some protection,
-	// the code does not call path.Clean() on the result.
-	// This test documents the missing sanitization.
+	sourceFile := filepath.Join(
+		findProjectRoot(t),
+		"cmd", "agach-server", "main.go",
+	)
+	data, err := os.ReadFile(sourceFile)
+	require.NoError(t, err, "must be able to read cmd/agach-server/main.go")
+	source := string(data)
 
-	// Demonstrate that a path like "assets/../../../etc/passwd" after
-	// TrimPrefix would be "assets/../../../etc/passwd" — no cleaning applied.
-	rawPath := "/assets/../../../etc/passwd"
-	trimmed := rawPath[1:] // strings.TrimPrefix equivalent
-	assert.Equal(t, "assets/../../../etc/passwd", trimmed,
-		"RED SEC-SRV-08: path traversal sequences are not cleaned before fs.Stat — "+
-			"embedded FS may protect against this but explicit cleaning should be applied")
-	t.Log("RED: spaHandler does not call path.Clean() on URL path before fs.Stat — relies on embedded FS for safety")
+	// The spaHandler must sanitize the path with path.Clean or filepath.Clean
+	// before passing it to fs.Stat, to prevent path traversal sequences.
+	hasPathCleaning := strings.Contains(source, "path.Clean(") ||
+		strings.Contains(source, "filepath.Clean(")
+	assert.True(t, hasPathCleaning,
+		"SEC-SRV-08: spaHandler in main.go must call path.Clean() on the URL path "+
+			"before fs.Stat to guard against path traversal sequences like "+
+			"'assets/../../../etc/passwd'; fix: add path.Clean() after TrimPrefix")
 }

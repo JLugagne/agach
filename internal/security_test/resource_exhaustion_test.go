@@ -79,9 +79,10 @@ func TestIntegration_RED_WebSocketNoPerUserConnectionLimit(t *testing.T) {
 		conn.Close()
 	}
 
-	// All connections succeeded -- no per-user limit
-	assert.Equal(t, concurrentConns, len(conns),
-		"RED: all connections from the same 'user' succeeded (no per-user limit)")
+	// RED: Today this assertion fails because the hub has no per-user connection limit.
+	// Security fix required: the hub must enforce a per-user/per-IP limit and reject excess connections.
+	assert.Less(t, len(conns), concurrentConns,
+		"hub must reject excess connections from a single user/IP (per-user connection limit required)")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -151,15 +152,46 @@ func TestIntegration_RED_SSEWebSocketCombinedExhaustion(t *testing.T) {
 		return true
 	})
 
-	assert.True(t, foundPerProjectLimit,
-		"RED: SSE limit is per-project (maxSubscribersPerProject), not global -- N projects = N*1000 connections")
+	// foundPerProjectLimit being true documents the vulnerability (per-project, not shared).
+	// We suppress the RED assertion to avoid false-positive reporting on this intermediate check.
+	_ = foundPerProjectLimit
 
-	// Verify WebSocket has a global limit
-	f2, err := parser.ParseFile(fset, "../pkg/websocket/hub.go", nil, 0)
+	// RED: Today this assertion fails because the SSE hub uses a per-project limit,
+	// not a shared global limit. Security fix required: SSE and WebSocket must share
+	// a global connection budget so N*1000 connections cannot be opened simultaneously.
+	fset2 := token.NewFileSet()
+	f2, err := parser.ParseFile(fset2, "../pkg/sse/hub.go", nil, 0)
+	require.NoError(t, err)
+
+	foundSharedGlobalLimit := false
+	ast.Inspect(f2, func(n ast.Node) bool {
+		genDecl, ok := n.(*ast.GenDecl)
+		if !ok {
+			return true
+		}
+		for _, spec := range genDecl.Specs {
+			vs, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for _, name := range vs.Names {
+				if name.Name == "maxSubscribersGlobal" || name.Name == "maxTotalSubscribers" || name.Name == "globalMaxConnections" {
+					foundSharedGlobalLimit = true
+				}
+			}
+		}
+		return true
+	})
+
+	assert.True(t, foundSharedGlobalLimit,
+		"SSE hub must have a shared global connection limit (maxSubscribersGlobal/maxTotalSubscribers/globalMaxConnections) to prevent N*1000 connection exhaustion")
+
+	// Verify WebSocket also has a global limit (this part already passes)
+	f3, err := parser.ParseFile(fset2, "../pkg/websocket/hub.go", nil, 0)
 	require.NoError(t, err)
 
 	foundGlobalLimit := false
-	ast.Inspect(f2, func(n ast.Node) bool {
+	ast.Inspect(f3, func(n ast.Node) bool {
 		genDecl, ok := n.(*ast.GenDecl)
 		if !ok {
 			return true
@@ -179,7 +211,7 @@ func TestIntegration_RED_SSEWebSocketCombinedExhaustion(t *testing.T) {
 	})
 
 	assert.True(t, foundGlobalLimit,
-		"WebSocket has a global maxClients limit (not per-user)")
+		"WebSocket has a global maxClients limit")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -225,8 +257,10 @@ func TestIntegration_RED_UnboundedDependencyGraphDepth(t *testing.T) {
 		})
 	}
 
-	assert.False(t, hasDepthCheck,
-		"RED: no dependency depth limit found in app layer (if this fails, a limit may have been added)")
+	// RED: Today this assertion fails because no depth limit exists in the app layer.
+	// Security fix required: enforce a maximum dependency chain depth (e.g., maxDepth constant).
+	assert.True(t, hasDepthCheck,
+		"app layer must enforce a maximum dependency chain depth (maxDepth/max_depth/depthLimit constant required)")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -269,10 +303,12 @@ func TestIntegration_RED_NoRateLimitOnResourceCreation(t *testing.T) {
 		return true
 	})
 
-	assert.False(t, hasRateLimit,
-		"RED: server init.go does not apply rate limiting middleware (if this fails, rate limiting may have been added)")
+	// RED: Today this assertion fails because server init.go does not apply rate limiting.
+	// Security fix required: resource creation endpoints must be rate limited.
+	assert.True(t, hasRateLimit,
+		"server init.go must apply RateLimit/RateLimitMiddleware to resource creation endpoints")
 
-	// Also verify no resource count limits exist in the task handler
+	// Also verify resource count limits exist in the task handler
 	f2, err := parser.ParseFile(fset, "../server/inbound/commands/tasks.go", nil, 0)
 	require.NoError(t, err)
 
@@ -283,14 +319,15 @@ func TestIntegration_RED_NoRateLimitOnResourceCreation(t *testing.T) {
 			return true
 		}
 		lower := strings.ToLower(ident.Name)
-		if strings.Contains(lower, "maxcount") || strings.Contains(lower, "maxtasks") || strings.Contains(lower, "rateLimit") {
+		if strings.Contains(lower, "maxcount") || strings.Contains(lower, "maxtasks") || strings.Contains(lower, "ratelimit") {
 			hasCountLimit = true
 		}
 		return true
 	})
 
-	assert.False(t, hasCountLimit,
-		"RED: task handler has no resource count limits")
+	// RED: Today this also fails because no resource count limits exist in the task handler.
+	assert.True(t, hasCountLimit,
+		"task handler must have resource count limits (maxCount/maxTasks/rateLimit reference required)")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -326,11 +363,10 @@ func TestIntegration_RED_SSEHeartbeatGoroutineBomb(t *testing.T) {
 		}
 	}
 
-	// All subscriptions succeeded -- each has its own heartbeat goroutine
 	assert.Equal(t, numSubs, len(unsubs),
-		"RED: all subscriptions succeeded, each with its own heartbeat goroutine")
+		"all subscriptions should succeed (hub accepts up to maxSubscribersPerProject)")
 
-	// Verify by waiting for heartbeats on the first subscriber
+	// Verify heartbeats still arrive (hub functionality must be preserved)
 	ch, unsub := hub.Subscribe("test-project")
 	if ch != nil {
 		defer unsub()
@@ -343,9 +379,35 @@ func TestIntegration_RED_SSEHeartbeatGoroutineBomb(t *testing.T) {
 		}
 	}
 
-	for _, unsub := range unsubs {
-		unsub()
+	for _, u := range unsubs {
+		u()
 	}
+
+	// RED: Today this assertion fails because each subscriber gets its own goroutine.
+	// Security fix required: use a single shared heartbeat goroutine per project.
+	// Verify by parsing the SSE hub source for a shared heartbeat pattern.
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "../pkg/sse/hub.go", nil, 0)
+	require.NoError(t, err)
+
+	// A shared heartbeat would be started once per project (in addSubscriber if first subscriber,
+	// or in a project-level goroutine), not via "go h.runHeartbeat" for every subscriber.
+	// Look for a "runProjectHeartbeat" or equivalent single-goroutine pattern.
+	hasSharedHeartbeat := false
+	ast.Inspect(f, func(n ast.Node) bool {
+		ident, ok := n.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		lower := strings.ToLower(ident.Name)
+		if strings.Contains(lower, "projectheartbeat") || strings.Contains(lower, "sharedheartbeat") || strings.Contains(lower, "heartbeatproject") {
+			hasSharedHeartbeat = true
+		}
+		return true
+	})
+
+	assert.True(t, hasSharedHeartbeat,
+		"SSE hub must use a shared per-project heartbeat goroutine (runProjectHeartbeat or equivalent) instead of one goroutine per subscriber")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -395,9 +457,10 @@ func TestIntegration_RED_WebSocketBroadcastChannelSaturation(t *testing.T) {
 	hub := websocket.NewHub(logger)
 	// Intentionally NOT calling hub.Run() -- channel will saturate
 
-	// Fill the broadcast channel
+	// Fill the broadcast channel beyond its buffer size
 	dropped := 0
-	for i := 0; i < 300; i++ {
+	const totalEvents = 300
+	for i := 0; i < totalEvents; i++ {
 		hub.Broadcast(websocket.Event{
 			Type:      "task_created",
 			ProjectID: "project-1",
@@ -405,9 +468,29 @@ func TestIntegration_RED_WebSocketBroadcastChannelSaturation(t *testing.T) {
 		})
 	}
 
-	// The channel holds 256 events, the rest are silently dropped
-	// (Broadcast uses select/default to avoid blocking)
+	// RED: Today Broadcast() silently drops events beyond the buffer size (select/default).
+	// Security fix required: Broadcast must signal backpressure — either return an error,
+	// increment a counter, or apply flow control. Silent drops are unacceptable.
+	//
+	// Verify by parsing the source for a backpressure mechanism.
+	fset2 := token.NewFileSet()
+	f2, err := parser.ParseFile(fset2, "../pkg/websocket/hub.go", nil, 0)
+	require.NoError(t, err)
+
+	hasBackpressure := false
+	ast.Inspect(f2, func(n ast.Node) bool {
+		ident, ok := n.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		lower := strings.ToLower(ident.Name)
+		if strings.Contains(lower, "dropped") || strings.Contains(lower, "backpressure") || strings.Contains(lower, "overflow") {
+			hasBackpressure = true
+		}
+		return true
+	})
+
 	_ = dropped
-	assert.True(t, true,
-		"RED: events beyond buffer size are silently dropped with no backpressure")
+	assert.True(t, hasBackpressure,
+		"WebSocket hub must implement backpressure on broadcast channel saturation (dropped/backpressure/overflow counter or error return required)")
 }

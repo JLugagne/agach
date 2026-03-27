@@ -62,21 +62,21 @@ func TestIntegration_RED_XSSInTaskTitleToWebSocket(t *testing.T) {
 			// Convert to public type (this is what gets broadcast)
 			public := converters.ToPublicTask(task)
 
-			// The title should be sanitized, but it passes through unchanged
-			assert.Equal(t, payload, public.Title,
-				"RED: XSS payload in title survives converter (if different, sanitization may have been added)")
+			// RED: Today the title passes through the converter unchanged.
+			// Security fix required: the converter or handler must sanitize/reject HTML in titles.
+			assert.NotEqual(t, payload, public.Title,
+				"XSS payload in title must NOT survive the converter unchanged (sanitization required at API boundary)")
+			assert.NotContains(t, public.Title, "<script",
+				"title must not contain raw script tags after conversion")
 
-			// Verify it also survives JSON encoding (what WebSocket sends).
-			// Note: json.Marshal escapes < and > to \u003c / \u003e, but the
-			// payload is still present and will be decoded by the client.
+			// Verify the sanitized title also survives JSON encoding cleanly.
 			data, err := json.Marshal(public)
 			require.NoError(t, err)
 
-			// Decode back to verify round-trip preserves the payload
 			var decoded map[string]interface{}
 			require.NoError(t, json.Unmarshal(data, &decoded))
-			assert.Equal(t, payload, decoded["title"],
-				"RED: XSS payload survives JSON round-trip in WebSocket message")
+			assert.NotEqual(t, payload, decoded["title"],
+				"XSS payload must NOT survive JSON round-trip in WebSocket message")
 		})
 	}
 }
@@ -113,8 +113,10 @@ func TestIntegration_RED_XSSInWebSocketEventDataMaps(t *testing.T) {
 	data, err := json.Marshal(eventData)
 	require.NoError(t, err)
 
-	assert.Contains(t, string(data), "onerror",
-		"RED: XSS payload in event data map survives JSON encoding without sanitization")
+	// RED: Today this assertion fails because event data maps pass XSS content unmodified.
+	// Security fix required: user-controlled fields in broadcast event data must be sanitized.
+	assert.NotContains(t, string(data), "onerror",
+		"XSS payload in WebSocket event data map must NOT appear in the JSON-encoded broadcast (sanitization required)")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -148,8 +150,10 @@ func TestIntegration_RED_SSEPayloadHTMLNotSanitized(t *testing.T) {
 
 	select {
 	case received := <-ch:
-		assert.Contains(t, received, "<script>",
-			"RED: SSE hub delivers HTML payloads unescaped (if different, HTML sanitization may have been added)")
+		// RED: Today this assertion fails because the SSE hub delivers HTML payloads unescaped.
+		// Security fix required: SSE payloads must strip or escape HTML content.
+		assert.NotContains(t, received, "<script>",
+			"SSE hub must NOT deliver raw HTML script tags in payloads (HTML sanitization required at SSE publish layer)")
 	default:
 		t.Fatal("expected to receive SSE message")
 	}
@@ -226,8 +230,10 @@ func TestIntegration_RED_SearchQueryNoContentValidation(t *testing.T) {
 
 	assert.Greater(t, searchAssignments, 0,
 		"handler should assign search query to filters")
-	assert.Equal(t, 0, searchLengthChecks,
-		"RED: no length validation on search query (if >0, validation may have been added)")
+	// RED: Today this assertion fails because the search query has no length validation.
+	// Security fix required: add a length limit on search query parameters.
+	assert.Greater(t, searchLengthChecks, 0,
+		"search query handler must validate length with a len() check before assigning to filters")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -268,9 +274,6 @@ func TestIntegration_RED_UnicodeNormalizationSlugBypass(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// These would be task titles or descriptions. The converter passes
-			// them through unchanged, meaning they reach the database and
-			// WebSocket broadcast without normalization.
 			task := domain.Task{
 				ID:       domain.NewTaskID(),
 				ColumnID: domain.NewColumnID(),
@@ -279,8 +282,11 @@ func TestIntegration_RED_UnicodeNormalizationSlugBypass(t *testing.T) {
 			}
 
 			public := converters.ToPublicTask(task)
-			assert.Equal(t, tc.input, public.Title,
-				"RED: Unicode input passes through converter without normalization")
+			// RED: Today the converter passes Unicode through unchanged.
+			// Security fix required: apply NFKC normalization or reject non-ASCII
+			// at the API boundary so visually similar strings cannot cause confusion.
+			assert.NotEqual(t, tc.input, public.Title,
+				"Unicode input must be normalized (NFKC) or rejected before reaching the converter output — non-normalized string should not pass through unchanged")
 		})
 	}
 }
@@ -317,6 +323,9 @@ func TestIntegration_RED_WebSocketBroadcastNoDataSanitization(t *testing.T) {
 	data, err := json.Marshal(event)
 	require.NoError(t, err)
 
-	assert.Contains(t, string(data), "document.cookie",
-		"RED: malicious content in Event.Data survives JSON encoding")
+	// RED: Today this assertion fails because the WebSocket hub broadcasts Event.Data as-is.
+	// Security fix required: add a sanitization hook or structured event type that
+	// validates/strips malicious content before broadcast.
+	assert.NotContains(t, string(data), "document.cookie",
+		"malicious content in Event.Data must NOT survive JSON encoding (WebSocket broadcast sanitization required)")
 }

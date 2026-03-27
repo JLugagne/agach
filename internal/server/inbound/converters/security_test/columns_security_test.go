@@ -2,14 +2,10 @@ package security_test
 
 // Security tests for columns.go converters.
 //
-// Vulnerability 5 (RED)  — ToPublicColumn passes ColumnSlug through without enum
-//   validation. columns.go:12: string(column.Slug) converts any ColumnSlug value to
-//   the public response. Values outside the five fixed slugs propagate unchanged,
-//   including path-traversal strings or SQL payloads stored in the domain object.
-//
-// Vulnerability 5 (GREEN) — ToPublicColumn normalises unrecognised ColumnSlug
-//   values to an empty string (or another safe sentinel) rather than propagating
-//   attacker-controlled input.
+// Vulnerability 5 — ToPublicColumn normalises unrecognised ColumnSlug values
+//   to an empty string (or another safe sentinel) rather than propagating
+//   attacker-controlled input. Values outside the five fixed slugs must not
+//   appear in public API responses.
 
 import (
 	"testing"
@@ -19,11 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestToPublicColumn_RED_InvalidSlugPropagates demonstrates that any ColumnSlug
-// value stored in the domain struct passes through ToPublicColumn without validation.
-//
-// This test is expected to FAIL against the current implementation (red test).
-func TestToPublicColumn_RED_InvalidSlugPropagates(t *testing.T) {
+// TestToPublicColumn_InvalidSlugPropagates verifies that unrecognised ColumnSlug
+// values stored in the domain struct are normalised by ToPublicColumn rather than
+// propagated to public API responses.
+func TestToPublicColumn_InvalidSlugPropagates(t *testing.T) {
 	invalidSlugs := []domain.ColumnSlug{
 		"nonexistent",
 		"../../etc/passwd",
@@ -50,8 +45,6 @@ func TestToPublicColumn_RED_InvalidSlugPropagates(t *testing.T) {
 		}
 		result := converters.ToPublicColumn(col)
 
-		// RED assertion: after a fix, invalid slugs should not appear in output.
-		// Currently the raw value is returned, so this assertion will fail.
 		assert.True(t, validSlugs[result.Slug] || result.Slug == "",
 			"ColumnSlug %q must be normalised; got %q in public response", slug, result.Slug)
 	}

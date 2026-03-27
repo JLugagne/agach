@@ -20,25 +20,24 @@ import (
 //
 // File: pkg/apierror/apierror.go lines 14-36
 
-// TestSecurity_RED_NilReceiverPanic documents that calling methods on a nil
-// *apierror.Error panics instead of returning a safe default.
+// TestSecurity_RED_NilReceiverPanic asserts that calling methods on a nil
+// *apierror.Error does NOT panic — they should return safe defaults.
+// This test currently FAILS because the production code has no nil receiver guards.
 // TODO(security): add nil receiver checks to Error(), ErrorCode(), ErrorMessage()
 func TestSecurity_RED_NilReceiverPanic(t *testing.T) {
 	var nilErr *apierror.Error
 
-	assert.Panics(t, func() {
+	assert.NotPanics(t, func() {
 		_ = nilErr.Error()
-	}, "RED: calling Error() on nil *apierror.Error panics — should return safe default")
+	}, "RED: calling Error() on nil *apierror.Error must not panic — should return safe default")
 
-	assert.Panics(t, func() {
+	assert.NotPanics(t, func() {
 		_ = nilErr.ErrorCode()
-	}, "RED: calling ErrorCode() on nil *apierror.Error panics — should return safe default")
+	}, "RED: calling ErrorCode() on nil *apierror.Error must not panic — should return safe default")
 
-	assert.Panics(t, func() {
+	assert.NotPanics(t, func() {
 		_ = nilErr.ErrorMessage()
-	}, "RED: calling ErrorMessage() on nil *apierror.Error panics — should return safe default")
-
-	t.Log("RED: nil *apierror.Error receiver causes panic on all methods — should handle gracefully")
+	}, "RED: calling ErrorMessage() on nil *apierror.Error must not panic — should return safe default")
 }
 
 // ---- VULNERABILITY 5 --------------------------------------------------------
@@ -49,8 +48,9 @@ func TestSecurity_RED_NilReceiverPanic(t *testing.T) {
 //
 // File: pkg/apierror/apierror.go — Error struct has exported Err field with no json tag
 
-// TestSecurity_RED_JSONMarshalExposesInternalError documents that JSON
-// marshaling of apierror.Error may expose the Err field's string content.
+// TestSecurity_RED_JSONMarshalExposesInternalError asserts that JSON
+// marshaling of apierror.Error does NOT expose the Err field.
+// This test currently FAILS because the Err field has no json:"-" tag.
 // TODO(security): add `json:"-"` tag to the Err field, or make it unexported
 func TestSecurity_RED_JSONMarshalExposesInternalError(t *testing.T) {
 	e := &apierror.Error{
@@ -64,19 +64,11 @@ func TestSecurity_RED_JSONMarshalExposesInternalError(t *testing.T) {
 	var decoded map[string]any
 	assert.NoError(t, json.Unmarshal(data, &decoded))
 
-	// The Err field is exported with no json tag — check if it appears in output.
-	// Because error interface doesn't have a direct JSON representation and Err is
-	// nil here, it marshals as null. But the field IS present in the struct.
-	// The real risk is when Err is non-nil and implements json.Marshaler or
-	// when the struct is logged via fmt.Sprintf("%+v", e).
-	_, hasCode := decoded["Code"]
-	_, hasMessage := decoded["Message"]
 	_, hasErr := decoded["Err"]
 
-	assert.True(t, hasCode, "RED: Code field is present in JSON output")
-	assert.True(t, hasMessage, "RED: Message field is present in JSON output")
-	// The Err field appears in JSON output (as null when nil, or as its value when set)
-	assert.True(t, hasErr,
-		"RED: Err field is present in JSON output — internal errors can leak via JSON serialization")
-	t.Log("RED: apierror.Error JSON serialization includes the Err field — internal error details can be exposed")
+	// Correct behavior: the Err key must NOT be present in the JSON output.
+	// Internal errors must not be serialized to JSON to prevent leaking
+	// internal implementation details.
+	assert.False(t, hasErr,
+		"RED: Err field must not be present in JSON output — internal errors must not leak via JSON serialization")
 }

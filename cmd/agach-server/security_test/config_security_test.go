@@ -8,6 +8,7 @@ package security_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,32 +24,30 @@ import (
 // File: cmd/agach-server/config.go line 33:
 //   os.WriteFile(path, data, 0644)
 
-// TestSecurity_RED_WriteDefaultConfigWorldReadable documents that
-// writeDefaultConfig creates the config file with 0644 permissions.
-// TODO(security): change permissions to 0600
+// TestSecurity_RED_WriteDefaultConfigWorldReadable asserts that writeDefaultConfig
+// must create the config file with 0600 permissions (owner-only), not 0644.
+// This test FAILS today because the production code uses 0644.
+// Fix: change os.WriteFile(path, data, 0644) to os.WriteFile(path, data, 0600).
 func TestSecurity_RED_WriteDefaultConfigWorldReadable(t *testing.T) {
-	// The vulnerability is in the file permission mode used by writeDefaultConfig.
-	// We verify the constant used in the source code is 0644 (world-readable).
-	//
-	// We cannot call writeDefaultConfig directly (unexported), but we can
-	// verify the pattern: os.WriteFile with 0644 is insecure for config files.
+	// Read the production source to verify which permission constant is used.
+	// The vulnerability is that config.go line 33 passes 0644 to os.WriteFile.
+	sourceFile := filepath.Join(
+		findProjectRoot(t),
+		"cmd", "agach-server", "config.go",
+	)
+	data, err := os.ReadFile(sourceFile)
+	require.NoError(t, err, "must be able to read cmd/agach-server/config.go")
+	source := string(data)
 
-	dir := t.TempDir()
-	testFile := filepath.Join(dir, "test-config.yml")
+	// The production code must NOT use 0644 for the config file.
+	assert.False(t, strings.Contains(source, "WriteFile(path, data, 0644)"),
+		"config.go must not use 0644 for WriteFile — "+
+			"config file may contain SSO secrets; fix: use 0600 (owner-only)")
 
-	// Simulate what writeDefaultConfig does.
-	err := os.WriteFile(testFile, []byte("sso:\n  client_secret: \"s3cret\"\n"), 0644)
-	require.NoError(t, err)
-
-	info, err := os.Stat(testFile)
-	require.NoError(t, err)
-
-	mode := info.Mode().Perm()
-	// The file was written with 0644 — group and world can read it.
-	assert.True(t, mode&0o044 != 0,
-		"RED: config file written with 0644 permissions (mode %04o) — "+
-			"group/world can read SSO secrets; fix: use 0600", mode)
-	t.Log("RED: writeDefaultConfig uses 0644 permissions — sensitive SSO config is world-readable")
+	// The production code must use 0600 for the config file.
+	assert.True(t, strings.Contains(source, "WriteFile(path, data, 0600)"),
+		"config.go must use 0600 for WriteFile so the config file is owner-read-only; "+
+			"current code uses 0644 which is world-readable")
 }
 
 // ─── VULNERABILITY: writeDefaultConfig TOCTOU race ──────────────────────────
@@ -62,37 +61,30 @@ func TestSecurity_RED_WriteDefaultConfigWorldReadable(t *testing.T) {
 //   if _, err := os.Stat(path); err == nil { return ... }
 //   ... os.WriteFile(path, data, 0644)
 
-// TestSecurity_RED_WriteDefaultConfigTOCTOU documents the TOCTOU race between
-// Stat and WriteFile.
-// TODO(security): use os.OpenFile with O_CREATE|O_EXCL to atomically create
+// TestSecurity_RED_WriteDefaultConfigTOCTOU asserts that writeDefaultConfig
+// must use atomic O_CREATE|O_EXCL to avoid the TOCTOU race between Stat and
+// WriteFile. This test FAILS today because config.go uses the racy Stat+Write
+// pattern instead.
+// Fix: use os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600).
 func TestSecurity_RED_WriteDefaultConfigTOCTOU(t *testing.T) {
-	// The vulnerability is structural: Stat-then-Write is not atomic.
-	// os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600) is the
-	// correct pattern — it creates the file atomically and fails if it
-	// already exists, eliminating the race window.
+	// Read the production source to check which file creation pattern is used.
+	sourceFile := filepath.Join(
+		findProjectRoot(t),
+		"cmd", "agach-server", "config.go",
+	)
+	data, err := os.ReadFile(sourceFile)
+	require.NoError(t, err, "must be able to read cmd/agach-server/config.go")
+	source := string(data)
 
-	// Demonstrate that the current pattern (Stat then WriteFile) has a gap.
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.yml")
+	// The production code must not use the racy Stat-then-WriteFile pattern.
+	assert.False(t, strings.Contains(source, "os.Stat(path)") && strings.Contains(source, "os.WriteFile(path"),
+		"config.go must not use Stat+WriteFile (TOCTOU race); "+
+			"fix: use os.OpenFile with O_CREATE|O_EXCL for atomic file creation")
 
-	// Step 1: Stat says file doesn't exist.
-	_, err := os.Stat(path)
-	assert.True(t, os.IsNotExist(err), "precondition: file does not exist")
-
-	// Step 2: Between Stat and WriteFile, an attacker creates the file.
-	err = os.WriteFile(path, []byte("attacker-content"), 0644)
-	require.NoError(t, err)
-
-	// Step 3: WriteFile overwrites the attacker's file (or in reverse,
-	// the attacker overwrites the legitimate config).
-	err = os.WriteFile(path, []byte("default-config"), 0644)
-	require.NoError(t, err)
-
-	content, _ := os.ReadFile(path)
-	assert.Equal(t, "default-config", string(content),
-		"RED: Stat-then-WriteFile race — attacker's content was overwritten; "+
-			"fix: use O_CREATE|O_EXCL for atomic create")
-	t.Log("RED: writeDefaultConfig has TOCTOU race between os.Stat and os.WriteFile")
+	// The production code must use O_EXCL for atomic creation.
+	assert.True(t, strings.Contains(source, "O_EXCL"),
+		"config.go must use O_CREATE|O_EXCL to atomically create the config file; "+
+			"the current Stat-then-WriteFile pattern has a TOCTOU race window")
 }
 
 // ─── VULNERABILITY: loadConfig does not validate file permissions ────────────
@@ -102,23 +94,46 @@ func TestSecurity_RED_WriteDefaultConfigTOCTOU(t *testing.T) {
 //
 // File: cmd/agach-server/config.go lines 40-55
 
-// TestSecurity_RED_LoadConfigNoPermissionCheck documents that loadConfig
-// reads config files regardless of their permissions.
-// TODO(security): check file permissions and reject files more permissive than 0600
+// TestSecurity_RED_LoadConfigNoPermissionCheck asserts that loadConfig must
+// reject config files that are more permissive than 0600. This test FAILS today
+// because no permission check exists in the production code.
+// Fix: add a permission check using os.Stat before reading, reject if mode&0o077 != 0.
 func TestSecurity_RED_LoadConfigNoPermissionCheck(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "server-config.yml")
+	// Read the production source to check whether a permission check is present.
+	sourceFile := filepath.Join(
+		findProjectRoot(t),
+		"cmd", "agach-server", "config.go",
+	)
+	data, err := os.ReadFile(sourceFile)
+	require.NoError(t, err, "must be able to read cmd/agach-server/config.go")
+	source := string(data)
 
-	// Write a world-readable config with sensitive data.
-	err := os.WriteFile(path, []byte("sso:\n  client_secret: top-secret\n"), 0644)
-	require.NoError(t, err)
+	// loadConfig must check file permissions before reading.
+	// The secure pattern checks that mode&0o077 == 0 (only owner can read/write).
+	hasPermCheck := strings.Contains(source, "0o077") ||
+		strings.Contains(source, "0077") ||
+		strings.Contains(source, "LoadSecureYAML") ||
+		strings.Contains(source, "Mode().Perm()")
+	assert.True(t, hasPermCheck,
+		"loadConfig in config.go must check file permissions before reading; "+
+			"world-readable config files containing SSO secrets should be rejected; "+
+			"fix: add os.Stat check and reject files with mode & 0o077 != 0")
+}
 
-	// Verify the file is world-readable.
-	info, err := os.Stat(path)
+// findProjectRoot walks up from the test binary's working directory to find
+// the Go module root (the directory containing go.mod).
+func findProjectRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
 	require.NoError(t, err)
-	mode := info.Mode().Perm()
-	assert.True(t, mode&0o044 != 0,
-		"RED: server config file at 0644 should be rejected by loadConfig, but no permission check exists; "+
-			"fix: add permission check like agachconfig.LoadSecureYAML")
-	t.Log("RED: loadConfig does not check file permissions — world-readable server config accepted")
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("could not find project root (go.mod not found)")
+		}
+		dir = parent
+	}
 }

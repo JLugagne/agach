@@ -2,16 +2,15 @@ package security_test
 
 // Security tests for the app (service) layer.
 //
-// Each vulnerability section has:
-//   - RED test  (TestSecurity_RED_*):  expected to FAIL today (demonstrates the gap)
-//   - GREEN test (TestSecurity_GREEN_*): expected to PASS today or after the fix
+// All tests assert correct behaviour. GREEN tests confirm valid operations succeed;
+// formerly-RED tests confirm that production code now correctly rejects invalid inputs.
 //
-// Vulnerabilities covered:
+// Vulnerabilities covered (all fixed):
 //  1. State machine: BlockTask accepts an already-blocked task (double-block)
 //  2. State machine: RequestWontDo accepts an already-wont-do-requested task
 //  3. State machine: CompleteTask accepted on a todo-column task (no in_progress guard)
 //  4. Token integer accumulation: negative token values accepted, corrupting counters
-//  5. State machine: MoveTask allows arbitrary column transitions (e.g. done → todo bypass)
+//  5. State machine: MoveTask allows arbitrary column transitions (e.g. done -> todo bypass)
 //  6. Missing completion summary minimum length enforcement in app layer
 
 import (
@@ -33,17 +32,16 @@ import (
 // 3. State machine: BlockTask on an already-blocked task
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_BlockTask_AlreadyBlockedTask demonstrates that BlockTask does
-// not verify the task's current state before proceeding. Calling BlockTask on a
-// task that is already blocked:
-//   - Overwrites the BlockedReason without preserving history
-//   - Appends a duplicate auto-comment
-//   - Resets BlockedAt timestamp (erasing audit trail)
-//   - Re-appends the task to the blocked column, increasing its position
+// TestSecurity_BlockTask_AlreadyBlockedTask verifies that BlockTask rejects a
+// call on a task that is already blocked. Without this guard, calling BlockTask
+// twice would:
+//   - Overwrite the BlockedReason without preserving history
+//   - Append a duplicate auto-comment
+//   - Reset BlockedAt timestamp (erasing audit trail)
+//   - Re-append the task to the blocked column, increasing its position
 //
-// RED: BlockTask has no guard "if task.IsBlocked { return ErrTaskBlocked }".
-// Fix: add that guard at the top of BlockTask().
-func TestSecurity_RED_BlockTask_AlreadyBlockedTask(t *testing.T) {
+// Vulnerability that was fixed: BlockTask had no guard for task.IsBlocked.
+func TestSecurity_BlockTask_AlreadyBlockedTask(t *testing.T) {
 	ctx := context.Background()
 	a, mockProjects, _, mockTasks, mockColumns, mockComments, _ := setupTestApp()
 
@@ -90,13 +88,11 @@ func TestSecurity_RED_BlockTask_AlreadyBlockedTask(t *testing.T) {
 
 	err := a.BlockTask(ctx, projectID, taskID, "new reason — overwrites history", "agent-2", "")
 
-	// RED: no error is returned; the task is updated and a duplicate comment created.
 	assert.Error(t, err,
-		"RED: BlockTask on an already-blocked task must return an error (e.g. ErrTaskBlocked); "+
-			"got nil; fix: add 'if task.IsBlocked { return domain.ErrTaskBlocked }' guard at top of BlockTask()")
+		"BlockTask on an already-blocked task must return an error")
 
 	if updateCalled {
-		t.Error("RED: task.Update was called — double-blocking overwrites audit trail")
+		t.Error("task.Update must not be called when double-blocking — it would overwrite the audit trail")
 	}
 }
 
@@ -152,17 +148,15 @@ func TestSecurity_GREEN_BlockTask_UnblockedTaskSucceeds(t *testing.T) {
 // 4. State machine: RequestWontDo on an already-wont-do-requested task
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_RequestWontDo_AlreadyRequested demonstrates that
-// RequestWontDo has no idempotency guard. Calling it twice on the same task:
-//   - Resets WontDoRequestedAt timestamp (erasing original audit entry)
-//   - Overwrites the WontDoReason silently
-//   - Creates a duplicate auto-comment
+// TestSecurity_RequestWontDo_AlreadyRequested verifies that RequestWontDo
+// rejects a call on a task that already has WontDoRequested=true. Without this
+// guard, calling it twice would:
+//   - Reset WontDoRequestedAt timestamp (erasing original audit entry)
+//   - Overwrite the WontDoReason silently
+//   - Create a duplicate auto-comment
 //
-// RED: RequestWontDo has no guard "if task.WontDoRequested { return ErrWontDoNotRequested }".
-// (There is no suitable existing error; one must be added, or ErrInvalidTaskData used.)
-// Fix: add "if task.WontDoRequested { return domain.ErrInvalidTaskData }" at the
-// top of RequestWontDo().
-func TestSecurity_RED_RequestWontDo_AlreadyRequested(t *testing.T) {
+// Vulnerability that was fixed: RequestWontDo had no idempotency guard.
+func TestSecurity_RequestWontDo_AlreadyRequested(t *testing.T) {
 	ctx := context.Background()
 	a, mockProjects, _, mockTasks, mockColumns, mockComments, _ := setupTestApp()
 
@@ -210,13 +204,11 @@ func TestSecurity_RED_RequestWontDo_AlreadyRequested(t *testing.T) {
 
 	err := a.RequestWontDo(ctx, projectID, taskID, "duplicate reason", "agent-2", "")
 
-	// RED: no error returned; audit trail is silently overwritten.
 	assert.Error(t, err,
-		"RED: RequestWontDo on a task that already has wont_do_requested=true must return an error; "+
-			"got nil; fix: add 'if task.WontDoRequested { return domain.ErrInvalidTaskData }' guard")
+		"RequestWontDo on a task that already has wont_do_requested=true must return an error")
 
 	if updateCalled {
-		t.Error("RED: task.Update was called on an already-requested wont-do task — audit trail overwritten")
+		t.Error("task.Update must not be called on an already-requested wont-do task")
 	}
 }
 
@@ -272,16 +264,14 @@ func TestSecurity_GREEN_RequestWontDo_FirstRequestSucceeds(t *testing.T) {
 // 5. State machine: CompleteTask on a todo-column task (not in in_progress)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_CompleteTask_NotInProgress demonstrates that CompleteTask
-// does not verify the task is in the "in_progress" column. An agent can mark a
-// task as completed while it is still in "todo", skipping the StartTask step
-// entirely. This corrupts duration_seconds (StartedAt is nil → 0 duration) and
-// bypasses any human reviews triggered by the in_progress transition.
+// TestSecurity_CompleteTask_NotInProgress verifies that CompleteTask rejects a
+// task that is not in the "in_progress" column. Without this check, an agent
+// could skip the StartTask step, corrupting duration_seconds and bypassing
+// human reviews.
 //
-// RED: CompleteTask only checks IsBlocked; it does not check the current column.
-// Fix: add a column check — require task to be in ColumnInProgress before
-// completing (or at minimum not in todo/backlog/blocked).
-func TestSecurity_RED_CompleteTask_NotInProgress(t *testing.T) {
+// Vulnerability that was fixed: CompleteTask only checked IsBlocked without
+// verifying the task was in the in_progress column.
+func TestSecurity_CompleteTask_NotInProgress(t *testing.T) {
 	ctx := context.Background()
 	a, _, _, mockTasks, mockColumns, _, _ := setupTestApp()
 
@@ -329,15 +319,12 @@ func TestSecurity_RED_CompleteTask_NotInProgress(t *testing.T) {
 	completionSummary := strings.Repeat("C", 110) // satisfies >= 100 char check at HTTP layer
 	err := a.CompleteTask(ctx, projectID, taskID, completionSummary, nil, "agent-1", nil, "")
 
-	// RED: no error — task in "todo" is directly moved to "done",
-	// with DurationSeconds=0 (StartedAt was nil) and no StartTask audit.
 	assert.Error(t, err,
-		"RED: CompleteTask on a task in 'todo' column must return an error; "+
-			"the task was never started; fix: check that the task is in ColumnInProgress before completing")
+		"CompleteTask on a task in 'todo' column must return an error")
 
 	if updatedTask != nil {
 		assert.NotZero(t, updatedTask.DurationSeconds,
-			"RED: DurationSeconds is 0 because StartedAt was nil — task was never started yet was 'completed'")
+			"DurationSeconds must not be 0 for a completed task (StartedAt was nil)")
 	}
 }
 
@@ -392,17 +379,13 @@ func TestSecurity_GREEN_CompleteTask_InProgressTaskSucceeds(t *testing.T) {
 // 6. Negative token values corrupt the cumulative token counter
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_NegativeTokenValuesCorruptCounter demonstrates that
-// UpdateTask accumulates token values without range validation.  Passing
-// negative token counts (e.g. from a buggy or malicious agent) decrements the
-// running total, producing incorrect statistics and potentially wrapping to
-// negative values in subsequent reports.
+// TestSecurity_NegativeTokenValuesCorruptCounter verifies that UpdateTask
+// rejects or clamps negative token values. Passing negative token counts would
+// decrement the running total and corrupt statistics.
 //
-// RED: app.UpdateTask does "task.InputTokens += tokenUsage.InputTokens" without
-// checking tokenUsage.InputTokens >= 0.
-// Fix: add "if tokenUsage.InputTokens < 0 { return domain.ErrInvalidTaskData }"
-// (or silently clamp to 0) before accumulating.
-func TestSecurity_RED_NegativeTokenValuesCorruptCounter(t *testing.T) {
+// Vulnerability that was fixed: app.UpdateTask applied "task.InputTokens +=
+// tokenUsage.InputTokens" without checking tokenUsage.InputTokens >= 0.
+func TestSecurity_NegativeTokenValuesCorruptCounter(t *testing.T) {
 	ctx := context.Background()
 	a, _, _, mockTasks, _, _, _ := setupTestApp()
 
@@ -434,17 +417,12 @@ func TestSecurity_RED_NegativeTokenValuesCorruptCounter(t *testing.T) {
 
 	err := a.UpdateTask(ctx, projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, negativeUsage, nil, nil, false)
 
-	// After the fix, UpdateTask should return an error for negative token values.
-	// Currently it accepts them and decrements the counter to a negative value.
 	if err == nil {
-		// Demonstrate the vulnerable state: tokens went negative
 		require.NotNil(t, updatedTask, "UpdateTask must have been called")
 		assert.GreaterOrEqual(t, updatedTask.InputTokens, 0,
-			"RED: InputTokens is now %d (negative); negative token usage was accepted and corrupted "+
-				"the counter; fix: validate tokenUsage fields >= 0 before accumulating",
+			"InputTokens must not go negative (got %d); negative token values must be rejected or clamped",
 			updatedTask.InputTokens)
 	}
-	// If err != nil, the fix is already in place — that's the desired outcome.
 }
 
 // TestSecurity_GREEN_PositiveTokenValuesAccumulate verifies that positive token
@@ -485,16 +463,13 @@ func TestSecurity_GREEN_PositiveTokenValuesAccumulate(t *testing.T) {
 // 8. Comment author-type spoofing via CreateComment
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_CreateComment_InvalidAuthorTypeAccepted demonstrates that
-// CreateComment at the app layer accepts any AuthorType string without validation.
-// An agent can call create_comment with author_type="human" to impersonate a
-// human reviewer in the audit log.
+// TestSecurity_CreateComment_InvalidAuthorTypeAccepted verifies that
+// CreateComment rejects an invalid AuthorType. Without validation, an agent
+// could pass author_type="human" to impersonate a human reviewer in the audit log.
 //
-// RED: app.CreateComment delegates directly to the comment repository without
-// validating that authorType is one of AuthorTypeAgent or AuthorTypeHuman.
-// Fix: add validation "if authorType != domain.AuthorTypeAgent && authorType != domain.AuthorTypeHuman { return domain.ErrInvalidCommentData }"
-// at the top of CreateComment().
-func TestSecurity_RED_CreateComment_InvalidAuthorTypeAccepted(t *testing.T) {
+// Vulnerability that was fixed: CreateComment delegated directly to the
+// comment repository without validating authorType.
+func TestSecurity_CreateComment_InvalidAuthorTypeAccepted(t *testing.T) {
 	ctx := context.Background()
 	a, mockProjects, _, mockTasks, _, mockComments, _ := setupTestApp()
 
@@ -525,14 +500,12 @@ func TestSecurity_RED_CreateComment_InvalidAuthorTypeAccepted(t *testing.T) {
 		domain.AuthorType("admin"), // invalid author type — impersonating "admin"
 		"I hereby approve this task as admin")
 
-	// RED: no error; the comment is stored with author_type="admin".
 	assert.Error(t, err,
-		"RED: CreateComment with author_type='admin' must return an error; "+
-			"got nil; fix: validate authorType is one of {agent, human}")
+		"CreateComment with author_type='admin' must return an error")
 
 	if storedComment != nil {
 		assert.NotEqual(t, domain.AuthorType("admin"), storedComment.AuthorType,
-			"RED: comment with spoofed author_type='admin' was stored in the repository")
+			"a comment with spoofed author_type='admin' must not be stored in the repository")
 	}
 }
 
@@ -593,10 +566,9 @@ func TestSecurity_GREEN_CreateComment_ValidAuthorTypeHuman(t *testing.T) {
 //    enforced in app layer via CreateComment (cross-check)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_CreateTask_EmptyTitleIsRejected verifies that CreateTask
+// TestSecurity_GREEN_CreateTask_EmptyTitleIsRejected verifies that CreateTask
 // returns ErrTaskTitleRequired when title is empty.
-// (This is a GREEN check — the guard is already present. Including it here as
-// a regression guard against future refactoring that removes it.)
+// (Regression guard against future refactoring that removes this check.)
 func TestSecurity_GREEN_CreateTask_EmptyTitleIsRejected(t *testing.T) {
 	ctx := context.Background()
 	a, mockProjects, _, _, _, _, _ := setupTestApp()

@@ -1,9 +1,7 @@
 package security_test
 
-// new_queries_security_test.go — Additional security vulnerabilities found in
-// the inbound queries layer.
-//
-// Each test is a RED test that documents a vulnerability existing in current code.
+// new_queries_security_test.go — Additional security regression tests for the
+// inbound queries layer.
 //
 // Run with: go test -race -failfast ./internal/server/inbound/queries/security_test/...
 
@@ -52,12 +50,9 @@ func newFeatureRouter(mock *servicetest.MockQueries) *mux.Router {
 // (which caps to maxCommentLimit=500), notifications have no upper bound.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_NotificationLimitUnbounded documents that the notification
-// list endpoint accepts arbitrarily large ?limit= values without capping.
-//
-// TODO(security): Add a maxNotificationLimit constant and cap the parsed limit
-// in parseNotificationQueryParams (notifications.go:43-46).
-func TestSecurity_RED_NotificationLimitUnbounded(t *testing.T) {
+// TestSecurity_NotificationLimitUnbounded asserts that the notification list
+// endpoint caps the ?limit= parameter to a safe maximum value.
+func TestSecurity_NotificationLimitUnbounded(t *testing.T) {
 	const maxReasonableLimit = 1000
 
 	receivedLimit := 0
@@ -102,13 +97,10 @@ func TestSecurity_RED_NotificationLimitUnbounded(t *testing.T) {
 // implementation, passing untrusted enum values violates defense-in-depth.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_FeatureStatusFilterUnvalidated documents that the feature
-// listing endpoint passes arbitrary status filter values to the service layer
-// without enum validation.
-//
-// TODO(security): Validate each status value against the set of valid
-// FeatureStatus values before passing to the service layer.
-func TestSecurity_RED_FeatureStatusFilterUnvalidated(t *testing.T) {
+// TestSecurity_FeatureStatusFilterUnvalidated asserts that the feature listing
+// endpoint rejects or strips invalid FeatureStatus enum values before passing
+// them to the service layer.
+func TestSecurity_FeatureStatusFilterUnvalidated(t *testing.T) {
 	projectID := newValidProjectID()
 
 	var receivedStatuses []domain.FeatureStatus
@@ -158,13 +150,10 @@ func TestSecurity_RED_FeatureStatusFilterUnvalidated(t *testing.T) {
 // exfiltration if an attacker guesses/knows a feature UUID from another project.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_GetFeatureIgnoresProjectID documents that the GetFeature
-// query endpoint does not validate that the feature belongs to the stated
-// project.
-//
-// TODO(security): Pass projectID to GetFeature and verify the feature belongs
-// to the stated project, or add a cross-check in the handler.
-func TestSecurity_RED_GetFeatureIgnoresProjectID(t *testing.T) {
+// TestSecurity_GetFeatureIgnoresProjectID asserts that the GetFeature query
+// endpoint returns a non-200 status when the requested feature does not belong
+// to the project stated in the URL path.
+func TestSecurity_GetFeatureIgnoresProjectID(t *testing.T) {
 	foreignProjectID := newValidProjectID()
 	featureID := domain.NewFeatureID()
 
@@ -216,13 +205,10 @@ func TestSecurity_RED_GetFeatureIgnoresProjectID(t *testing.T) {
 // Arbitrary values are passed through to the query layer.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_NotificationScopeFilterUnvalidated documents that the
-// notification listing endpoint passes arbitrary scope values without
-// validation.
-//
-// TODO(security): Validate the scope parameter against known
-// NotificationScope enum values.
-func TestSecurity_RED_NotificationScopeFilterUnvalidated(t *testing.T) {
+// TestSecurity_NotificationScopeFilterUnvalidated asserts that the notification
+// listing endpoint rejects or ignores ?scope= values that are not valid
+// NotificationScope enum members.
+func TestSecurity_NotificationScopeFilterUnvalidated(t *testing.T) {
 	var receivedScope *domain.NotificationScope
 	mock := &servicetest.MockQueries{
 		ListNotificationsFunc: func(_ context.Context, _ *domain.ProjectID, scope *domain.NotificationScope, _ string, _ bool, _, _ int) ([]domain.Notification, error) {

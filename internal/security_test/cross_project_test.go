@@ -100,18 +100,13 @@ func TestIntegration_RED_WebSocketBroadcastLeaksToUnfilteredClients(t *testing.T
 	_, _, scopedErr := scopedConn.ReadMessage()
 	assert.Error(t, scopedErr, "scoped client should not receive cross-project event")
 
-	// The unfiltered client DOES receive it (this is the vulnerability)
+	// The unfiltered client should NOT receive project-B's event if project isolation is enforced.
+	// RED: Today this assertion fails because the hub leaks cross-project events to
+	// clients without a projectID.
 	unfilteredConn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
-	_, msg, unfilteredErr := unfilteredConn.ReadMessage()
-	assert.NoError(t, unfilteredErr,
-		"RED: unfiltered client receives cross-project event (if this fails, filtering may have been fixed)")
-
-	if unfilteredErr == nil {
-		var event websocket.Event
-		_ = json.Unmarshal(msg, &event)
-		assert.Equal(t, "project-B", event.ProjectID,
-			"leaked event should carry the foreign project ID")
-	}
+	_, _, unfilteredErr := unfilteredConn.ReadMessage()
+	assert.Error(t, unfilteredErr,
+		"unfiltered client should NOT receive cross-project event (security fix required: clients without projectID must not receive project-scoped events)")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -153,15 +148,17 @@ func TestIntegration_RED_SSESubscriptionNoAccessCheck(t *testing.T) {
 		return true
 	})
 
-	assert.False(t, hasAccessCheck,
-		"RED: SSE handler should have no access check (if this fails, access control may have been added)")
+	// RED: Today this assertion fails because the SSE handler has no access check.
+	// Security fix required: the SSE handler must verify project membership before subscribing.
+	assert.True(t, hasAccessCheck,
+		"SSE handler must have an access check (Access/Membership/Authorize call) before subscribing to project events")
 
-	// Also verify functionally: the SSE hub accepts any project ID
+	// Also verify functionally: confirm the SSE hub itself works (this part is fine)
 	logger := logrus.New()
 	logger.SetLevel(logrus.ErrorLevel)
 	sseHub := sse.NewHub(logger)
 
-	// An attacker can subscribe to any project -- no authorization needed at hub level
+	// The hub-level subscription is fine, but the HTTP handler must gate it with access control
 	ch, unsub := sseHub.Subscribe("victim-project-id")
 	defer unsub()
 
@@ -231,8 +228,10 @@ func TestIntegration_RED_IDORProjectScopedResources(t *testing.T) {
 
 			assert.Greater(t, projectIDCasts, 0,
 				"handler should use ProjectID from URL (confirms it handles project-scoped resources)")
-			assert.Equal(t, 0, accessChecks,
-				"RED: no access verification after extracting projectID (if >0, access control may have been added)")
+			// RED: Today this assertion fails because no handler calls HasAccess/CheckAccess/VerifyAccess.
+			// Security fix required: all project-scoped handlers must verify project membership.
+			assert.Greater(t, accessChecks, 0,
+				"project-scoped handlers must call HasAccess/CheckAccess/VerifyAccess to verify project membership")
 		})
 	}
 }
@@ -290,8 +289,10 @@ func TestIntegration_RED_NotificationsNoCrossProjectFilter(t *testing.T) {
 		return true
 	})
 
-	assert.True(t, foundNilProjectID,
-		"RED: ListAllNotifications passes nil projectID, returning notifications from all projects")
+	// RED: Today this assertion fails because ListAllNotifications passes nil as projectID.
+	// Security fix required: the endpoint must filter by the user's accessible projects.
+	assert.False(t, foundNilProjectID,
+		"ListAllNotifications must NOT pass nil projectID; it must filter notifications to the user's accessible projects")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -394,15 +395,14 @@ func TestIntegration_RED_WebSocketRelayNoCrossProjectFilter(t *testing.T) {
 	browserB.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
 	_, msgB, errB := browserB.ReadMessage()
 
-	assert.NoError(t, errA, "browser-A should receive relayed message")
-	assert.NoError(t, errB,
-		"RED: browser-B should also receive the message (relay has no project filter)")
-
-	if errA == nil && errB == nil {
-		assert.Equal(t, string(msgA), string(msgB),
-			"both browsers receive identical messages regardless of project scope")
-	}
+	assert.NoError(t, errA, "browser-A should receive relayed message for its own project")
+	// RED: Today this assertion fails because the relay forwards messages to all non-daemon clients.
+	// Security fix required: relay must check client projectID against the message's project context.
+	assert.Error(t, errB,
+		"browser-B should NOT receive a relay message scoped to project-A (relay must filter by project)")
 
 	// Suppress "projectID referenced" since it's in the broadcast path, not relay
 	_ = hasRelayProjectFilter
+	_ = msgA
+	_ = msgB
 }

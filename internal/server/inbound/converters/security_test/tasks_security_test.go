@@ -2,24 +2,16 @@ package security_test
 
 // Security tests for tasks.go converters.
 //
-// Vulnerability 1 (RED)  — ToDomainPriority accepts arbitrary invalid enum values.
-//   tasks.go:9-13: any non-empty string is blindly cast to domain.Priority, bypassing
-//   the four-value constraint (critical/high/medium/low).
-//
-// Vulnerability 1 (GREEN) — ToDomainPriority rejects invalid values by returning
+// Vulnerability 1 — ToDomainPriority rejects invalid values by returning
 //   domain.PriorityMedium (safe default) rather than propagating attacker input.
+//   Any non-empty string outside the four-value set (critical/high/medium/low)
+//   is normalised to the safe default.
 //
-// Vulnerability 2 (RED)  — ToDomainPriority has no length bound on the input string.
-//   A very long string is cast directly to domain.Priority.
+// Vulnerability 2 — ToDomainPriority rejects excessively long input, normalising
+//   oversized strings to domain.PriorityMedium.
 //
-// Vulnerability 2 (GREEN) — ToDomainPriority rejects excessively long input.
-//
-// Vulnerability 3 (RED)  — ToDomainTaskIDs accepts non-UUID strings without parsing.
-//   tasks.go:17-23: each element is cast to domain.TaskID with no format check,
-//   inconsistent with ToDomainProjectID which calls domain.ParseProjectID.
-//
-// Vulnerability 3 (GREEN) — ToDomainTaskIDs skips (or errors on) non-UUID elements,
-//   consistent with the validation applied in ToDomainProjectID.
+// Vulnerability 3 — ToDomainTaskIDs skips non-UUID elements, consistent with the
+//   validation applied in ToDomainProjectID.
 
 import (
 	"strings"
@@ -35,13 +27,10 @@ import (
 // Vulnerability 1: missing enum validation in ToDomainPriority
 // ---------------------------------------------------------------------------
 
-// TestToDomainPriority_RED_InvalidEnumAccepted demonstrates that ToDomainPriority
-// currently accepts arbitrary strings, which means attacker-controlled values leak
-// into domain.Priority and subsequently into API responses.
-//
-// This test is expected to FAIL against the current implementation (red test):
-// the function returns the injected value as a priority rather than a safe default.
-func TestToDomainPriority_RED_InvalidEnumAccepted(t *testing.T) {
+// TestToDomainPriority_InvalidEnumAccepted verifies that ToDomainPriority
+// normalises arbitrary strings to domain.PriorityMedium rather than leaking
+// attacker-controlled values into domain.Priority and API responses.
+func TestToDomainPriority_InvalidEnumAccepted(t *testing.T) {
 	invalidValues := []string{
 		"urgent",
 		"CRITICAL",
@@ -54,8 +43,6 @@ func TestToDomainPriority_RED_InvalidEnumAccepted(t *testing.T) {
 
 	for _, v := range invalidValues {
 		result := converters.ToDomainPriority(v)
-		// RED assertion: after a fix, invalid values should return a safe default.
-		// Currently the implementation returns the raw string, so this will fail.
 		assert.Equal(t, domain.PriorityMedium, result,
 			"invalid priority %q should be normalised to medium, got %q", v, result)
 	}
@@ -86,18 +73,13 @@ func TestToDomainPriority_GREEN_ValidEnumValues(t *testing.T) {
 // Vulnerability 2: no length bound on priority string
 // ---------------------------------------------------------------------------
 
-// TestToDomainPriority_RED_UnboundedLength demonstrates that ToDomainPriority
-// accepts a megabyte-long string without any length check, allowing allocation
-// amplification if the value is stored or re-encoded.
-//
-// This test is expected to FAIL against the current implementation (red test):
-// the function returns the oversized string as-is.
-func TestToDomainPriority_RED_UnboundedLength(t *testing.T) {
+// TestToDomainPriority_UnboundedLength verifies that ToDomainPriority
+// rejects oversized input by returning domain.PriorityMedium rather than
+// preserving a megabyte-long string as a priority value.
+func TestToDomainPriority_UnboundedLength(t *testing.T) {
 	// 1 MB string — well above any reasonable priority label length.
 	huge := strings.Repeat("x", 1_000_000)
 	result := converters.ToDomainPriority(huge)
-	// RED assertion: after a fix, oversized input should be rejected.
-	// Currently it is returned as-is, so this will fail.
 	assert.Equal(t, domain.PriorityMedium, result,
 		"priority string of 1 MB should be rejected and normalised to medium")
 }
@@ -119,13 +101,10 @@ func TestToDomainPriority_GREEN_ReasonableLengthAccepted(t *testing.T) {
 // Vulnerability 3: no UUID validation in ToDomainTaskIDs
 // ---------------------------------------------------------------------------
 
-// TestToDomainTaskIDs_RED_NoUUIDValidation demonstrates that ToDomainTaskIDs
-// silently wraps arbitrary strings as domain.TaskID values without UUID parsing,
-// inconsistent with ToDomainProjectID which validates format via domain.ParseProjectID.
-//
-// This test is expected to FAIL against the current implementation (red test):
-// the function returns a slice that includes the injection payload.
-func TestToDomainTaskIDs_RED_NoUUIDValidation(t *testing.T) {
+// TestToDomainTaskIDs_NoUUIDValidation verifies that ToDomainTaskIDs drops
+// non-UUID entries, consistent with ToDomainProjectID which validates format
+// via domain.ParseProjectID.
+func TestToDomainTaskIDs_NoUUIDValidation(t *testing.T) {
 	malformed := []string{
 		"not-a-uuid",
 		"'; DROP TABLE tasks; --",
@@ -136,8 +115,6 @@ func TestToDomainTaskIDs_RED_NoUUIDValidation(t *testing.T) {
 
 	result := converters.ToDomainTaskIDs(malformed)
 
-	// RED assertion: after a fix, non-UUID entries must be dropped.
-	// Currently they are all preserved, so this will fail for malformed inputs.
 	for _, id := range result {
 		_, parseErr := uuid.Parse(string(id))
 		assert.NoError(t, parseErr,

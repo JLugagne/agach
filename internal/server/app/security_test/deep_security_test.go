@@ -4,11 +4,8 @@ package security_test
 //
 // Each vulnerability is documented with:
 //   - Issue description and file:line reference
-//   - A RED test that demonstrates the vulnerability (currently fails because the
-//     bug is present — the test asserts the CORRECT behaviour which the code does
-//     NOT yet enforce)
-//   - A GREEN test that will pass once the fix is applied (or that already passes
-//     and confirms an adjacent safe behaviour)
+//   - A test that asserts the correct (fixed) behaviour
+//   - A GREEN test that confirms adjacent safe behaviour
 //
 // Vulnerabilities covered:
 //   1. (Removed — WIP limits no longer enforced)
@@ -62,8 +59,8 @@ import (
 // The dedicated BlockTask path enforces a reason, but the generic MoveTask path
 // does not.
 //
-// RED: assert that moving directly to blocked column without a reason is rejected.
-func TestSecurity_RED_MoveToBlockedColumnWithoutReason(t *testing.T) {
+// Asserts that moving directly to blocked column without a reason is rejected.
+func TestSecurity_MoveToBlockedColumnWithoutReason(t *testing.T) {
 	ctx := context.Background()
 	cols := makeColumns()
 
@@ -120,19 +117,11 @@ func TestSecurity_RED_MoveToBlockedColumnWithoutReason(t *testing.T) {
 		&dependenciestest.MockDependencyRepository{},
 	)
 
-	// RED: current code does not require a reason — MoveTask succeeds and
-	// is_blocked is true but blocked_reason is empty.
+	// MoveTask to blocked without a reason must be rejected.
 	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnBlocked, "")
-	// After a fix, moving to blocked via MoveTask should either require a reason
-	// or be disallowed in favour of BlockTask.
 	assert.Error(t, err,
-		"VULNERABILITY: MoveTask to blocked column requires no reason; task becomes blocked with empty blocked_reason")
-	// Additionally confirm the current broken behaviour: no error, blocked=true, reason=""
-	if err == nil {
-		assert.True(t, savedTask.IsBlocked)
-		assert.Empty(t, savedTask.BlockedReason,
-			"confirms the bug: blocked_reason is empty after direct MoveTask to blocked")
-	}
+		"MoveTask to blocked column must require a reason or be disallowed in favour of BlockTask")
+	_ = savedTask
 }
 
 // GREEN: using the dedicated BlockTask path correctly requires a reason.
@@ -210,8 +199,8 @@ func TestSecurity_GREEN_BlockTaskRequiresReason(t *testing.T) {
 // task must first be started (moved to in_progress) before it can be completed.
 // The only guard is the IsBlocked check (line 505), but that is insufficient.
 //
-// RED: complete a task that is in "todo" — the code should reject this.
-func TestSecurity_RED_CompleteTaskFromTodo(t *testing.T) {
+// Asserts that completing a task in "todo" is rejected.
+func TestSecurity_CompleteTaskFromTodo(t *testing.T) {
 	ctx := context.Background()
 	cols := makeColumns()
 
@@ -262,12 +251,9 @@ func TestSecurity_RED_CompleteTaskFromTodo(t *testing.T) {
 		&dependenciestest.MockDependencyRepository{},
 	)
 
-	// RED: no error is expected by current code, but the correct behaviour is to
-	// reject completing a task that has not been started.
 	err := a.CompleteTask(ctx, projectID, taskID, "completed it quickly", nil, "agent-1", nil, "")
 	assert.Error(t, err,
-		"VULNERABILITY: CompleteTask does not verify the task is in 'in_progress'; "+
-			"a task in 'todo' can be completed, skipping the start workflow")
+		"CompleteTask must reject a task that is not in the 'in_progress' column")
 }
 
 // GREEN: completing a task that is properly in_progress succeeds.
@@ -335,8 +321,8 @@ func TestSecurity_GREEN_CompleteTaskFromInProgress(t *testing.T) {
 // BlockTask in tasks.go never checks whether blockedReason is empty or meets the
 // minimum length.  An agent can block a task with an empty reason, creating noise.
 //
-// RED: assert that BlockTask rejects an empty blocked reason.
-func TestSecurity_RED_BlockTaskEmptyReason(t *testing.T) {
+// Asserts that BlockTask rejects an empty blocked reason.
+func TestSecurity_BlockTaskEmptyReason(t *testing.T) {
 	ctx := context.Background()
 	cols := makeColumns()
 
@@ -389,11 +375,9 @@ func TestSecurity_RED_BlockTaskEmptyReason(t *testing.T) {
 		&dependenciestest.MockDependencyRepository{},
 	)
 
-	// RED: current code does not validate blocked reason — succeeds with empty string.
 	err := a.BlockTask(ctx, projectID, taskID, "", "agent-1", "")
 	assert.ErrorIs(t, err, domain.ErrBlockedReasonRequired,
-		"VULNERABILITY: BlockTask does not validate blocked reason; "+
-			"ErrBlockedReasonRequired is declared but never checked in app layer")
+		"BlockTask must reject an empty blocked reason with ErrBlockedReasonRequired")
 }
 
 // GREEN: blocking with a sufficient reason is accepted.
@@ -462,8 +446,8 @@ func TestSecurity_GREEN_BlockTaskWithSufficientReason(t *testing.T) {
 // Issue: Same pattern as BlockTask — ErrWontDoReasonRequired is declared in
 // errors.go but RequestWontDo never validates the wontDoReason argument.
 //
-// RED: assert that RequestWontDo rejects an empty reason.
-func TestSecurity_RED_RequestWontDoEmptyReason(t *testing.T) {
+// Asserts that RequestWontDo rejects an empty reason.
+func TestSecurity_RequestWontDoEmptyReason(t *testing.T) {
 	ctx := context.Background()
 	cols := makeColumns()
 
@@ -516,11 +500,9 @@ func TestSecurity_RED_RequestWontDoEmptyReason(t *testing.T) {
 		&dependenciestest.MockDependencyRepository{},
 	)
 
-	// RED: current code does not validate — succeeds with empty reason.
 	err := a.RequestWontDo(ctx, projectID, taskID, "", "agent-1", "")
 	assert.ErrorIs(t, err, domain.ErrWontDoReasonRequired,
-		"VULNERABILITY: RequestWontDo does not validate wont_do reason; "+
-			"ErrWontDoReasonRequired is declared but never checked")
+		"RequestWontDo must reject an empty reason with ErrWontDoReasonRequired")
 }
 
 // GREEN: providing a sufficient reason is accepted.
@@ -593,9 +575,9 @@ func TestSecurity_GREEN_RequestWontDoWithSufficientReason(t *testing.T) {
 // or privilege escalation (an agent in project B gains access to a task that
 // was supposed to be removed from project A).
 //
-// RED: simulate a delete failure and assert that the overall operation is rolled
-// back (i.e., the task is NOT left in the target project).
-func TestSecurity_RED_MoveTaskToProjectNonAtomic(t *testing.T) {
+// Simulates a delete failure and asserts that the task is NOT left in the target
+// project (the operation is rolled back).
+func TestSecurity_MoveTaskToProjectNonAtomic(t *testing.T) {
 	ctx := context.Background()
 	cols := makeColumns()
 
@@ -679,15 +661,9 @@ func TestSecurity_RED_MoveTaskToProjectNonAtomic(t *testing.T) {
 
 	err := a.MoveTaskToProject(ctx, sourceProjectID, taskID, targetProjectID)
 
-	// RED: current code returns the delete error but the task has ALREADY been
-	// created in the target project (createdInTarget == true).
-	// After a fix, either the operation must be fully rolled back (createdInTarget
-	// should be false on error) or the error from delete should trigger a
-	// compensating delete in the target.
-	assert.Error(t, err, "delete failure should propagate")
+	assert.Error(t, err, "delete failure must propagate")
 	assert.False(t, createdInTarget,
-		"VULNERABILITY: task was created in target project even though delete from source failed; "+
-			"the task is now duplicated across both projects")
+		"MoveTaskToProject must not leave a task in the target project when the source delete fails")
 }
 
 // GREEN: when both create and delete succeed, the move completes cleanly.
@@ -778,9 +754,9 @@ func TestSecurity_GREEN_MoveTaskToProjectSucceedsAtomically(t *testing.T) {
 // overflow and produce negative or wildly incorrect counts.  An adversary can
 // provide a crafted tokenUsage payload to corrupt billing/analytics data.
 //
-// RED: pass a tokenUsage value whose addition would overflow int and assert
+// Passes a tokenUsage value whose addition would overflow int and asserts
 // that the call is rejected or the result is clamped.
-func TestSecurity_RED_TokenCounterOverflow(t *testing.T) {
+func TestSecurity_TokenCounterOverflow(t *testing.T) {
 	ctx := context.Background()
 
 	projectID := domain.NewProjectID()
@@ -824,21 +800,15 @@ func TestSecurity_RED_TokenCounterOverflow(t *testing.T) {
 
 	err := a.UpdateTask(ctx, projectID, taskID, nil, nil, nil, nil, nil, nil, nil, nil, overflow, nil, nil, false)
 
-	// RED: current code applies the addition unconditionally and returns no error.
-	// After a fix the call should either return an error or clamp to MaxInt.
+	// The fix either returns an error or clamps to MaxInt.
 	if err == nil {
-		// Demonstrate the overflow: result should never be negative and should be
-		// at least as large as the original value.
 		assert.True(t, savedTask.InputTokens >= 0,
-			"VULNERABILITY: token count overflowed to negative (%d); "+
-				"no bounds check on UpdateTask tokenUsage accumulation",
+			"token count must not overflow to negative (got %d)",
 			savedTask.InputTokens)
 		assert.True(t, savedTask.InputTokens >= task.InputTokens,
-			"VULNERABILITY: token count after addition (%d) is less than original (%d); "+
-				"integer overflow occurred",
+			"token count after addition (%d) must not be less than original (%d)",
 			savedTask.InputTokens, task.InputTokens)
 	}
-	// If err != nil, the implementation correctly rejected the overflow.
 }
 
 // GREEN: normal token accumulation (no overflow risk) works correctly.
@@ -897,9 +867,9 @@ func TestSecurity_GREEN_TokenCounterNormalAccumulation(t *testing.T) {
 // including tasks specifically assigned to a different role.  Any agent that
 // passes an empty role string can steal high-priority tasks meant for others.
 //
-// RED: when role is empty, GetNextTask should NOT return a task that has a
+// Asserts that when role is empty, GetNextTask does NOT return a task that has a
 // non-empty assigned_role (i.e., the task belongs to someone else).
-func TestSecurity_RED_GetNextTaskRoleBypass(t *testing.T) {
+func TestSecurity_GetNextTaskRoleBypass(t *testing.T) {
 	ctx := context.Background()
 
 	projectID := domain.NewProjectID()
@@ -941,18 +911,15 @@ func TestSecurity_RED_GetNextTaskRoleBypass(t *testing.T) {
 		&dependenciestest.MockDependencyRepository{},
 	)
 
-	// Call with empty role — should NOT receive a task assigned to "security-officer".
+	// Call with empty role — must NOT receive a task assigned to "security-officer".
 	task, err := a.GetNextTask(ctx, projectID, "" /* empty role */, nil)
 
-	// RED: current code returns the task because it drops the filter entirely.
 	if err == nil && task != nil {
 		assert.Empty(t, task.AssignedRole,
-			"VULNERABILITY: GetNextTask with role='' returned a task assigned to '%s'; "+
+			"GetNextTask with role='' must not return a task assigned to '%s'; "+
 				"empty role should only match unassigned tasks",
 			task.AssignedRole)
 	}
-	// The fix would either return ErrNoAvailableTasks or only return tasks
-	// with assigned_role="" when the caller passes role="".
 }
 
 // GREEN: requesting with a specific role only returns that role's tasks.
@@ -1032,9 +999,9 @@ func TestSecurity_GREEN_GetNextTaskRoleFilterEnforced(t *testing.T) {
 // The cleaner and safer path: RejectWontDo should verify the task is in the
 // blocked column before operating on it.
 //
-// RED: call RejectWontDo on a task that has WontDoRequested=true but is NOT
-// in the blocked column; assert the call is rejected.
-func TestSecurity_RED_RejectWontDoOutsideBlockedColumn(t *testing.T) {
+// Calls RejectWontDo on a task that has WontDoRequested=true but is NOT
+// in the blocked column; asserts the call is rejected.
+func TestSecurity_RejectWontDoOutsideBlockedColumn(t *testing.T) {
 	ctx := context.Background()
 	cols := makeColumns()
 
@@ -1096,11 +1063,9 @@ func TestSecurity_RED_RejectWontDoOutsideBlockedColumn(t *testing.T) {
 		&dependenciestest.MockDependencyRepository{},
 	)
 
-	// RED: current code succeeds even though task is not in blocked column.
 	err := a.RejectWontDo(ctx, projectID, taskID, "reconsidering")
 	assert.ErrorIs(t, err, domain.ErrTaskNotInBlocked,
-		"VULNERABILITY: RejectWontDo does not verify task is in blocked column; "+
-			"a task with a stale WontDoRequested flag outside blocked column can be manipulated")
+		"RejectWontDo must reject a task that is not in the blocked column")
 }
 
 // GREEN: rejecting a won't-do on a properly blocked task works correctly.

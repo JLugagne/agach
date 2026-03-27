@@ -62,12 +62,10 @@ func newOnboardingTestHandler(onboarding service.OnboardingCommands, authCmds *m
 // daemon node under any user's account.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_OnboardingCompleteNoRateLimit documents that the
-// /api/onboarding/complete endpoint can be called without rate limiting,
-// enabling brute-force of 6-digit onboarding codes.
-// TODO(security): Add rate limiting to /api/onboarding/complete (e.g., 5 attempts
-// per minute per IP) to make brute-force of 6-digit codes infeasible.
-func TestSecurity_RED_OnboardingCompleteNoRateLimit(t *testing.T) {
+// TestSecurity_OnboardingCompleteNoRateLimit verifies that the
+// /api/onboarding/complete endpoint enforces rate limiting, rejecting excess
+// requests with HTTP 429 to prevent brute-force of 6-digit onboarding codes.
+func TestSecurity_OnboardingCompleteNoRateLimit(t *testing.T) {
 	attemptCount := 0
 	onboarding := &mockOnboardingCommands{
 		completeOnboardingFunc: func(_ context.Context, code string, _ string) (string, string, domain.Node, error) {
@@ -95,11 +93,9 @@ func TestSecurity_RED_OnboardingCompleteNoRateLimit(t *testing.T) {
 		}
 	}
 
-	// RED: None of the requests are rate-limited today.
 	assert.Greater(t, rateLimited, 0,
-		"RED: /api/onboarding/complete has no rate limiting — 6-digit codes can be brute-forced "+
+		"/api/onboarding/complete must enforce rate limiting to prevent brute-force of 6-digit codes "+
 			"(onboarding.go:40)")
-	t.Log("RED: 50 brute-force attempts against /api/onboarding/complete all succeed without rate limiting")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -110,10 +106,10 @@ func TestSecurity_RED_OnboardingCompleteNoRateLimit(t *testing.T) {
 // rate limiting. An attacker can brute-force refresh tokens for known node IDs.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_DaemonRefreshNoRateLimit documents that the
-// /api/daemon/refresh endpoint has no rate limiting.
-// TODO(security): Add rate limiting to /api/daemon/refresh.
-func TestSecurity_RED_DaemonRefreshNoRateLimit(t *testing.T) {
+// TestSecurity_DaemonRefreshNoRateLimit verifies that the
+// /api/daemon/refresh endpoint enforces rate limiting, rejecting excess
+// requests with HTTP 429 to prevent brute-force of refresh tokens.
+func TestSecurity_DaemonRefreshNoRateLimit(t *testing.T) {
 	authCmds := &mockAuthCommands{
 		refreshDaemonTokenFunc: func(_ context.Context, _ domain.NodeID, _ string) (string, error) {
 			return "", domain.ErrUnauthorized
@@ -139,9 +135,8 @@ func TestSecurity_RED_DaemonRefreshNoRateLimit(t *testing.T) {
 	}
 
 	assert.Greater(t, rateLimited, 0,
-		"RED: /api/daemon/refresh has no rate limiting — refresh tokens can be brute-forced "+
+		"/api/daemon/refresh must enforce rate limiting to prevent brute-force of refresh tokens "+
 			"(onboarding.go:42)")
-	t.Log("RED: 50 brute-force attempts against /api/daemon/refresh all succeed without rate limiting")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -154,10 +149,10 @@ func TestSecurity_RED_DaemonRefreshNoRateLimit(t *testing.T) {
 // by submitting many invite token guesses rapidly.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_CompleteInviteNoRateLimit documents that
-// /api/auth/complete-invite has no rate limiting.
-// TODO(security): Wrap /api/auth/complete-invite in the auth rate limiter.
-func TestSecurity_RED_CompleteInviteNoRateLimit(t *testing.T) {
+// TestSecurity_CompleteInviteNoRateLimit verifies that the
+// /api/auth/complete-invite endpoint enforces rate limiting, rejecting excess
+// requests with HTTP 429.
+func TestSecurity_CompleteInviteNoRateLimit(t *testing.T) {
 	authCmds := &mockAuthCommands{
 		completeInviteFunc: func(_ context.Context, _, _, _ string) (domain.User, error) {
 			return domain.User{}, domain.ErrUnauthorized
@@ -187,6 +182,5 @@ func TestSecurity_RED_CompleteInviteNoRateLimit(t *testing.T) {
 	}
 
 	assert.Greater(t, rateLimited, 0,
-		"RED: /api/auth/complete-invite has no rate limiting (auth.go:63)")
-	t.Log("RED: 50 rapid requests to /api/auth/complete-invite all processed without rate limiting")
+		"/api/auth/complete-invite must enforce rate limiting (auth.go:63)")
 }

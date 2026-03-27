@@ -96,17 +96,13 @@ func newAppWithFeatures(
 // 1. CompleteTask accepts empty completion summary
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_CompleteTask_EmptyCompletionSummary documents that CompleteTask
-// at the app layer does not validate the completionSummary parameter. The domain
-// defines ErrCompletionSummaryRequired with "minimum 100 characters" but the app
-// layer never enforces it. An agent can complete a task with an empty summary,
-// making post-completion review impossible.
+// TestSecurity_CompleteTask_EmptyCompletionSummary verifies that CompleteTask
+// rejects an empty completionSummary. The domain defines ErrCompletionSummaryRequired
+// and the fix enforces it at the app layer.
 //
-// Vulnerability: task_service.go:577 — completionSummary is assigned to
+// Vulnerability that was fixed: task_service.go — completionSummary was assigned to
 // task.CompletionSummary without any length or emptiness check.
-// TODO(security): Add "if completionSummary == \"\" { return domain.ErrCompletionSummaryRequired }"
-// at the top of CompleteTask.
-func TestSecurity_RED_CompleteTask_EmptyCompletionSummary(t *testing.T) {
+func TestSecurity_CompleteTask_EmptyCompletionSummary(t *testing.T) {
 	ctx := context.Background()
 	cols := makeColumns()
 
@@ -166,24 +162,20 @@ func TestSecurity_RED_CompleteTask_EmptyCompletionSummary(t *testing.T) {
 	err := a.CompleteTask(ctx, projectID, taskID, "" /* empty */, nil, "agent-1", nil, "")
 
 	assert.ErrorIs(t, err, domain.ErrCompletionSummaryRequired,
-		"RED: CompleteTask accepts an empty completion summary; "+
-			"domain.ErrCompletionSummaryRequired is declared but never checked in app layer")
-	t.Log("RED: CompleteTask does not validate completionSummary at the app layer")
+		"CompleteTask must reject an empty completion summary with ErrCompletionSummaryRequired")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. CompleteTask does not validate negative token values
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_CompleteTask_NegativeTokenValues documents that CompleteTask
-// accumulates token values with raw += (line 589-592) without the negative-value
-// guard that UpdateTask has (line 303). A malicious or buggy agent can pass
-// negative token counts at completion time to corrupt the counter.
+// TestSecurity_CompleteTask_NegativeTokenValues verifies that CompleteTask
+// rejects negative token values. The same guard present in UpdateTask is now
+// also enforced in CompleteTask.
 //
-// Vulnerability: task_service.go:589 — "task.InputTokens += tokenUsage.InputTokens"
-// without checking tokenUsage.InputTokens >= 0.
-// TODO(security): Add the same negative-value check as UpdateTask or use addClamped.
-func TestSecurity_RED_CompleteTask_NegativeTokenValues(t *testing.T) {
+// Vulnerability that was fixed: task_service.go — "task.InputTokens += tokenUsage.InputTokens"
+// was applied without checking tokenUsage.InputTokens >= 0.
+func TestSecurity_CompleteTask_NegativeTokenValues(t *testing.T) {
 	ctx := context.Background()
 	cols := makeColumns()
 
@@ -251,28 +243,22 @@ func TestSecurity_RED_CompleteTask_NegativeTokenValues(t *testing.T) {
 
 	if err == nil {
 		assert.GreaterOrEqual(t, savedTask.InputTokens, 0,
-			"RED: CompleteTask accepted negative token values and corrupted counter to %d; "+
-				"UpdateTask has this guard but CompleteTask does not",
+			"CompleteTask must not let negative token values corrupt the counter (got %d)",
 			savedTask.InputTokens)
 	}
-	t.Log("RED: CompleteTask does not validate negative token values (unlike UpdateTask)")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. UpdateTask can set title to empty string
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_UpdateTask_EmptyTitleAccepted documents that UpdateTask
-// allows setting the task title to an empty string via the title pointer
-// parameter. CreateTask enforces ErrTaskTitleRequired but UpdateTask bypasses
-// this check — at line 277: "if title != nil { task.Title = *title }" with
-// no validation of the value.
+// TestSecurity_UpdateTask_EmptyTitleAccepted verifies that UpdateTask rejects
+// an empty title string passed via the title pointer parameter. CreateTask
+// enforces ErrTaskTitleRequired and UpdateTask now does too.
 //
-// Vulnerability: task_service.go:277-278 — title is assigned without checking
-// for empty string.
-// TODO(security): Add "if *title == \"\" { return domain.ErrTaskTitleRequired }"
-// before assigning.
-func TestSecurity_RED_UpdateTask_EmptyTitleAccepted(t *testing.T) {
+// Vulnerability that was fixed: task_service.go — title was assigned without
+// checking for empty string.
+func TestSecurity_UpdateTask_EmptyTitleAccepted(t *testing.T) {
 	ctx := context.Background()
 
 	projectID := domain.NewProjectID()
@@ -306,23 +292,20 @@ func TestSecurity_RED_UpdateTask_EmptyTitleAccepted(t *testing.T) {
 	err := a.UpdateTask(ctx, projectID, taskID, &emptyTitle, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, false)
 
 	assert.ErrorIs(t, err, domain.ErrTaskTitleRequired,
-		"RED: UpdateTask accepts an empty title via pointer; "+
-			"CreateTask validates this but UpdateTask does not; "+
-			"fix: add empty check before assigning *title")
-	t.Log("RED: UpdateTask allows clearing the title to an empty string")
+		"UpdateTask must reject an empty title with ErrTaskTitleRequired")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. UpdateFeature allows empty name
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_UpdateFeature_EmptyNameAccepted documents that UpdateFeature
-// sets feature.Name = name without checking for empty string. CreateFeature
-// enforces ErrFeatureNameRequired but UpdateFeature does not.
+// TestSecurity_UpdateFeature_EmptyNameAccepted verifies that UpdateFeature rejects
+// an empty feature name. CreateFeature enforces ErrFeatureNameRequired and
+// UpdateFeature now does too.
 //
-// Vulnerability: feature_service.go:65 — "feature.Name = name" with no empty check.
-// TODO(security): Add "if name == \"\" { return domain.ErrFeatureNameRequired }"
-func TestSecurity_RED_UpdateFeature_EmptyNameAccepted(t *testing.T) {
+// Vulnerability that was fixed: feature_service.go — "feature.Name = name" was
+// set without an empty check.
+func TestSecurity_UpdateFeature_EmptyNameAccepted(t *testing.T) {
 	ctx := context.Background()
 
 	featureID := domain.NewFeatureID()
@@ -355,27 +338,20 @@ func TestSecurity_RED_UpdateFeature_EmptyNameAccepted(t *testing.T) {
 	err := a.UpdateFeature(ctx, featureID, "" /* empty name */, "description")
 
 	assert.ErrorIs(t, err, domain.ErrFeatureNameRequired,
-		"RED: UpdateFeature accepts an empty name; "+
-			"CreateFeature validates this but UpdateFeature does not; "+
-			"fix: add empty name check at top of UpdateFeature")
-	t.Log("RED: UpdateFeature allows clearing the feature name to an empty string")
+		"UpdateFeature must reject an empty name with ErrFeatureNameRequired")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. AddDependency does not check self-dependency
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_AddDependency_SelfDependency documents that AddDependency
-// does not check if taskID == dependsOnTaskID before proceeding with the cycle
-// check and creation. The domain defines ErrCannotDependOnSelf but it is never
-// used. Self-dependencies create a trivial cycle that the WouldCreateCycle check
-// may not detect (depending on the implementation), and even if detected, the
-// error message would be misleading (ErrCircularDependency instead of
-// ErrCannotDependOnSelf).
+// TestSecurity_AddDependency_SelfDependency verifies that AddDependency rejects
+// a task depending on itself with ErrCannotDependOnSelf. The domain declares
+// ErrCannotDependOnSelf and the fix enforces it before the cycle check.
 //
-// Vulnerability: dependency_service.go:28 — no check for taskID == dependsOnTaskID.
-// TODO(security): Add "if taskID == dependsOnTaskID { return domain.ErrCannotDependOnSelf }"
-func TestSecurity_RED_AddDependency_SelfDependency(t *testing.T) {
+// Vulnerability that was fixed: dependency_service.go — no check for
+// taskID == dependsOnTaskID before proceeding.
+func TestSecurity_AddDependency_SelfDependency(t *testing.T) {
 	ctx := context.Background()
 
 	projectID := domain.NewProjectID()
@@ -415,26 +391,20 @@ func TestSecurity_RED_AddDependency_SelfDependency(t *testing.T) {
 	err := a.AddDependency(ctx, projectID, taskID, taskID)
 
 	assert.ErrorIs(t, err, domain.ErrCannotDependOnSelf,
-		"RED: AddDependency does not check self-dependency; "+
-			"domain.ErrCannotDependOnSelf is declared but never used; "+
-			"fix: add 'if taskID == dependsOnTaskID' guard at top of AddDependency")
-	t.Log("RED: AddDependency allows a task to depend on itself")
+		"AddDependency must reject a self-dependency with ErrCannotDependOnSelf")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 6. GrantUserAccess no role validation
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_GrantUserAccess_InvalidRole documents that GrantUserAccess
-// passes the role parameter directly to the repository without any validation.
-// The domain defines ProjectUserAccess.Role as "admin" or "member" but the app
-// layer does not enforce this. An attacker can inject arbitrary role strings
-// (e.g., "superadmin", "root") that may bypass role-based checks.
+// TestSecurity_GrantUserAccess_InvalidRole verifies that GrantUserAccess rejects
+// invalid role strings. The domain defines ProjectUserAccess.Role as "admin" or
+// "member" and the fix enforces this at the app layer.
 //
-// Vulnerability: project_access.go:21 — role is passed through without validation.
-// TODO(security): Add validation that role is one of {"admin", "member"} before
-// calling access.GrantUser.
-func TestSecurity_RED_GrantUserAccess_InvalidRole(t *testing.T) {
+// Vulnerability that was fixed: project_access.go — role was passed through to
+// the repository without validation.
+func TestSecurity_GrantUserAccess_InvalidRole(t *testing.T) {
 	ctx := context.Background()
 
 	var storedRole string
@@ -465,29 +435,21 @@ func TestSecurity_RED_GrantUserAccess_InvalidRole(t *testing.T) {
 
 	if err == nil {
 		assert.NotEqual(t, "superadmin", storedRole,
-			"RED: GrantUserAccess accepted and stored the invalid role 'superadmin'; "+
-				"the role should be validated against a known set {\"admin\", \"member\"}")
-	} else {
-		// If error, the fix is already in place
-		t.Log("GrantUserAccess correctly rejected the invalid role")
+			"GrantUserAccess must not store an invalid role; role should be validated against {\"admin\", \"member\"}")
 	}
-	t.Log("RED: GrantUserAccess does not validate the role parameter")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 7. ReorderTask accepts negative position
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_ReorderTask_NegativePosition documents that ReorderTask
-// passes the newPosition parameter directly to the repository without bounds
-// checking. A negative position can corrupt the position-based ordering of tasks
-// in a column, potentially making them invisible to the UI or causing sorting
-// anomalies.
+// TestSecurity_ReorderTask_NegativePosition verifies that ReorderTask rejects
+// negative position values. A negative position can corrupt task ordering in a
+// column and the fix adds the bounds check.
 //
-// Vulnerability: task_service.go:521 — newPosition is passed to
+// Vulnerability that was fixed: task_service.go — newPosition was passed to
 // tasks.ReorderTask without checking >= 0.
-// TODO(security): Add "if newPosition < 0 { return domain.ErrInvalidTaskData }"
-func TestSecurity_RED_ReorderTask_NegativePosition(t *testing.T) {
+func TestSecurity_ReorderTask_NegativePosition(t *testing.T) {
 	ctx := context.Background()
 
 	projectID := domain.NewProjectID()
@@ -521,27 +483,21 @@ func TestSecurity_RED_ReorderTask_NegativePosition(t *testing.T) {
 	err := a.ReorderTask(ctx, projectID, taskID, -5)
 
 	assert.Error(t, err,
-		"RED: ReorderTask accepts negative position values; "+
-			"a negative position can corrupt task ordering; "+
-			"fix: add bounds check 'if newPosition < 0 { return domain.ErrInvalidTaskData }'")
-	t.Log("RED: ReorderTask does not validate negative position values")
+		"ReorderTask must reject a negative position value")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 8. FeatureStatus transition not validated
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_UpdateFeatureStatus_InvalidTransition documents that
-// UpdateFeatureStatus validates that the target status is a valid FeatureStatus
-// value, but does NOT validate the transition. Any status can transition to any
-// other status (e.g., done -> draft), bypassing the intended workflow and
-// potentially discarding changelogs or resurrecting completed features.
+// TestSecurity_UpdateFeatureStatus_InvalidTransition verifies that
+// UpdateFeatureStatus rejects invalid transitions (e.g., done -> draft).
+// The fix adds transition validation so completed features cannot be silently
+// reverted.
 //
-// Vulnerability: feature_service.go:72-86 — only validates status is valid,
-// not the transition from current status.
-// TODO(security): Add transition validation — at minimum block done -> draft
-// and draft -> done without going through ready/in_progress.
-func TestSecurity_RED_UpdateFeatureStatus_InvalidTransition(t *testing.T) {
+// Vulnerability that was fixed: feature_service.go — only the target status
+// was validated, not the transition from the current status.
+func TestSecurity_UpdateFeatureStatus_InvalidTransition(t *testing.T) {
 	ctx := context.Background()
 
 	featureID := domain.NewFeatureID()
@@ -575,28 +531,20 @@ func TestSecurity_RED_UpdateFeatureStatus_InvalidTransition(t *testing.T) {
 	err := a.UpdateFeatureStatus(ctx, featureID, domain.FeatureStatusDraft, "")
 
 	assert.Error(t, err,
-		"RED: UpdateFeatureStatus allows any status transition including done -> draft; "+
-			"completed features can be silently reverted; "+
-			"fix: add transition validation in UpdateFeatureStatus")
-	t.Log("RED: UpdateFeatureStatus does not validate status transitions")
+		"UpdateFeatureStatus must reject an invalid transition (done -> draft)")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 9. ApproveWontDo does not set CompletionSummary
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_ApproveWontDo_NoCompletionSummary documents that ApproveWontDo
-// moves a task to Done but does not set CompletionSummary. The resulting task in
-// the done column has an empty completion_summary, making it inconsistent with
-// tasks completed via CompleteTask. Downstream analytics, changelogs, and feature
-// summaries that rely on CompletionSummary being populated for done tasks will
-// produce incomplete or missing data.
+// TestSecurity_ApproveWontDo_NoCompletionSummary verifies that ApproveWontDo
+// populates CompletionSummary when moving a task to Done. This keeps done tasks
+// consistent with those completed via CompleteTask.
 //
-// Vulnerability: task_service.go:815-823 — task is moved to done column with
-// CompletedAt set but CompletionSummary left as its original value (typically empty).
-// TODO(security): Set task.CompletionSummary to a descriptive value like
-// "Won't do (approved): <wont_do_reason>".
-func TestSecurity_RED_ApproveWontDo_NoCompletionSummary(t *testing.T) {
+// Vulnerability that was fixed: task_service.go — task was moved to done with
+// CompletedAt set but CompletionSummary left empty.
+func TestSecurity_ApproveWontDo_NoCompletionSummary(t *testing.T) {
 	ctx := context.Background()
 	cols := makeColumns()
 
@@ -657,10 +605,7 @@ func TestSecurity_RED_ApproveWontDo_NoCompletionSummary(t *testing.T) {
 	err := a.ApproveWontDo(ctx, projectID, taskID)
 	require.NoError(t, err)
 
-	// Task is now in done but CompletionSummary is empty.
+	// Task is now in done and CompletionSummary must be set.
 	assert.NotEmpty(t, savedTask.CompletionSummary,
-		"RED: ApproveWontDo moves task to Done but leaves CompletionSummary empty; "+
-			"this breaks feature changelog generation and completion analytics; "+
-			"fix: set CompletionSummary to a descriptive string when approving won't-do")
-	t.Log("RED: ApproveWontDo does not populate CompletionSummary when moving to done")
+		"ApproveWontDo must populate CompletionSummary when moving a task to Done")
 }

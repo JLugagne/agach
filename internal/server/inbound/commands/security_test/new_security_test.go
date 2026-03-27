@@ -15,7 +15,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
@@ -23,6 +25,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service/servicetest"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/commands"
+	gorillaws "github.com/gorilla/websocket"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -61,15 +64,10 @@ func newRedTestApp(cmds *servicetest.MockCommands, qrs *servicetest.MockQueries)
 // SEC-11  IDOR: Feature mutations ignore projectID from URL path
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_FeatureUpdateIgnoresProjectID documents that UpdateFeature
-// (features.go:72) extracts featureId from the URL path but completely ignores
-// the {id} (projectID) parameter. An attacker who knows a feature UUID from
-// project A can update it via /api/projects/<projectB>/features/<featureFromA>.
-// The handler never verifies the feature belongs to the stated project.
-//
-// TODO(security): Pass projectID to the service layer and verify ownership,
-// or add a cross-check in the handler before calling UpdateFeature.
-func TestSecurity_RED_FeatureUpdateIgnoresProjectID(t *testing.T) {
+// TestSecurity_FeatureUpdateIgnoresProjectID verifies that UpdateFeature rejects
+// requests where the featureID does not belong to the projectID in the URL path.
+// The handler uses verifyFeatureOwnership to enforce this cross-resource check.
+func TestSecurity_FeatureUpdateIgnoresProjectID(t *testing.T) {
 	foreignProjectID := domain.NewProjectID()
 	featureID := domain.NewFeatureID() // belongs to a different project
 
@@ -99,28 +97,17 @@ func TestSecurity_RED_FeatureUpdateIgnoresProjectID(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	if updateCalled {
-		t.Log("RED: UpdateFeature was called despite projectID mismatch — " +
-			"the handler at features.go:72 extracts featureId but ignores projectID; " +
-			"an attacker can modify features across project boundaries")
-	}
-
-	// The handler should verify the feature belongs to the project in the URL.
 	assert.False(t, updateCalled,
-		"RED: UpdateFeature must not be called when projectID does not own the feature")
+		"UpdateFeature must not be called when the feature does not belong to the project in the URL path")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SEC-12  IDOR: Feature delete ignores projectID from URL path
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_FeatureDeleteIgnoresProjectID documents that DeleteFeature
-// (features.go:155) ignores the projectID path parameter entirely. An attacker
-// can delete any feature by its UUID regardless of which project URL is used.
-//
-// TODO(security): Verify feature ownership against the project in the URL path
-// before calling DeleteFeature.
-func TestSecurity_RED_FeatureDeleteIgnoresProjectID(t *testing.T) {
+// TestSecurity_FeatureDeleteIgnoresProjectID verifies that DeleteFeature rejects
+// requests where the featureID does not belong to the projectID in the URL path.
+func TestSecurity_FeatureDeleteIgnoresProjectID(t *testing.T) {
 	foreignProjectID := domain.NewProjectID()
 	featureID := domain.NewFeatureID()
 
@@ -147,24 +134,17 @@ func TestSecurity_RED_FeatureDeleteIgnoresProjectID(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	if deleteCalled {
-		t.Log("RED: DeleteFeature was called despite projectID mismatch — " +
-			"features.go:155 ignores the {id} URL parameter entirely")
-	}
-
 	assert.False(t, deleteCalled,
-		"RED: DeleteFeature must not be called when projectID does not own the feature")
+		"DeleteFeature must not be called when the feature does not belong to the project in the URL path")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SEC-13  IDOR: Feature status update ignores projectID from URL path
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_FeatureStatusUpdateIgnoresProjectID documents that
-// UpdateFeatureStatus (features.go:103) does not validate projectID ownership.
-//
-// TODO(security): Verify feature belongs to the project in the URL path.
-func TestSecurity_RED_FeatureStatusUpdateIgnoresProjectID(t *testing.T) {
+// TestSecurity_FeatureStatusUpdateIgnoresProjectID verifies that UpdateFeatureStatus
+// rejects requests where the featureID does not belong to the projectID in the URL path.
+func TestSecurity_FeatureStatusUpdateIgnoresProjectID(t *testing.T) {
 	foreignProjectID := domain.NewProjectID()
 	featureID := domain.NewFeatureID()
 
@@ -193,53 +173,30 @@ func TestSecurity_RED_FeatureStatusUpdateIgnoresProjectID(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	if updateCalled {
-		t.Log("RED: UpdateFeatureStatus was called despite projectID mismatch — " +
-			"features.go:103 ignores the {id} parameter; " +
-			"any feature can have its status changed via any project URL")
-	}
-
 	assert.False(t, updateCalled,
-		"RED: UpdateFeatureStatus must not proceed when projectID does not own the feature")
+		"UpdateFeatureStatus must not proceed when the feature does not belong to the project in the URL path")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SEC-14  Feature broadcast events lack ProjectID — cross-project event leak
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_FeatureCreateBroadcastMissingProjectID documents that
-// CreateFeature (features.go:62-64) broadcasts a websocket.Event without
-// setting ProjectID:
+// TestSecurity_RED_FeatureCreateBroadcastMissingProjectID verifies that
+// CreateFeature (features.go:84-87) sets ProjectID on the broadcast event so
+// the hub only delivers it to clients subscribed to the correct project.
 //
-//   h.hub.Broadcast(websocket.Event{
-//       Type: "feature_created",
-//       Data: resp,
-//   })
+// Currently the handler broadcasts:
 //
-// Without a ProjectID filter, the event is delivered to ALL connected WebSocket
-// clients regardless of which project they are monitoring. This leaks feature
-// data (name, description) across project boundaries.
+//	h.hub.Broadcast(websocket.Event{
+//	    Type: "feature_created",
+//	    Data: resp,
+//	})
 //
-// TODO(security): Set ProjectID on the broadcast event so the hub only delivers
-// it to clients subscribed to the correct project.
+// — ProjectID is absent (zero value ""), so the event leaks to ALL connected
+// WebSocket clients across all projects.
+//
+// RED: This test FAILS until features.go sets ProjectID on the broadcast event.
 func TestSecurity_RED_FeatureCreateBroadcastMissingProjectID(t *testing.T) {
-	// This test verifies the code path at features.go:62-64.
-	// The websocket.Event struct has a ProjectID field that should be set.
-	// Currently it is left as "" (zero value), meaning the hub broadcasts
-	// to all clients.
-	t.Log("RED: Feature command broadcasts (feature_created, feature_updated, " +
-		"feature_deleted, feature_status_updated, feature_changelogs_updated) " +
-		"at features.go:62-64, :98, :123, :146-149, :167-169 do not set " +
-		"ProjectID on the websocket.Event — events leak to all connected " +
-		"WebSocket clients across all projects; " +
-		"fix: set ProjectID: string(projectID) on each broadcast event")
-
-	// To verify programmatically: CreateFeature builds the event and the
-	// hub.Broadcast call can be observed. Since this is a structural issue
-	// (missing field assignment), we document it as a finding.
-	// The projectID IS available in the handler (features.go:42) but is
-	// not passed to the broadcast.
-
 	projectID := domain.NewProjectID()
 	cmds := &servicetest.MockCommands{
 		CreateFeatureFunc: func(ctx context.Context, pID domain.ProjectID, name, description, createdByRole, createdByAgent string) (domain.Feature, error) {
@@ -257,13 +214,33 @@ func TestSecurity_RED_FeatureCreateBroadcastMissingProjectID(t *testing.T) {
 	ctrl := controller.NewController(logger)
 	hub := websocket.NewHub(logger)
 	go hub.Run()
+	t.Cleanup(hub.Stop)
 
+	// Register a WebSocket endpoint on the same router so we can receive events.
 	router := mux.NewRouter()
 	commands.NewFeatureCommandsHandler(cmds, ctrl, hub).RegisterRoutes(router)
+	router.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		upgrader := gorillaws.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		hub.ServeWS(conn)
+	})
 
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)
 
+	// Connect a WebSocket client that is scoped to the target project.
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws?project_id=" + projectID.String()
+	wsConn, _, err := gorillaws.DefaultDialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { wsConn.Close() })
+
+	// Allow the client to register with the hub.
+	time.Sleep(20 * time.Millisecond)
+
+	// Trigger CreateFeature.
 	body, _ := json.Marshal(map[string]string{"name": "secret feature"})
 	req, err := http.NewRequest(http.MethodPost,
 		fmt.Sprintf("%s/api/projects/%s/features", srv.URL, projectID.String()),
@@ -271,41 +248,46 @@ func TestSecurity_RED_FeatureCreateBroadcastMissingProjectID(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	httpResp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer httpResp.Body.Close()
+	require.Equal(t, http.StatusOK, httpResp.StatusCode)
 
-	// The event was broadcast without ProjectID filtering.
-	// This is a structural vulnerability that requires code inspection to verify.
-	assert.Equal(t, http.StatusOK, resp.StatusCode,
-		"Request itself succeeds, but the broadcast event lacks ProjectID scoping")
+	// Read the broadcast event from the WebSocket client with a short deadline.
+	wsConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	_, msg, err := wsConn.ReadMessage()
+	require.NoError(t, err, "WebSocket client must receive the feature_created broadcast")
+
+	var event struct {
+		Type      string `json:"type"`
+		ProjectID string `json:"project_id"`
+	}
+	require.NoError(t, json.Unmarshal(msg, &event))
+	require.Equal(t, "feature_created", event.Type)
+
+	// RED: This assertion fails until features.go sets ProjectID on the broadcast.
+	assert.Equal(t, projectID.String(), event.ProjectID,
+		"feature_created broadcast event must include ProjectID so the hub can scope "+
+			"delivery to clients subscribed to the correct project; "+
+			"fix: add ProjectID: string(projectID) to the websocket.Event in features.go:84-87")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SEC-15  CompleteTaskRequest.FilesModified has no max-items constraint
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_CompleteTaskFilesModifiedUnbounded documents that
-// CompleteTaskRequest.FilesModified (pkg/server/types.go:220) uses:
-//
-//   FilesModified []string `json:"files_modified" validate:"dive,max=500"`
-//
-// The "dive" checks element length but there is no max=N on the slice itself.
-// An attacker can submit 50,000 file paths (each up to 500 chars) in a single
-// completion request, causing large memory allocation and database storage.
-//
-// TODO(security): Add validate:"max=1000,dive,max=500" to FilesModified in
-// CompleteTaskRequest (pkg/server/types.go:220).
-func TestSecurity_RED_CompleteTaskFilesModifiedUnbounded(t *testing.T) {
+// TestSecurity_CompleteTaskFilesModifiedUnbounded verifies that
+// CompleteTaskRequest rejects a files_modified slice with more than the allowed
+// number of entries. The validate tag must include a max=N constraint on the
+// slice itself, not only a dive constraint on element length.
+func TestSecurity_CompleteTaskFilesModifiedUnbounded(t *testing.T) {
 	const itemCount = 10_000
 
 	completeCalled := false
-	var receivedFilesCount int
 
 	cmds := &servicetest.MockCommands{
 		CompleteTaskFunc: func(ctx context.Context, pID domain.ProjectID, tID domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage, _ string) error {
 			completeCalled = true
-			receivedFilesCount = len(filesModified)
 			return nil
 		},
 	}
@@ -338,46 +320,28 @@ func TestSecurity_RED_CompleteTaskFilesModifiedUnbounded(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	if completeCalled && receivedFilesCount >= itemCount {
-		t.Logf("RED: CompleteTask accepted %d files_modified entries — "+
-			"no array-count limit on FilesModified; "+
-			"fix: add validate:\"max=1000,dive,max=500\" to "+
-			"CompleteTaskRequest.FilesModified in pkg/server/types.go:220",
-			receivedFilesCount)
-	}
-
 	assert.False(t, completeCalled,
-		"RED: CompleteTask with 10,000 files_modified entries must be rejected by validation")
+		"CompleteTask with 10,000 files_modified entries must be rejected by validation; "+
+			"add a max=N constraint to CompleteTaskRequest.FilesModified in pkg/server/types.go")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SEC-16  RemoveAgent DELETE body parsing bypasses DecodeAndValidate
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_RemoveAgentSkipsValidation documents that RemoveAgent
-// (project_agents.go:88-93) uses raw json.NewDecoder instead of
-// controller.DecodeAndValidate when parsing the optional request body:
-//
-//   if r.ContentLength > 0 {
-//       if err := json.NewDecoder(r.Body).Decode(&req); err != nil { ... }
-//   }
-//
-// This bypasses: (1) Content-Type check, (2) DisallowUnknownFields,
-// (3) struct validation tags. A caller can send XML or malformed JSON with
-// arbitrary ReassignTo values that skip the max=50 validation.
-//
-// TODO(security): Use controller.DecodeAndValidate instead of raw json.Decode,
-// or at minimum call controller.Validate(&req) after decoding.
-func TestSecurity_RED_RemoveAgentSkipsValidation(t *testing.T) {
+// TestSecurity_RemoveAgentSkipsValidation verifies that RemoveAgent rejects a
+// request body sent with the wrong Content-Type and an overlong reassign_to
+// value that violates the max=50 validation tag.
+// The handler must use controller.DecodeAndValidate instead of raw json.Decode
+// so that Content-Type and struct validation are both enforced.
+func TestSecurity_RemoveAgentSkipsValidation(t *testing.T) {
 	projectID := domain.NewProjectID()
 
 	removeCalled := false
-	var receivedReassignTo *string
 
 	cmds := &servicetest.MockCommands{
 		RemoveAgentFromProjectFunc: func(ctx context.Context, pID domain.ProjectID, slug string, reassignTo *string, clearAssignment bool) error {
 			removeCalled = true
-			receivedReassignTo = reassignTo
 			return nil
 		},
 	}
@@ -407,59 +371,76 @@ func TestSecurity_RED_RemoveAgentSkipsValidation(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	if removeCalled && receivedReassignTo != nil && len(*receivedReassignTo) > 50 {
-		t.Logf("RED: RemoveAgentFromProject received reassign_to of length %d "+
-			"with Content-Type text/plain — validation was bypassed; "+
-			"fix: use controller.DecodeAndValidate in project_agents.go:88-93",
-			len(*receivedReassignTo))
-	}
-
 	assert.False(t, removeCalled,
-		"RED: RemoveAgent with invalid Content-Type and overlong reassign_to must be rejected")
+		"RemoveAgent with invalid Content-Type and overlong reassign_to must be rejected by validation")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SEC-17  WebSocket CheckOrigin accepts all origins
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_WebSocketCheckOriginAcceptsAll documents that the WebSocket
-// upgrader in websocket.go:38-39 uses:
+// TestSecurity_RED_WebSocketCheckOriginAcceptsAll verifies that the WSHandler
+// (websocket.go:38-39) rejects WebSocket upgrade requests from foreign origins.
 //
-//   CheckOrigin: func(r *http.Request) bool {
-//       return true
-//   }
+// Currently the upgrader uses:
 //
-// This allows any website to initiate a WebSocket connection to the server,
-// enabling cross-origin WebSocket hijacking. A malicious page at evil.com
-// can open a WebSocket to the server and receive all broadcast events
-// (task data, feature data, notifications) if the user has a valid token.
+//	CheckOrigin: func(r *http.Request) bool { return true }
 //
-// TODO(security): Validate the Origin header against a list of trusted origins,
-// or at minimum check that it matches the Host header.
+// — any origin is accepted, enabling cross-site WebSocket hijacking (CSWSH).
+//
+// RED: This test FAILS until WSHandler validates the Origin header.
 func TestSecurity_RED_WebSocketCheckOriginAcceptsAll(t *testing.T) {
-	// This is a code-level vulnerability at websocket.go:38-39.
-	// The gorilla/websocket Upgrader.CheckOrigin function always returns true.
-	// We document this as a structural finding.
-	t.Log("RED: WSHandler (websocket.go:35-39) creates a gorilla/websocket.Upgrader " +
-		"with CheckOrigin: func(r *http.Request) bool { return true } — " +
-		"this disables all cross-origin protection for WebSocket connections; " +
-		"any website can initiate a WebSocket connection and receive all " +
-		"broadcast events including task details, feature data, and notifications; " +
-		"fix: implement origin validation in CheckOrigin that compares " +
-		"r.Header.Get(\"Origin\") against trusted origins")
+	logger := logrus.New()
+	logger.SetLevel(logrus.ErrorLevel)
+	logger.SetOutput(io.Discard)
+	hub := websocket.NewHub(logger)
+	go hub.Run()
+	t.Cleanup(hub.Stop)
+
+	// Build a WSHandler with nil authQueries to bypass token validation.
+	wsHandler := commands.NewWSHandler(nil, hub, logger, nil)
+
+	router := mux.NewRouter()
+	router.Handle("/ws", wsHandler).Methods("GET")
+
+	srv := httptest.NewServer(router)
+	t.Cleanup(srv.Close)
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws"
+
+	// Attempt a WebSocket upgrade from an untrusted foreign origin.
+	header := http.Header{}
+	header.Set("Origin", "http://evil.com")
+
+	conn, resp, err := gorillaws.DefaultDialer.Dial(wsURL, header)
+	if conn != nil {
+		conn.Close()
+	}
+
+	if err == nil {
+		// The upgrade succeeded — the origin check is absent.
+		t.Fatalf("RED: WSHandler accepted a WebSocket upgrade from foreign origin "+
+			"'http://evil.com' (status %d); "+
+			"fix: replace CheckOrigin: func(*http.Request) bool { return true } in "+
+			"websocket.go with origin validation against r.Host",
+			resp.StatusCode)
+	}
+
+	// When the fix is in place the dial returns an error and resp carries 403.
+	require.NotNil(t, resp, "expected an HTTP response even when the upgrade is rejected")
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode,
+		"RED: WSHandler must reject cross-origin WebSocket upgrades with 403; "+
+			"fix: implement origin validation in CheckOrigin (websocket.go:38-39)")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SEC-18  IDOR: Feature changelogs update ignores projectID
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_FeatureChangelogsUpdateIgnoresProjectID documents that
-// UpdateFeatureChangelogs (features.go:128) extracts featureId but ignores
-// the projectID from the URL. Same IDOR pattern as SEC-11/12/13.
-//
-// TODO(security): Verify feature belongs to the project in the URL path
-// before calling UpdateFeatureChangelogs.
-func TestSecurity_RED_FeatureChangelogsUpdateIgnoresProjectID(t *testing.T) {
+// TestSecurity_FeatureChangelogsUpdateIgnoresProjectID verifies that
+// UpdateFeatureChangelogs rejects requests where the featureID does not belong
+// to the projectID in the URL path.
+func TestSecurity_FeatureChangelogsUpdateIgnoresProjectID(t *testing.T) {
 	foreignProjectID := domain.NewProjectID()
 	featureID := domain.NewFeatureID()
 
@@ -489,12 +470,6 @@ func TestSecurity_RED_FeatureChangelogsUpdateIgnoresProjectID(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	if updateCalled {
-		t.Log("RED: UpdateFeatureChangelogs was called despite projectID mismatch — " +
-			"features.go:128 ignores the {id} parameter; " +
-			"changelogs of any feature can be modified via any project URL")
-	}
-
 	assert.False(t, updateCalled,
-		"RED: UpdateFeatureChangelogs must not proceed when projectID does not own the feature")
+		"UpdateFeatureChangelogs must not proceed when the feature does not belong to the project in the URL path")
 }

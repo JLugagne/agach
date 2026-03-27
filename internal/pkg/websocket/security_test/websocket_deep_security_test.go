@@ -89,6 +89,9 @@ func readWSEvent(t *testing.T, conn *gorillaws.Conn, timeout time.Duration) webs
 // to clients in the same project as the sender.
 // ---------------------------------------------------------------------------
 
+// TestSecurity_RED_RelayBypassesProjectScoping asserts that a user in project-B
+// must NOT receive relay messages sent by project-A's daemon. This test FAILS
+// today because relay ignores projectID, enabling cross-project data leakage.
 func TestSecurity_RED_RelayBypassesProjectScoping(t *testing.T) {
 	hub := newDeepHub(t)
 
@@ -114,25 +117,21 @@ func TestSecurity_RED_RelayBypassesProjectScoping(t *testing.T) {
 	// Register a relay handler for "chat_message" type.
 	hub.RegisterHandler("chat_message", hub.NewRelayHandler())
 
-	// Daemon sends a chat message. It should only go to project-A users,
-	// but the relay path sends to ALL non-daemon clients.
+	// Daemon sends a chat message. It should only go to project-A users.
 	msg := json.RawMessage(`{"type":"chat_message","data":"secret from project A"}`)
 	err := daemonConn.WriteMessage(gorillaws.TextMessage, msg)
 	require.NoError(t, err)
 
-	// RED: user in project B should NOT receive this message, but they do
-	// because relay ignores projectID.
+	// Project-B user must NOT receive project-A's relay message.
+	// A secure hub filters relay by projectID; without the fix this leaks.
 	userConnB.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 	_, received, readErr := userConnB.ReadMessage()
-	if readErr == nil {
-		assert.NotEmpty(t, received,
-			"RED: user in project-B received a relay message from project-A's daemon — "+
-				"relay bypasses project scoping, enabling cross-project data leakage")
-		t.Log("RED: relay messages are forwarded to ALL non-daemon clients regardless of projectID")
-	} else {
-		t.Log("Relay message not received (may not have been processed in time); " +
-			"the vulnerability exists in code but timing prevented demonstration")
-	}
+
+	assert.Error(t, readErr,
+		"user in project-B must NOT receive relay messages from project-A's daemon; "+
+			"relay currently bypasses project scoping — cross-project data leakage")
+	assert.Empty(t, received,
+		"no bytes should have been received by project-B client from project-A daemon relay")
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +154,9 @@ func TestSecurity_RED_RelayBypassesProjectScoping(t *testing.T) {
 // events that also have an empty ProjectID (global events).
 // ---------------------------------------------------------------------------
 
+// TestSecurity_RED_EmptyProjectIDClientReceivesAllEvents asserts that a client
+// with no projectID must NOT receive project-scoped events. This test FAILS
+// today because the filter passes empty-projectID clients for all events.
 func TestSecurity_RED_EmptyProjectIDClientReceivesAllEvents(t *testing.T) {
 	hub := newDeepHub(t)
 	srv := newDeepHubServer(t, hub)
@@ -177,20 +179,17 @@ func TestSecurity_RED_EmptyProjectIDClientReceivesAllEvents(t *testing.T) {
 	ev := readWSEvent(t, scopedClient, 2*time.Second)
 	assert.Equal(t, "task_updated", ev.Type)
 
-	// RED: the unscoped client ALSO receives it because empty projectID
-	// bypasses the filter.
+	// The unscoped client must NOT receive a project-scoped event.
+	// A secure hub rejects or ignores clients with empty projectID for
+	// project-scoped broadcasts. Without the fix this leaks to all listeners.
 	globalListener.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	_, msg, err := globalListener.ReadMessage()
-	if err == nil {
-		var leakedEvent websocket.Event
-		_ = json.Unmarshal(msg, &leakedEvent)
-		assert.Equal(t, "task_updated", leakedEvent.Type,
-			"RED: client with empty projectID received an event scoped to project-X — "+
-				"any client that connects without project_id acts as a global eavesdropper")
-		t.Log("RED: empty-projectID clients receive ALL project-scoped events")
-	} else {
-		t.Log("Event not received in time; the vulnerability exists in code logic")
-	}
+	_, msg, readErr := globalListener.ReadMessage()
+
+	assert.Error(t, readErr,
+		"client with empty projectID must NOT receive events scoped to project-X; "+
+			"currently the filter allows any empty-projectID client to act as a global eavesdropper")
+	assert.Empty(t, msg,
+		"no bytes should have been received by the unscoped listener")
 }
 
 // ---------------------------------------------------------------------------
@@ -209,6 +208,10 @@ func TestSecurity_RED_EmptyProjectIDClientReceivesAllEvents(t *testing.T) {
 // to match the actual enforced limit.
 // ---------------------------------------------------------------------------
 
+// TestSecurity_RED_ReadLimitInconsistentWithMaxMessageSize asserts that a
+// message larger than MaxMessageSize (4KB) causes the connection to be closed.
+// This test FAILS today because ReadPump uses SetReadLimit(64KB) instead of
+// the declared MaxMessageSize constant, so a 5KB message is accepted.
 func TestSecurity_RED_ReadLimitInconsistentWithMaxMessageSize(t *testing.T) {
 	hub := newDeepHub(t)
 	srv := newDeepHubServer(t, hub)
@@ -216,32 +219,34 @@ func TestSecurity_RED_ReadLimitInconsistentWithMaxMessageSize(t *testing.T) {
 	conn := dialWS(t, srv, "/")
 	time.Sleep(50 * time.Millisecond)
 
-	// The declared MaxMessageSize is 4 KB. Send a 5 KB message — it should
-	// be rejected if MaxMessageSize is enforced, but accepted because
-	// ReadPump uses 64 KB.
-	msg := make([]byte, 5*1024)
-	for i := range msg {
-		msg[i] = 'A'
+	// Send a message just over MaxMessageSize (4 KB). If MaxMessageSize were
+	// enforced via SetReadLimit, the connection would be closed. Currently
+	// ReadPump uses 64 KB so this message is silently accepted.
+	oversized := make([]byte, websocket.MaxMessageSize+512) // 4KB + 512 bytes over the declared limit
+	for i := range oversized {
+		oversized[i] = 'A'
 	}
-	// Wrap as valid JSON so ReadPump's unmarshal doesn't silently skip it.
-	payload := []byte(`{"type":"probe","data":"` + string(msg) + `"}`)
 
-	err := conn.WriteMessage(gorillaws.TextMessage, payload)
+	err := conn.WriteMessage(gorillaws.TextMessage, oversized)
 	require.NoError(t, err, "client-side write should succeed")
 
-	// Wait for server to process.
-	time.Sleep(100 * time.Millisecond)
+	// Give server time to process and close the connection.
+	time.Sleep(150 * time.Millisecond)
 
-	// If MaxMessageSize (4KB) were enforced, the connection would be closed.
-	// Try sending another message to see if connection is still alive.
-	err = conn.WriteMessage(gorillaws.TextMessage, []byte(`{"type":"ping"}`))
+	// A correctly configured hub (using MaxMessageSize) closes the connection
+	// when a message exceeds the limit. Assert the connection is now closed.
+	conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+	_, _, readErr := conn.ReadMessage()
+	isClose := gorillaws.IsCloseError(readErr,
+		gorillaws.CloseMessageTooBig,
+		gorillaws.CloseAbnormalClosure,
+		gorillaws.CloseGoingAway,
+	)
 
-	assert.NoError(t, err,
-		"RED: 5 KB message was accepted even though MaxMessageSize constant is 4 KB — "+
-			"SetReadLimit uses 64 KB instead of the declared MaxMessageSize constant")
-
-	t.Logf("RED: ReadPump uses SetReadLimit(64 KB) but MaxMessageSize constant is %d bytes — "+
-		"the constant is misleading and unused", websocket.MaxMessageSize)
+	assert.True(t, isClose,
+		"connection must be closed when message exceeds MaxMessageSize (%d bytes); "+
+			"currently ReadPump uses SetReadLimit(64KB) instead of MaxMessageSize — "+
+			"the constant is declared but not enforced", websocket.MaxMessageSize)
 }
 
 // ---------------------------------------------------------------------------
@@ -261,6 +266,9 @@ func TestSecurity_RED_ReadLimitInconsistentWithMaxMessageSize(t *testing.T) {
 // strict lock ordering (always acquire h.mu before writeMu, never the reverse).
 // ---------------------------------------------------------------------------
 
+// TestSecurity_RED_SendToDaemonDeadlockRisk asserts that concurrent
+// SendToDaemon and Broadcast operations complete safely within a deadline.
+// A deadlock would cause the test to time out.
 func TestSecurity_RED_SendToDaemonDeadlockRisk(t *testing.T) {
 	hub := newDeepHub(t)
 	srv := newDeepHubServer(t, hub, func(r *http.Request) []websocket.ServeWSOption {
@@ -300,11 +308,10 @@ func TestSecurity_RED_SendToDaemonDeadlockRisk(t *testing.T) {
 
 	select {
 	case <-done:
-		// Completed without deadlock in this run.
-		t.Log("RED: SendToDaemon acquires h.mu then client.writeMu — " +
-			"potential deadlock with WritePump (lock ordering violation); " +
-			"this run did not deadlock but the code path is unsafe")
+		// All concurrent operations completed safely within the deadline.
+		// No deadlock detected.
 	case <-time.After(5 * time.Second):
-		t.Fatal("RED: deadlock detected — SendToDaemon + Broadcast timed out after 5s")
+		t.Fatal("deadlock detected — SendToDaemon + Broadcast did not complete within 5s; " +
+			"SendToDaemon acquires h.mu then client.writeMu — potential lock-ordering deadlock with WritePump")
 	}
 }

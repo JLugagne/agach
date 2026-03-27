@@ -47,7 +47,7 @@ func TestSecurity_RED_CreateAgentRequest_NegativeSortOrderAccepted(t *testing.T)
 		SortOrder: -999,
 	}
 	err := sortOrderValidator.Struct(req)
-	assert.NoError(t, err, "RED: negative SortOrder should be rejected but currently passes validation")
+	assert.Error(t, err, "RED: negative SortOrder should be rejected by min=0 validation")
 	t.Log("RED: CreateAgentRequest.SortOrder accepts negative values — no min=0 constraint")
 }
 
@@ -61,7 +61,7 @@ func TestSecurity_RED_CreateAgentRequest_MaxIntSortOrderAccepted(t *testing.T) {
 		SortOrder: math.MaxInt32,
 	}
 	err := sortOrderValidator.Struct(req)
-	assert.NoError(t, err, "RED: math.MaxInt32 SortOrder should be rejected but currently passes validation")
+	assert.Error(t, err, "RED: math.MaxInt32 SortOrder should be rejected by max= validation")
 	t.Log("RED: CreateAgentRequest.SortOrder accepts MaxInt32 — no upper bound constraint")
 }
 
@@ -75,7 +75,7 @@ func TestSecurity_RED_CreateSkillRequest_NegativeSortOrderAccepted(t *testing.T)
 		SortOrder: -1,
 	}
 	err := sortOrderValidator.Struct(req)
-	assert.NoError(t, err, "RED: negative SortOrder on CreateSkillRequest should be rejected but currently passes")
+	assert.Error(t, err, "RED: negative SortOrder on CreateSkillRequest should be rejected by min=0 validation")
 	t.Log("RED: CreateSkillRequest.SortOrder accepts negative values — no min=0 constraint")
 }
 
@@ -97,7 +97,7 @@ func TestSecurity_RED_UpdateChatStatsRequest_NegativeTokensAccepted(t *testing.T
 		CacheWriteTokens: -100,
 	}
 	err := sortOrderValidator.Struct(req)
-	assert.NoError(t, err, "RED: negative token counts in UpdateChatStatsRequest should be rejected but currently pass")
+	assert.Error(t, err, "RED: negative token counts in UpdateChatStatsRequest should be rejected by min=0 validation")
 	t.Log("RED: UpdateChatStatsRequest accepts negative token values — no min=0 constraint")
 }
 
@@ -120,7 +120,7 @@ func TestSecurity_RED_GrantUserAccessRequest_UnboundedUserID(t *testing.T) {
 		Role:   "member",
 	}
 	err := sortOrderValidator.Struct(req)
-	assert.NoError(t, err, "RED: a 10KB UserID should be rejected but currently passes validation")
+	assert.Error(t, err, "RED: a 10KB UserID should be rejected by max= validation")
 	t.Log("RED: GrantUserAccessRequest.UserID has no max length — accepts arbitrarily long strings")
 }
 
@@ -141,6 +141,6 @@ func TestSecurity_RED_GrantTeamAccessRequest_UnboundedTeamID(t *testing.T) {
 		TeamID: string(longID),
 	}
 	err := sortOrderValidator.Struct(req)
-	assert.NoError(t, err, "RED: a 10KB TeamID should be rejected but currently passes validation")
+	assert.Error(t, err, "RED: a 10KB TeamID should be rejected by max= validation")
 	t.Log("RED: GrantTeamAccessRequest.TeamID has no max length — accepts arbitrarily long strings")
 }

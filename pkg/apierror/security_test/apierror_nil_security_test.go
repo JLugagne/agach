@@ -23,41 +23,41 @@ import (
 //
 // File: pkg/apierror/apierror.go lines 14-36
 
-// TestSecurity_RED_NilPointerPanicOnError documents that calling Error()
-// on a nil *apierror.Error panics instead of returning a safe fallback.
+// TestSecurity_RED_NilPointerPanicOnError asserts that calling Error()
+// on a nil *apierror.Error does NOT panic — it should return a safe fallback.
+// This test currently FAILS because the production code has no nil receiver guard.
 // TODO(security): add nil receiver checks to Error(), ErrorCode(), ErrorMessage()
 func TestSecurity_RED_NilPointerPanicOnError(t *testing.T) {
 	var e *apierror.Error
 
-	// Calling Error() directly on a nil pointer panics.
-	assert.Panics(t, func() {
+	// Correct behavior: calling Error() on a nil pointer should NOT panic.
+	assert.NotPanics(t, func() {
 		_ = e.Error()
-	}, "RED: calling Error() on nil *apierror.Error panics — must return safe fallback")
-	t.Log("RED: nil *apierror.Error causes panic on Error() call — add nil receiver guard")
+	}, "RED: calling Error() on nil *apierror.Error must not panic — should return safe fallback")
 }
 
-// TestSecurity_RED_NilPointerPanicOnErrorCode documents that calling
-// ErrorCode() on a nil *apierror.Error panics.
+// TestSecurity_RED_NilPointerPanicOnErrorCode asserts that calling
+// ErrorCode() on a nil *apierror.Error does NOT panic.
+// This test currently FAILS because the production code has no nil receiver guard.
 // TODO(security): add nil receiver check to ErrorCode()
 func TestSecurity_RED_NilPointerPanicOnErrorCode(t *testing.T) {
 	var e *apierror.Error
 
-	assert.Panics(t, func() {
+	assert.NotPanics(t, func() {
 		_ = e.ErrorCode()
-	}, "RED: calling ErrorCode() on nil *apierror.Error panics — must return safe fallback")
-	t.Log("RED: nil *apierror.Error causes panic on ErrorCode() call")
+	}, "RED: calling ErrorCode() on nil *apierror.Error must not panic — should return safe fallback")
 }
 
-// TestSecurity_RED_NilPointerPanicOnErrorMessage documents that calling
-// ErrorMessage() on a nil *apierror.Error panics.
+// TestSecurity_RED_NilPointerPanicOnErrorMessage asserts that calling
+// ErrorMessage() on a nil *apierror.Error does NOT panic.
+// This test currently FAILS because the production code has no nil receiver guard.
 // TODO(security): add nil receiver check to ErrorMessage()
 func TestSecurity_RED_NilPointerPanicOnErrorMessage(t *testing.T) {
 	var e *apierror.Error
 
-	assert.Panics(t, func() {
+	assert.NotPanics(t, func() {
 		_ = e.ErrorMessage()
-	}, "RED: calling ErrorMessage() on nil *apierror.Error panics — must return safe fallback")
-	t.Log("RED: nil *apierror.Error causes panic on ErrorMessage() call")
+	}, "RED: calling ErrorMessage() on nil *apierror.Error must not panic — should return safe fallback")
 }
 
 // ─── VULNERABILITY: JSON marshaling does not control output shape ────────────
@@ -70,8 +70,9 @@ func TestSecurity_RED_NilPointerPanicOnErrorMessage(t *testing.T) {
 //
 // File: pkg/apierror/apierror.go lines 8-12
 
-// TestSecurity_RED_JSONMarshalingNoControlledOutput documents that
-// apierror.Error has no json tags to control serialization.
+// TestSecurity_RED_JSONMarshalingNoControlledOutput asserts that
+// apierror.Error's Err field does NOT appear in JSON output.
+// This test currently FAILS because there is no json:"-" tag suppressing it.
 // TODO(security): add json tags (especially json:"-" on Err) or implement MarshalJSON
 func TestSecurity_RED_JSONMarshalingNoControlledOutput(t *testing.T) {
 	e := &apierror.Error{
@@ -85,11 +86,9 @@ func TestSecurity_RED_JSONMarshalingNoControlledOutput(t *testing.T) {
 
 	jsonStr := string(data)
 
-	// Verify the Err field appears in the JSON output (as an empty object,
-	// since *errors.errorString has no exported fields).
-	// The vulnerability is that there's no json:"-" tag to suppress it,
-	// and a custom error type with exported fields would leak data.
-	assert.Contains(t, jsonStr, "Err",
-		"RED: apierror.Error Err field appears in JSON output — add json:\"-\" tag")
-	t.Log("RED: apierror.Error has no json tags — Err field appears in JSON output as uncontrolled key")
+	// Correct behavior: the Err field must NOT appear in the JSON output.
+	// It should be suppressed via json:"-" or a custom MarshalJSON to prevent
+	// internal error details from leaking through serialization.
+	assert.NotContains(t, jsonStr, "Err",
+		"RED: apierror.Error Err field must not appear in JSON output — add json:\"-\" tag")
 }

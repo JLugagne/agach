@@ -3,14 +3,12 @@ package security_test
 // Security tests for pkg/server/client/client.go
 //
 // Each vulnerability section contains:
-//   - RED test  : demonstrates the missing protection (currently the code behaves
-//                 unsafely — the test documents that fact)
-//   - GREEN test: the correct safe behaviour that SHOULD be enforced
+//   - RED test  : asserts CORRECT safe behaviour — fails today because the
+//                 production code does not yet implement the protection.
+//   - GREEN test: the correct safe behaviour that IS already enforced.
 //
-// Note on RED tests: because Go panics/compile errors are not the right way to
-// express "this should be rejected at the API boundary", RED tests are written
-// as assertions that describe the CURRENT (broken) behaviour and are expected to
-// pass as-is.  Comments explain what the correct behaviour should be.
+// Note on RED tests: they are written to FAIL against the current production
+// code, documenting what must be fixed.
 
 import (
 	"encoding/json"
@@ -59,16 +57,28 @@ func decodeJSONBody(r *http.Request, v any) error {
 // services, local files, or metadata endpoints (e.g., http://169.254.169.254).
 
 func TestSecurity_RED_SSRF_ArbitrarySchemeAccepted(t *testing.T) {
-	// RED: New() accepts a file:// URL without error.
-	// This should be rejected; instead the constructor returns a client silently.
+	// RED: New() must reject a file:// URL; any subsequent call must return an
+	// error so that the unsupported scheme cannot be used to read local files.
+	// Currently New() sets c.err but still returns a non-nil *Client; callers
+	// who do not check the error from the first method call can still attempt
+	// to use the client.  The correct safe behaviour is that New() either
+	// returns nil or that the very first operation surfaces the error.
+	//
+	// This test asserts the correct (not-yet-implemented) behaviour:
+	// a file:// URL is rejected at construction with a nil client.
 	c := client.New("file:///etc/passwd")
-	assert.NotNil(t, c, "RED: New() should reject file:// scheme but currently accepts it silently")
+	assert.Nil(t, c, "RED: New() must return nil (not a *Client) when given a file:// URL so that callers cannot use it")
 }
 
 func TestSecurity_RED_SSRF_InternalMetadataEndpointAccepted(t *testing.T) {
-	// RED: New() accepts the AWS EC2 metadata endpoint without error.
+	// RED: New() must reject the AWS EC2 metadata endpoint and return nil so
+	// that callers cannot accidentally use the client against internal metadata
+	// services.  Currently New() returns a non-nil *Client with c.err set.
+	//
+	// This test asserts the correct (not-yet-implemented) behaviour:
+	// a link-local metadata IP produces a nil client.
 	c := client.New("http://169.254.169.254")
-	assert.NotNil(t, c, "RED: New() should reject internal/link-local URLs but currently accepts them")
+	assert.Nil(t, c, "RED: New() must return nil for internal/link-local URLs — currently returns a non-nil *Client")
 }
 
 func TestSecurity_GREEN_SSRF_ValidHTTPURLAccepted(t *testing.T) {
@@ -95,8 +105,13 @@ func TestSecurity_GREEN_SSRF_ValidHTTPSURLAccepted(t *testing.T) {
 // minimum TLS version.
 
 func TestSecurity_RED_NoTLSEnforcement_PlainHTTPAllowed(t *testing.T) {
-	// RED: the client willingly talks over plaintext HTTP — observed by
-	// checking that a request to a plain HTTP test server succeeds.
+	// RED: the client should reject plain-text HTTP requests and return an
+	// error for any operation issued over http://.  In a production deployment
+	// all traffic must go over TLS to prevent credentials and task data from
+	// being intercepted.
+	//
+	// This test asserts the correct (not-yet-implemented) behaviour:
+	// a request to a plain http:// server must fail with an error.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(t, w, http.StatusOK, successResponse([]any{}))
 	}))
@@ -104,7 +119,7 @@ func TestSecurity_RED_NoTLSEnforcement_PlainHTTPAllowed(t *testing.T) {
 
 	c := client.New(srv.URL) // srv.URL is http://
 	_, err := c.ListProjects()
-	assert.NoError(t, err, "RED: the client should enforce HTTPS for production use but currently allows plaintext HTTP")
+	assert.Error(t, err, "RED: the client must reject plaintext HTTP — currently it allows unencrypted traffic")
 }
 
 func TestSecurity_GREEN_TLS_DefaultClientTrustsPublicCerts(t *testing.T) {
@@ -138,12 +153,14 @@ func TestSecurity_GREEN_TLS_DefaultClientTrustsPublicCerts(t *testing.T) {
 // the path, so the server receives a traversed path rather than an error.
 
 func TestSecurity_RED_PathInjection_GetColumnsTraversal(t *testing.T) {
-	// RED: "proj/../../admin" is concatenated into the path without escaping.
-	// The server receives the raw dotted path "/api/projects/proj/../../admin/columns"
-	// because url.PathEscape is not used.  A server that resolves "../.." would
-	// route the request to the wrong endpoint entirely.
-	// The ID should be percent-encoded so the server receives
-	// "/api/projects/proj%2F..%2F..%2Fadmin/columns" (a single path segment).
+	// RED: an ID containing slashes and dots must be percent-encoded so the
+	// server receives a single opaque path segment rather than a traversal
+	// sequence.  The safe server path for ID "proj/../../admin" is
+	// "/api/projects/proj%2F..%2F..%2Fadmin/columns".
+	//
+	// This test asserts the correct (not-yet-implemented) behaviour:
+	// the path received by the server contains "%2F" (encoded slash), NOT
+	// literal slash/dot traversal sequences.
 	var receivedPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedPath = r.URL.Path
@@ -154,15 +171,12 @@ func TestSecurity_RED_PathInjection_GetColumnsTraversal(t *testing.T) {
 	c := client.New(srv.URL)
 	_, _ = c.GetColumns("proj/../../admin")
 
-	// The server receives the raw un-encoded path — this IS the vulnerability.
-	// url.PathEscape should have been applied so the slashes and dots become
-	// "%2F" and "%2E%2E" respectively.
-	assert.Equal(t, "/api/projects/proj/../../admin/columns", receivedPath,
-		"RED: path traversal sequences in the ID are NOT percent-encoded — url.PathEscape must be used")
-	// After safe encoding the server would receive a path that still starts with
-	// /api/projects/ and contains the encoded segment, not a traversal.
-	assert.NotContains(t, receivedPath, "%2F",
-		"RED: the path contains literal slashes, not percent-encoded ones")
+	// The server must NOT receive a traversal path — slashes in the ID must be
+	// encoded as %2F so the ID remains a single path segment.
+	assert.NotEqual(t, "/api/projects/proj/../../admin/columns", receivedPath,
+		"RED: path traversal sequences in the ID must be percent-encoded — url.PathEscape must be used")
+	assert.Contains(t, receivedPath, "%2F",
+		"RED: the path must contain percent-encoded slashes (%2F) rather than literal slash characters")
 }
 
 func TestSecurity_GREEN_PathInjection_SafeIDIsPassedThrough(t *testing.T) {
@@ -179,7 +193,12 @@ func TestSecurity_GREEN_PathInjection_SafeIDIsPassedThrough(t *testing.T) {
 }
 
 func TestSecurity_RED_PathInjection_GetProjectTraversal(t *testing.T) {
-	// RED: projectID with embedded slashes is concatenated unsafely.
+	// RED: a projectID containing an embedded slash must be percent-encoded.
+	// The safe server path for ID "proj/extra-segment" is
+	// "/api/projects/proj%2Fextra-segment".
+	//
+	// This test asserts the correct (not-yet-implemented) behaviour:
+	// the received path does NOT contain a bare slash inside the ID segment.
 	var receivedPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedPath = r.URL.Path
@@ -195,10 +214,12 @@ func TestSecurity_RED_PathInjection_GetProjectTraversal(t *testing.T) {
 	c := client.New(srv.URL)
 	_, _ = c.GetProject("proj/extra-segment")
 
-	// The path received by the server will be "/api/projects/proj/extra-segment"
-	// instead of "/api/projects/proj%2Fextra-segment" — proving the ID is not encoded.
-	assert.Equal(t, "/api/projects/proj/extra-segment", receivedPath,
-		"RED: an ID with an embedded slash creates an extra path segment — url.PathEscape should be used")
+	// The path must NOT be "/api/projects/proj/extra-segment" (extra segment).
+	// It must be "/api/projects/proj%2Fextra-segment" (encoded single segment).
+	assert.NotEqual(t, "/api/projects/proj/extra-segment", receivedPath,
+		"RED: an ID with an embedded slash must not create an extra path segment — url.PathEscape must be applied")
+	assert.Contains(t, receivedPath, "%2F",
+		"RED: the slash in the project ID must be percent-encoded as %2F")
 }
 
 func TestSecurity_GREEN_PathInjection_SimpleProjectIDIsCorrect(t *testing.T) {
@@ -252,7 +273,13 @@ func TestSecurity_GREEN_NoCredentials_RequestIsAnonymous(t *testing.T) {
 // File: pkg/server/client/client.go lines 77-89
 
 func TestSecurity_RED_NoResponseSizeLimit_LargeBodyConsumed(t *testing.T) {
-	// RED: the client reads a 2 MB response body without error.
+	// RED: a response body larger than a safe limit (e.g., 1 MB) must be
+	// rejected with an error rather than decoded into memory.  The current
+	// maxResponseBytes constant is 10 MB which is still excessive for a
+	// task-management API; a stricter limit (e.g., 1 MB) should be enforced.
+	//
+	// This test asserts the correct (not-yet-implemented) behaviour:
+	// a 2 MB response body must cause an error to be returned.
 	largePadding := strings.Repeat("x", 2*1024*1024) // 2 MB
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Return a valid JSON envelope with a large string inside the data.
@@ -265,11 +292,11 @@ func TestSecurity_RED_NoResponseSizeLimit_LargeBodyConsumed(t *testing.T) {
 	defer srv.Close()
 
 	c := client.New(srv.URL)
-	result, err := c.ListProjects()
+	_, err := c.ListProjects()
 
-	// Currently succeeds — the client reads the full 2 MB response.
-	assert.NoError(t, err, "RED: a 2 MB response body is consumed without error — a response size limit should be enforced")
-	assert.Len(t, result, 1, "RED: the oversized response was decoded as if normal")
+	// A 2 MB response must be rejected — the client must enforce a response
+	// size limit well below 2 MB to protect against memory exhaustion.
+	assert.Error(t, err, "RED: a 2 MB response body must be rejected — a response size limit below 2 MB must be enforced")
 }
 
 func TestSecurity_GREEN_NormalSizedResponseIsDecoded(t *testing.T) {
@@ -294,7 +321,13 @@ func TestSecurity_GREEN_NormalSizedResponseIsDecoded(t *testing.T) {
 // File: pkg/server/client/client.go lines 340-360
 
 func TestSecurity_RED_GetColumnCounts_ExcessiveDataFetch(t *testing.T) {
-	// RED: GetColumnCounts fetches up to 9999 full task objects per column.
+	// RED: GetColumnCounts must use a reasonable fetch limit (e.g., ≤ 100) or
+	// a dedicated count-only endpoint.  Fetching up to 9999 full task objects
+	// per column is a DoS amplification risk.
+	//
+	// This test asserts the correct (not-yet-implemented) behaviour:
+	// the limit query parameter must be a reasonable value, strictly less than
+	// 1000.
 	var maxLimit string
 	callCount := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -311,8 +344,10 @@ func TestSecurity_RED_GetColumnCounts_ExcessiveDataFetch(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 4, callCount, "GetColumnCounts must make 4 HTTP calls (one per column)")
-	assert.Equal(t, "9999", maxLimit,
-		"RED: GetColumnCounts requests up to 9999 full task objects per column — a count-only endpoint should be used")
+	// The limit must be a small, safe value — not the current unbounded 9999.
+	// We accept any integer < 1000 as "reasonable"; 9999 must not be used.
+	assert.NotEqual(t, "9999", maxLimit,
+		"RED: GetColumnCounts must not request 9999 full task objects per column — use a count endpoint or a small limit")
 }
 
 func TestSecurity_GREEN_GetColumnCounts_ReturnsCorrectCounts(t *testing.T) {

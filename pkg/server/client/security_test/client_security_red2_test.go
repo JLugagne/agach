@@ -3,6 +3,8 @@ package security_test
 // Additional RED security tests for pkg/server/client/client.go — round 2.
 //
 // These tests cover vulnerabilities NOT already documented in client_security_test.go.
+// All RED tests assert CORRECT safe behaviour that is not yet implemented;
+// they are expected to FAIL against the current production code.
 
 import (
 	"net/http"
@@ -24,11 +26,13 @@ import (
 //
 // File: pkg/server/client/client.go line 39 — `httpClient: &http.Client{}`
 
-// TestSecurity_RED_NoRequestTimeout documents that the client has no timeout
-// and will hang indefinitely on a slow server.
+// TestSecurity_RED_NoRequestTimeout asserts that the client enforces a request
+// timeout and does NOT hang indefinitely on a slow server.
+// Currently the client has no timeout so requests block for the full server
+// delay; this test will FAIL until a default timeout is added.
 // TODO(security): set a reasonable default Timeout (e.g., 30s) on the http.Client
 func TestSecurity_RED_NoRequestTimeout(t *testing.T) {
-	// Create a server that delays longer than a reasonable timeout
+	// Create a server that delays longer than a reasonable timeout should allow.
 	slowServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(5 * time.Second) // Simulates slow/hung server
 		writeJSON(t, w, http.StatusOK, successResponse([]any{}))
@@ -37,8 +41,8 @@ func TestSecurity_RED_NoRequestTimeout(t *testing.T) {
 
 	c := client.New(slowServer.URL)
 
-	// If the client had a timeout, this would fail after the timeout.
-	// Instead it will hang for the full 5 seconds.
+	// A client with a sensible timeout (e.g., <= 2s) must time out well before
+	// the 5-second server delay completes.
 	start := time.Now()
 	done := make(chan struct{})
 	go func() {
@@ -49,12 +53,13 @@ func TestSecurity_RED_NoRequestTimeout(t *testing.T) {
 	select {
 	case <-done:
 		elapsed := time.Since(start)
-		// The request completed after the full 5s delay, proving no timeout was enforced
-		assert.GreaterOrEqual(t, elapsed, 4*time.Second,
-			"RED: the client waited the full server delay — no request timeout is enforced")
-		t.Log("RED: client has no HTTP timeout — requests can hang indefinitely on unresponsive servers")
+		// The request must complete (via timeout error) in well under 5s.
+		// We allow up to 3s to give generous leeway for CI slowness while still
+		// proving that the client did not wait the full server delay.
+		assert.Less(t, elapsed, 3*time.Second,
+			"RED: the client must enforce a request timeout — currently it waits the full 5s server delay with no timeout")
 	case <-time.After(6 * time.Second):
-		t.Fatal("test timed out — server/client deadlock")
+		t.Fatal("test timed out — client hung for more than 6s confirming no request timeout is enforced")
 	}
 }
 
@@ -70,8 +75,13 @@ func TestSecurity_RED_NoRequestTimeout(t *testing.T) {
 //
 // File: pkg/server/client/client.go lines 23-72
 
-// TestSecurity_RED_SSRF_PrivateNetworkNotBlocked documents that private
-// network addresses are accepted by the client constructor.
+// TestSecurity_RED_SSRF_PrivateNetworkNotBlocked asserts that RFC 1918 private
+// network addresses are rejected by New() at construction time, without making
+// any live network connection.  The rejection must be detectable immediately
+// (not after a TCP connection timeout) so the test uses a goroutine with a
+// short deadline to distinguish "blocked at construction" from "hanging on I/O".
+// Currently private addresses are accepted; this test will FAIL until the
+// SSRF filter is extended to cover RFC 1918 ranges.
 // TODO(security): block RFC 1918 private ranges and loopback in New()
 func TestSecurity_RED_SSRF_PrivateNetworkNotBlocked(t *testing.T) {
 	privateAddresses := []string{
@@ -81,17 +91,39 @@ func TestSecurity_RED_SSRF_PrivateNetworkNotBlocked(t *testing.T) {
 	}
 
 	for _, addr := range privateAddresses {
-		c := client.New(addr)
-		// Try to make a request — it will fail because the host doesn't exist,
-		// but the constructor should have rejected it upfront.
-		_, err := c.ListProjects()
-		// If err is nil or a connection error (not a "blocked" error), the
-		// constructor accepted the private address.
-		if err != nil {
-			assert.NotContains(t, err.Error(), "blocked",
-				"RED: private address %s is not blocked by the client constructor", addr)
-		}
-		t.Logf("RED: private network address %s accepted by client.New() — should be blocked for SSRF prevention", addr)
+		addr := addr
+		t.Run(addr, func(t *testing.T) {
+			// The client must be created with an error for any private network address
+			// so that calling any method immediately returns an error containing
+			// "blocked" (or similar) rather than attempting a live connection.
+			//
+			// We run ListProjects() in a goroutine with a short deadline to
+			// distinguish "blocked at construction (instant)" from "connecting to
+			// network (hangs)".  If the call does not return within 200ms the
+			// constructor accepted the address and is making a live network attempt,
+			// which is the vulnerability being documented.
+			c := client.New(addr)
+			require.NotNil(t, c, "client.New always returns a non-nil *Client")
+
+			type result struct {
+				err error
+			}
+			ch := make(chan result, 1)
+			go func() {
+				_, err := c.ListProjects()
+				ch <- result{err}
+			}()
+
+			select {
+			case res := <-ch:
+				require.Error(t, res.err,
+					"RED: private network address %s must be blocked — currently New() accepts it", addr)
+				assert.Contains(t, res.err.Error(), "blocked",
+					"RED: the error for private address %s must mention 'blocked' to confirm SSRF protection", addr)
+			case <-time.After(200 * time.Millisecond):
+				t.Fatalf("RED: client.New(%q) accepted the private address and is hanging on a live connection — must be blocked at construction", addr)
+			}
+		})
 	}
 }
 
@@ -104,30 +136,33 @@ func TestSecurity_RED_SSRF_PrivateNetworkNotBlocked(t *testing.T) {
 //
 // File: pkg/server/client/client.go lines 129-142
 
-// TestSecurity_RED_ErrorStatusCodeNotChecked documents that the client accepts
-// a 500 response as success if the JSON envelope has status="success".
+// TestSecurity_RED_ErrorStatusCodeNotChecked asserts that the client returns
+// an error when the server responds with HTTP 500, even if the JSON body
+// contains a "success" envelope.
+// Currently decodeResponse() ignores the HTTP status code; this test will
+// FAIL until status-code checking is added.
 // TODO(security): check resp.StatusCode before decoding; reject non-2xx responses
 func TestSecurity_RED_ErrorStatusCodeNotChecked(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Server returns 500 but with a "success" envelope
+		// Server returns 500 but with a "success" envelope.
 		writeJSON(t, w, http.StatusInternalServerError, successResponse([]any{}))
 	}))
 	defer srv.Close()
 
 	c := client.New(srv.URL)
-	result, err := c.ListProjects()
+	_, err := c.ListProjects()
 
-	// The client should reject this because the HTTP status is 500.
-	// Currently it decodes the body and returns success.
-	assert.NoError(t, err,
-		"RED: client accepts HTTP 500 with success JSON envelope as a successful response")
-	assert.Empty(t, result)
-	t.Log("RED: decodeResponse() ignores HTTP status code — 500 with valid JSON envelope treated as success")
+	// An HTTP 500 must be treated as an error regardless of the JSON body.
+	assert.Error(t, err,
+		"RED: client must return an error for HTTP 500 — currently it accepts a 500 with a success JSON envelope as success")
 }
 
-// TestSecurity_RED_InternalErrorDetailsLeakedViaErrorResponse documents that
-// internal error details from the server error response are passed directly
-// to the caller without sanitization.
+// TestSecurity_RED_InternalErrorDetailsLeakedViaErrorResponse asserts that
+// raw internal database error strings from the server are NOT forwarded
+// verbatim to the caller.  The client must sanitize or strip internal details
+// (e.g., "pq:", SQL state codes) from error messages before surfacing them.
+// Currently the raw DB error is passed through; this test will FAIL until
+// sanitization is implemented.
 // TODO(security): sanitize error messages from server responses before returning to callers
 func TestSecurity_RED_InternalErrorDetailsLeakedViaErrorResponse(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -145,10 +180,11 @@ func TestSecurity_RED_InternalErrorDetailsLeakedViaErrorResponse(t *testing.T) {
 	_, err := c.ListProjects()
 	require.Error(t, err)
 
-	// The raw internal database error is forwarded to the caller
-	assert.Contains(t, err.Error(), "pq:",
-		"RED: internal database error details are leaked to the client caller")
-	assert.Contains(t, err.Error(), "SQLSTATE",
-		"RED: SQL state codes are exposed in client error messages")
-	t.Log("RED: server error messages containing internal details (DB errors) are passed through to callers unsanitized")
+	// The client must NOT expose raw database error details to its callers.
+	// Internal strings like "pq:" and "SQLSTATE" must be stripped or replaced
+	// with a generic error message before being returned.
+	assert.NotContains(t, err.Error(), "pq:",
+		"RED: the client must not leak raw database driver errors ('pq:') to callers")
+	assert.NotContains(t, err.Error(), "SQLSTATE",
+		"RED: the client must not leak SQL state codes to callers")
 }

@@ -29,9 +29,11 @@ import (
 // VULN-1 — Exported Err field exposes raw internal error directly
 // ---------------------------------------------------------------------------
 
-// RED: demonstrates that a caller outside the package can read the raw
-// internal cause from the exported Err field without using Unwrap.
-// This test PASSES with current code, proving the vulnerability is real.
+// RED: asserts that the internal cause is NOT accessible via the Err field,
+// i.e. the field should be unexported or the struct should not allow direct
+// access to the raw internal error from outside the package.
+// This test currently FAILS because Err is an exported field and equals internalCause.
+// TODO(security): make Err unexported or remove direct field access
 func TestSecurity_RED_ErrFieldIsPubliclyReadable(t *testing.T) {
 	internalCause := errors.New("pq: relation \"users\" does not exist")
 	e := &apierror.Error{
@@ -40,10 +42,11 @@ func TestSecurity_RED_ErrFieldIsPubliclyReadable(t *testing.T) {
 		Err:     internalCause,
 	}
 
-	// The vulnerability: the exported Err field hands the caller a reference
-	// to the raw internal error without any indirection.
-	assert.Equal(t, internalCause, e.Err,
-		"RED: Err field is publicly readable — internal DB error is exposed to any caller")
+	// Correct behavior: the raw internal error must not be directly readable
+	// by external callers. After the fix (unexported Err or no direct field),
+	// the internal cause must not be reachable via e.Err.
+	assert.NotEqual(t, internalCause, e.Err,
+		"RED: Err field must not expose the raw internal error to callers — field should be unexported")
 }
 
 // GREEN: the safe contract — Error() must never surface the internal cause text

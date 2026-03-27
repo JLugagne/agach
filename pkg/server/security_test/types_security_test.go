@@ -129,8 +129,8 @@ func TestSecurity_RED_CompleteTaskRequest_NegativeTokensAccepted(t *testing.T) {
 		HumanEstimateSeconds: -3600,
 	}
 	err := sharedValidator.Struct(req)
-	// Currently passes — negative tokens are not rejected.
-	assert.NoError(t, err, "RED: negative token counts should be rejected but currently pass validation")
+	// Should fail — negative tokens must be rejected.
+	assert.Error(t, err, "RED: negative token counts should be rejected by min=0 validation")
 }
 
 func TestSecurity_GREEN_CompleteTaskRequest_ZeroTokensAccepted(t *testing.T) {
@@ -186,7 +186,7 @@ func TestSecurity_RED_ReorderTaskRequest_ExcessivePositionAccepted(t *testing.T)
 		Position: 1<<31 - 1, // math.MaxInt32 — effectively unbounded
 	}
 	err := sharedValidator.Struct(req)
-	assert.NoError(t, err, "RED: an absurdly large position value should be rejected but currently passes validation")
+	assert.Error(t, err, "RED: an absurdly large position value should be rejected by max= validation")
 }
 
 func TestSecurity_GREEN_ReorderTaskRequest_ZeroPositionAccepted(t *testing.T) {

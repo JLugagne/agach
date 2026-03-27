@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"testing"
 
 	"github.com/JLugagne/agach-mcp/internal/pkg/middleware"
@@ -52,7 +53,7 @@ func newDeepAuthHandler2() http.Handler {
 // Combined with Access-Control-Allow-Credentials: true (if ever added),
 // this is a full credential-stealing CORS bypass.
 //
-// TODO(security): Validate the Origin header against an explicit allowlist.
+// Fix: Validate the Origin header against an explicit allowlist.
 // Return 403 or omit the CORS headers for origins not on the list.
 // ---------------------------------------------------------------------------
 
@@ -76,13 +77,11 @@ func TestSecurity_RED_CORSReflectsArbitraryOrigin(t *testing.T) {
 			require.Equal(t, http.StatusOK, rr.Code)
 
 			acao := rr.Header().Get("Access-Control-Allow-Origin")
-			assert.Equal(t, origin, acao,
-				"RED: server reflects attacker-controlled Origin %q into Access-Control-Allow-Origin — "+
-					"this allows any website to make authenticated cross-origin requests", origin)
+			assert.NotEqual(t, origin, acao,
+				"RED: server must NOT reflect attacker-controlled Origin %q into Access-Control-Allow-Origin — "+
+					"fix: validate Origin against an explicit allowlist; reject or omit CORS headers for unknown origins", origin)
 		})
 	}
-
-	t.Log("RED: NewRequireAuth echoes arbitrary Origin into ACAO header (CORS misconfiguration)")
 }
 
 // ---------------------------------------------------------------------------
@@ -100,7 +99,7 @@ func TestSecurity_RED_CORSReflectsArbitraryOrigin(t *testing.T) {
 // Origin: null, and the server will allow the request. This is a known
 // CORS bypass technique.
 //
-// TODO(security): Never set Access-Control-Allow-Origin to "null".
+// Fix: Never set Access-Control-Allow-Origin to "null".
 // When Origin is empty, either omit the header entirely or set it to
 // the configured application origin.
 // ---------------------------------------------------------------------------
@@ -117,11 +116,10 @@ func TestSecurity_RED_CORSAllowsNullOrigin(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	acao := rr.Header().Get("Access-Control-Allow-Origin")
-	assert.Equal(t, "null", acao,
-		"RED: server sets Access-Control-Allow-Origin: null when Origin is absent — "+
-			"sandboxed iframes and data: URIs send Origin: null and will be allowed")
-
-	t.Log("RED: NewRequireAuth allows the 'null' origin (sandbox iframe CORS bypass)")
+	assert.NotEqual(t, "null", acao,
+		"RED: server must NOT set Access-Control-Allow-Origin: null when Origin is absent — "+
+			"sandboxed iframes and data: URIs send Origin: null and would be allowed; "+
+			"fix: omit ACAO header when no Origin is present, or set it to an explicit allowed origin")
 }
 
 // ---------------------------------------------------------------------------
@@ -135,7 +133,7 @@ func TestSecurity_RED_CORSAllowsNullOrigin(t *testing.T) {
 // to a request that DID have an Origin, or vice versa, causing CORS
 // confusion. The Vary: Origin header must be set unconditionally.
 //
-// TODO(security): Always set Vary: Origin regardless of whether Origin
+// Fix: Always set Vary: Origin regardless of whether Origin
 // is present in the request.
 // ---------------------------------------------------------------------------
 
@@ -151,34 +149,32 @@ func TestSecurity_RED_MissingVaryHeaderWhenNoOrigin(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	vary := rr.Header().Get("Vary")
-	// RED: Vary header is NOT set when Origin is absent, so caches may
-	// serve the "null" ACAO response to a request that DID have an Origin.
-	assert.Empty(t, vary,
-		"RED: Vary: Origin is missing when no Origin header is present — "+
-			"cached responses may be served with wrong ACAO value")
-	t.Log("RED: Vary: Origin not set on responses when Origin header is absent")
+	// RED: Vary: Origin must be set unconditionally so caches never serve
+	// a response with the wrong ACAO value to a client with a different Origin.
+	assert.Contains(t, vary, "Origin",
+		"RED: Vary: Origin must be set even when no Origin header is present — "+
+			"fix: move w.Header().Set(\"Vary\", \"Origin\") outside the origin != \"\" branch")
 }
 
 // ---------------------------------------------------------------------------
-// VULNERABILITY: Security headers set only on authenticated responses
+// SECURITY: Security headers on unauthenticated responses
 //
 // File: middleware.go:72-74
 //
 // X-Content-Type-Options, X-Frame-Options, and Cache-Control are set
-// inside NewRequireAuth, which means they are ONLY present on responses
-// that pass through the auth middleware. Unauthenticated endpoints
-// (health check, login, SSE, static files) do NOT get these headers.
-// An attacker can target unauthenticated endpoints for MIME-sniffing
-// or clickjacking attacks.
+// inside NewRequireAuth before the auth check runs, so they appear on
+// both authenticated and unauthenticated (401) responses. This is
+// correct behavior, but it is an implementation detail: these headers
+// are coupled to the auth middleware rather than being applied via a
+// dedicated SecurityHeaders middleware that wraps ALL routes.
 //
-// TODO(security): Move security headers to a dedicated middleware that
-// wraps ALL routes, not just authenticated ones.
+// Note: endpoints not wrapped by NewRequireAuth will lack these headers.
 // ---------------------------------------------------------------------------
 
-func TestSecurity_RED_SecurityHeadersMissingOnUnauthenticatedResponse(t *testing.T) {
+func TestSecurity_SecurityHeadersPresentOnUnauthenticatedResponse(t *testing.T) {
 	handler := newDeepAuthHandler2()
 
-	// Send a request that will be rejected (no auth) — check if security
+	// Send a request that will be rejected (no auth) — verify security
 	// headers are present on the 401 response.
 	req := httptest.NewRequest(http.MethodGet, "/api/resource", nil)
 	// No Authorization header.
@@ -187,23 +183,15 @@ func TestSecurity_RED_SecurityHeadersMissingOnUnauthenticatedResponse(t *testing
 
 	require.Equal(t, http.StatusUnauthorized, rr.Code)
 
-	// The 401 response should still carry security headers to protect the
-	// error page from MIME sniffing, framing, and caching.
+	// Security headers should be present on 401 responses because
+	// NewRequireAuth sets them before performing the auth check.
 	xcto := rr.Header().Get("X-Content-Type-Options")
 	xfo := rr.Header().Get("X-Frame-Options")
 
-	// In the current code, the headers ARE set before the auth check runs,
-	// so they appear on 401 responses too. But this is an implementation
-	// detail — they should be in a separate middleware.
-	// We test that they are present as a baseline, and document that they
-	// are coupled to the auth middleware.
 	assert.Equal(t, "nosniff", xcto,
-		"Security headers should be present on 401 responses")
+		"Security headers must be present on 401 responses")
 	assert.Equal(t, "DENY", xfo,
-		"Security headers should be present on 401 responses")
-
-	t.Log("RED: Security headers are coupled to NewRequireAuth — " +
-		"endpoints not wrapped by auth middleware will lack these headers")
+		"Security headers must be present on 401 responses")
 }
 
 // ---------------------------------------------------------------------------
@@ -217,25 +205,36 @@ func TestSecurity_RED_SecurityHeadersMissingOnUnauthenticatedResponse(t *testing
 // done/stop channel. In tests or long-running servers that recreate handlers,
 // these goroutines accumulate.
 //
-// TODO(security): Add a stop channel to ipRateLimiter and provide a Close()
+// Fix: Add a stop channel to ipRateLimiter and provide a Close()
 // method, or use context.Context to control the goroutine lifetime.
 // ---------------------------------------------------------------------------
 
 func TestSecurity_RED_RateLimiterCleanupGoroutineLeaksOnRecreation(t *testing.T) {
-	// Each call to RateLimit creates a new ipRateLimiter with a background
-	// goroutine that never exits. Creating many handlers leaks goroutines.
-	for i := 0; i < 10; i++ {
+	const handlerCount = 10
+
+	before := runtime.NumGoroutine()
+
+	for i := 0; i < handlerCount; i++ {
 		handler := middleware.RateLimit(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 		_ = handler
 	}
 
-	// We cannot directly observe goroutine count from an external test package,
-	// but we document the leak: 10 cleanup goroutines are now running and will
-	// never exit.
-	t.Log("RED: each call to RateLimit spawns a background cleanup goroutine that never exits — " +
-		"10 handlers = 10 leaked goroutines; no Close/Stop method exists")
+	// Allow goroutines to start.
+	runtime.Gosched()
+
+	after := runtime.NumGoroutine()
+
+	// RED: a secure implementation would not spawn long-lived goroutines when
+	// creating handlers (or would provide a Close() method to stop them).
+	// Current code spawns one cleanup goroutine per RateLimit() call with no
+	// way to stop it, so the goroutine count must grow.
+	assert.Equal(t, before, after,
+		"RED: each call to RateLimit must not spawn a background goroutine that cannot be stopped — "+
+			"got %d goroutines before, %d after creating %d handlers; "+
+			"fix: provide a Close()/Stop() method or accept a context to control goroutine lifetime",
+		before, after, handlerCount)
 }
 
 // ---------------------------------------------------------------------------
@@ -248,7 +247,7 @@ func TestSecurity_RED_RateLimiterCleanupGoroutineLeaksOnRecreation(t *testing.T)
 // clients that rely on Content-Type to parse the response will fail.
 // This is inconsistent with the rest of the API which returns JSON.
 //
-// TODO(security): Use w.Header().Set("Content-Type", "application/json")
+// Fix: Use w.Header().Set("Content-Type", "application/json")
 // followed by w.WriteHeader and w.Write instead of http.Error.
 // ---------------------------------------------------------------------------
 
@@ -265,11 +264,11 @@ func TestSecurity_RED_LimitBodySizeResponseNotJSON(t *testing.T) {
 	require.Equal(t, http.StatusRequestEntityTooLarge, rr.Code)
 
 	ct := rr.Header().Get("Content-Type")
-	// RED: http.Error sets text/plain, but the body is JSON — this is inconsistent.
-	assert.Contains(t, ct, "text/plain",
-		"RED: LimitBodySize sends JSON body with Content-Type: text/plain — "+
-			"JSON-parsing clients will fail to parse the error response")
-	t.Log("RED: LimitBodySize error response has Content-Type text/plain instead of application/json")
+	// RED: the body is a JSON object but Content-Type must be application/json
+	// so that JSON-parsing clients can correctly parse the error response.
+	assert.Contains(t, ct, "application/json",
+		"RED: LimitBodySize error response must have Content-Type: application/json — "+
+			"fix: replace http.Error with explicit w.Header().Set(\"Content-Type\", \"application/json\") + json body write")
 }
 
 // ---------------------------------------------------------------------------
@@ -279,7 +278,7 @@ func TestSecurity_RED_LimitBodySizeResponseNotJSON(t *testing.T) {
 //
 // Same issue as LimitBodySize: http.Error sets text/plain but the body is JSON.
 //
-// TODO(security): Replace http.Error with explicit JSON Content-Type header.
+// Fix: Replace http.Error with explicit JSON Content-Type header.
 // ---------------------------------------------------------------------------
 
 func TestSecurity_RED_RateLimitResponseNotJSON(t *testing.T) {
@@ -304,9 +303,9 @@ func TestSecurity_RED_RateLimitResponseNotJSON(t *testing.T) {
 		"should have been rate-limited")
 
 	ct := rr.Header().Get("Content-Type")
-	// RED: http.Error sets text/plain, but the body is JSON — this is inconsistent.
-	assert.Contains(t, ct, "text/plain",
-		"RED: RateLimit sends JSON body with Content-Type: text/plain — "+
-			"JSON-parsing clients will fail to parse the 429 response")
-	t.Log("RED: RateLimit error response has Content-Type text/plain instead of application/json")
+	// RED: the body is a JSON object but Content-Type must be application/json
+	// so that JSON-parsing clients can correctly parse the 429 response.
+	assert.Contains(t, ct, "application/json",
+		"RED: RateLimit error response must have Content-Type: application/json — "+
+			"fix: replace http.Error with explicit w.Header().Set(\"Content-Type\", \"application/json\") + json body write")
 }

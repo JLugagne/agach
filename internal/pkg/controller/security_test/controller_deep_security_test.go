@@ -28,15 +28,11 @@ func newDeepCtrl() *controller.Controller {
 }
 
 // ---------------------------------------------------------------------------
-// VULNERABILITY: DecodeAndValidate silently ignores trailing JSON
+// SECURITY: DecodeAndValidate must reject trailing JSON
 //
-// json.NewDecoder reads exactly one JSON value and stops. If the request body
-// contains multiple concatenated JSON objects (e.g. `{"a":1}{"b":2}`), only
-// the first is decoded and validated. The trailing data is silently ignored.
-//
-// An attacker can append extra JSON objects that might be consumed by a
-// downstream body reader (HTTP request smuggling via JSON) or use the trailing
-// data to bypass WAF/signature checks that inspect the full body.
+// A secure implementation calls dec.More() after Decode and returns an error
+// if there is any remaining data in the body. This prevents HTTP request
+// smuggling via JSON and bypassing WAF/signature checks.
 //
 // File: controller.go:152-154 — dec.Decode(data) reads one value only.
 // TODO(security): After Decode, call dec.More() or dec.Decode(&json.RawMessage{})
@@ -46,10 +42,7 @@ func newDeepCtrl() *controller.Controller {
 func TestSecurity_RED_DecodeAndValidate_IgnoresTrailingJSON(t *testing.T) {
 	c := newDeepCtrl()
 
-	// Two concatenated JSON objects. The second is silently ignored.
-	// json.Decoder internally buffers the stream, so ReadAll after Decode
-	// may return empty. The vulnerability is that Decode succeeds without
-	// checking whether the body contained exactly one JSON value.
+	// Two concatenated JSON objects. A secure implementation must reject this.
 	body := `{"name":"Alice"}{"name":"Eve","admin":true}`
 	r := httptest.NewRequest("POST", "/sec-test", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
@@ -60,24 +53,18 @@ func TestSecurity_RED_DecodeAndValidate_IgnoresTrailingJSON(t *testing.T) {
 	var p payload
 	err := c.DecodeAndValidate(r, &p, nil)
 
-	// RED: only the first object is decoded; the second is silently ignored.
-	// A secure implementation would call dec.More() after Decode and reject
-	// the request if there is trailing data.
-	assert.NoError(t, err,
-		"RED: DecodeAndValidate accepts a body with trailing JSON objects without error")
-	assert.Equal(t, "Alice", p.Name,
-		"RED: only the first JSON object was decoded — the second (potentially malicious) one was silently dropped")
-	t.Log("RED: DecodeAndValidate silently ignores trailing JSON in the request body — " +
-		"dec.More() is never called to reject extra data")
+	// SECURE: a request with trailing JSON must be rejected.
+	// This test will FAIL until dec.More() is called after Decode.
+	assert.Error(t, err,
+		"SECURE: DecodeAndValidate must reject a body containing trailing JSON objects — "+
+			"dec.More() should be called after Decode and return an error if extra data is present")
 }
 
 // ---------------------------------------------------------------------------
-// VULNERABILITY: SendFail status code is not bounded to 4xx range
+// SECURITY: SendFail status code must be bounded to 4xx range
 //
 // SendFail accepts an arbitrary *int status code. A caller can pass 200, 301,
 // or 500 as a status code to SendFail, producing a misleading HTTP response.
-// In particular, passing a 2xx code means the client treats an error as a
-// success, and passing a 5xx code triggers incorrect monitoring alerts.
 //
 // File: controller.go:84-88 — statusCode is used without range validation.
 // TODO(security): Validate that statusCode is in the 4xx range (400-499),
@@ -105,15 +92,19 @@ func TestSecurity_RED_SendFail_AcceptsArbitraryStatusCode(t *testing.T) {
 			code := tc.statusCode
 			c.SendFail(w, r, &code, &testCodedError{code: "TEST", msg: "test error"})
 
-			// RED: SendFail uses whatever code is given, even when it makes no sense
-			// for a "fail" response.
-			assert.Equal(t, tc.statusCode, w.Code,
-				"RED: SendFail accepted non-4xx status code %d (%s) — "+
-					"clients/monitors will misinterpret the response", tc.statusCode, tc.desc)
+			// SECURE: SendFail must not use non-4xx status codes.
+			// Invalid codes should be rejected or clamped to a valid 4xx range.
+			// This test will FAIL until status code validation is added.
+			assert.NotEqual(t, tc.statusCode, w.Code,
+				"SECURE: SendFail must not write non-4xx status code %d (%s) — "+
+					"the code should be clamped or rejected to prevent clients/monitors "+
+					"from misinterpreting the response", tc.statusCode, tc.desc)
+			assert.GreaterOrEqual(t, w.Code, 400,
+				"SECURE: SendFail must write a 4xx status code, got %d", w.Code)
+			assert.Less(t, w.Code, 500,
+				"SECURE: SendFail must write a 4xx status code, got %d", w.Code)
 		})
 	}
-
-	t.Log("RED: SendFail does not validate that the status code is in the 4xx range")
 }
 
 // testCodedError satisfies controller.CodedError for testing.
@@ -122,42 +113,37 @@ type testCodedError struct {
 	msg  string
 }
 
-func (e *testCodedError) Error() string        { return e.msg }
-func (e *testCodedError) ErrorCode() string     { return e.code }
-func (e *testCodedError) ErrorMessage() string  { return e.msg }
+func (e *testCodedError) Error() string       { return e.msg }
+func (e *testCodedError) ErrorCode() string    { return e.code }
+func (e *testCodedError) ErrorMessage() string { return e.msg }
 
 // ---------------------------------------------------------------------------
-// VULNERABILITY: SendSuccess serialises arbitrary interface{} data
+// SECURITY: SendSuccess must not return 200 when data cannot be marshaled
 //
-// SendSuccess encodes whatever data is passed into the JSON response. If a
-// handler accidentally passes a struct containing unexported-but-marshalable
-// fields, database connection objects, or types with custom MarshalJSON that
-// panic, the response can leak internal state or crash the server.
+// SendSuccess encodes whatever data is passed into the JSON response. If the
+// data contains a channel, func, or complex type, json.Encoder returns an error
+// after the 200 header has already been written, leaving the client with a
+// 200 OK response and a corrupt/empty body.
 //
-// More concretely: json.Encoder does not return an error until Write is called,
-// and if the data contains a channel, func, or complex type, Encode panics
-// (via json.Marshal) with an "unsupported type" error. The caller has no
-// protection against this.
+// A secure implementation would pre-marshal the data before writing the header,
+// and return a 500 error if marshaling fails.
 //
 // File: controller.go:67 — json.NewEncoder(w).Encode(Response{Data: data})
-// TODO(security): Wrap the Encode call in a recover() to prevent panics from
-// crashing the entire server, and return a generic 500 error instead.
+// TODO(security): Pre-marshal data or wrap Encode in a buffer; return 500 on failure.
 // ---------------------------------------------------------------------------
 
 func TestSecurity_RED_SendSuccess_PanicsOnUnmarshalableData(t *testing.T) {
 	c := newDeepCtrl()
 
-	// A channel cannot be JSON-marshaled; json.Encoder will panic.
+	// A channel cannot be JSON-marshaled; json.Encoder.Encode returns an error.
 	type leaky struct {
-		Name string      `json:"name"`
-		Ch   chan string  `json:"ch"`
+		Name string     `json:"name"`
+		Ch   chan string `json:"ch"`
 	}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/sec-test", nil)
 
-	// The panic from json.Marshal on a chan type propagates up.
-	// A production server without panic recovery will crash.
 	var panicked bool
 	func() {
 		defer func() {
@@ -168,40 +154,37 @@ func TestSecurity_RED_SendSuccess_PanicsOnUnmarshalableData(t *testing.T) {
 		c.SendSuccess(w, r, leaky{Name: "test", Ch: make(chan string)})
 	}()
 
-	// RED: this currently does not panic because json.Encoder.Encode returns
-	// an error for unsupported types rather than panicking. However, the error
-	// is logged but the response may be partially written (header sent,
-	// body truncated), leaving the client with a corrupt response.
 	if panicked {
-		t.Log("RED: SendSuccess panicked on unmarshalable data — " +
-			"no panic recovery in the response path")
-	} else {
-		// Even without panic, the response is malformed: the header was sent
-		// as 200 OK but the body is incomplete/corrupt JSON.
-		assert.Equal(t, http.StatusOK, w.Code,
-			"RED: status 200 was already written before the encode error was detected")
-
-		var resp controller.Response
-		decErr := json.NewDecoder(w.Body).Decode(&resp)
-		assert.Error(t, decErr,
-			"RED: response body is corrupt/empty after encode failure — "+
-				"client receives 200 OK with invalid JSON")
-		t.Log("RED: SendSuccess returns 200 with corrupt body when data cannot be marshaled")
+		// If it panicked, that's a separate bug — there should be recovery.
+		t.Log("SendSuccess panicked on unmarshalable data — no panic recovery in the response path")
 	}
+
+	// SECURE: when data cannot be marshaled, the response must NOT be 200 OK.
+	// A correct implementation should detect the marshal failure before writing
+	// headers, or write a 500 status when the error is detected.
+	// This test will FAIL until SendSuccess handles marshal errors correctly.
+	assert.NotEqual(t, http.StatusOK, w.Code,
+		"SECURE: SendSuccess must not return 200 OK when the response body cannot be marshaled — "+
+			"the status should be 500 to prevent clients from treating a corrupt response as success")
+
+	// Additionally, the response body must be valid JSON (not corrupt/empty).
+	var resp controller.Response
+	decErr := json.NewDecoder(w.Body).Decode(&resp)
+	assert.NoError(t, decErr,
+		"SECURE: response body must be valid JSON even when data marshaling fails — "+
+			"client must receive a well-formed error response")
 }
 
 // ---------------------------------------------------------------------------
-// VULNERABILITY: DecodeAndValidate with DisallowUnknownFields leaks field names
+// SECURITY: DecodeAndValidate with DisallowUnknownFields must not leak field names
 //
-// When DisallowUnknownFields is enabled (controller.go:153) and the request
-// contains an unknown field, the error message from json.Decoder includes the
-// exact unknown field name: `json: unknown field "secret_field"`. This error
-// is returned to the caller and, if passed to SendFail, may leak the names
-// of valid fields to an attacker probing the API schema.
+// When an unknown field is sent, the error from json.Decoder includes the exact
+// field name: `json: unknown field "secret_field"`. This error, if propagated
+// to the client, allows attackers to enumerate valid fields by probing the API.
 //
 // File: controller.go:153-156 — error from Decode leaks field name.
-// TODO(security): Catch json.UnmarshalTypeError / unknown field errors and
-// return a generic "invalid request body" message without the field name.
+// TODO(security): Catch unknown field errors and return a generic
+// "invalid request body" message without the field name.
 // ---------------------------------------------------------------------------
 
 func TestSecurity_RED_DecodeAndValidate_LeaksFieldNamesOnUnknownField(t *testing.T) {
@@ -218,8 +201,12 @@ func TestSecurity_RED_DecodeAndValidate_LeaksFieldNamesOnUnknownField(t *testing
 	err := c.DecodeAndValidate(r, &p, nil)
 
 	require.Error(t, err, "unknown field should cause an error")
-	assert.Contains(t, err.Error(), "secret_internal_field",
-		"RED: error message exposes the unknown field name — "+
-			"an attacker can enumerate valid fields by probing with different names")
-	t.Log("RED: DecodeAndValidate leaks unknown field names in error messages")
+
+	// SECURE: the error message must NOT expose the unknown field name.
+	// An attacker could enumerate valid fields by probing with different names
+	// and observing whether the field name appears in the error response.
+	// This test will FAIL until DecodeAndValidate sanitizes the error message.
+	assert.NotContains(t, err.Error(), "secret_internal_field",
+		"SECURE: error message must not expose unknown field names — "+
+			"return a generic 'invalid request body' message instead to prevent field enumeration attacks")
 }

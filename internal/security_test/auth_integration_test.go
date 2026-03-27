@@ -78,10 +78,11 @@ func TestIntegration_RED_JWTWithoutProjectMembershipCheck(t *testing.T) {
 		})
 	}
 
-	// RED: This test documents that no per-request project access check exists
-	// in command handlers. When a fix is applied, this assertion should flip.
-	assert.False(t, hasAccessCheck,
-		"RED expectation: command handlers should NOT have per-request project access checks (if this fails, the vulnerability may be fixed)")
+	// RED: Today this assertion fails because command handlers have no per-request project
+	// access check. Security fix required: all command handlers must call
+	// HasProjectAccess/CheckProjectAccess/VerifyProjectMembership.
+	assert.True(t, hasAccessCheck,
+		"command handlers must call HasProjectAccess/CheckProjectAccess/VerifyProjectMembership before acting on project-scoped resources")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -116,13 +117,43 @@ func TestIntegration_RED_DaemonJWTAcceptedOnUserEndpoints(t *testing.T) {
 	ctx := context.WithValue(context.Background(), middleware.ActorContextKey, daemonActor)
 
 	// The ListProjects handler does: actor, ok := r.Context().Value(...).(identitydomain.Actor)
-	// When the value is a DaemonActor, ok will be false, and the access filter is skipped.
+	// When the value is a DaemonActor, ok will be false, and the access filter is silently skipped.
 	actor, ok := ctx.Value(middleware.ActorContextKey).(identitydomain.Actor)
-	assert.False(t, ok, "DaemonActor should NOT satisfy Actor type assertion")
+	assert.False(t, ok, "DaemonActor should NOT satisfy Actor type assertion — this is expected")
 	assert.True(t, actor.IsZero(), "Actor should be zero-value when type assertion fails")
 
-	// This means the code path "if ok && !actor.IsAdmin()" evaluates to false,
-	// and the handler returns ALL projects unfiltered.
+	// RED: Today a daemon JWT can reach user endpoints because the auth adapter falls back
+	// to ValidateDaemonJWT. Security fix required: the auth adapter must reject daemon tokens
+	// on REST endpoints intended for users, or handlers must explicitly check for DaemonActor
+	// and return 403.
+	//
+	// Parse the auth adapter in main.go to confirm it falls back to daemon JWT on user endpoints.
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "../../cmd/agach-server/main.go", nil, 0)
+	require.NoError(t, err)
+
+	// Look for ValidateDaemonJWT fallback in authValidatorAdapter
+	foundDaemonFallback := false
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		if sel.Sel.Name == "ValidateDaemonJWT" {
+			foundDaemonFallback = true
+		}
+		return true
+	})
+
+	// RED: Today foundDaemonFallback is true — daemon tokens are accepted everywhere.
+	// Security fix required: remove the daemon JWT fallback from REST auth, or
+	// add explicit handler-level rejection of DaemonActor on user endpoints.
+	assert.False(t, foundDaemonFallback,
+		"authValidatorAdapter must NOT fall back to ValidateDaemonJWT on REST endpoints; daemon tokens must be rejected for user-facing routes")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -199,12 +230,17 @@ func TestIntegration_RED_RouteRegistrationOrderBypass(t *testing.T) {
 	root.ServeHTTP(rec, httptest.NewRequest("GET", "/api/tasks", nil))
 	assert.True(t, middlewareCalled, "subrouter middleware should be called for /api/tasks")
 
-	// /ws does NOT go through subrouter middleware
+	// /ws does NOT go through subrouter middleware in the current (insecure) architecture.
+	// Confirm the current behavior matches the documented vulnerability.
 	middlewareCalled = false
 	rec = httptest.NewRecorder()
 	root.ServeHTTP(rec, httptest.NewRequest("GET", "/ws", nil))
-	assert.False(t, middlewareCalled,
-		"RED: /ws on root router should bypass subrouter middleware (if this fails, the architecture may have changed)")
+
+	// RED: Today middlewareCalled is false because /ws is on the root router.
+	// Security fix required: /ws must be registered on the server subrouter so that
+	// LimitBodySize middleware is applied. The following assertion must pass after the fix.
+	assert.True(t, middlewareCalled,
+		"/ws must be registered on the server subrouter so that LimitBodySize middleware is applied (currently bypasses all subrouter middleware)")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -258,8 +294,10 @@ func TestIntegration_RED_WebSocketCheckOriginAcceptsAll(t *testing.T) {
 		return true
 	})
 
-	assert.True(t, foundPermissiveOrigin,
-		"RED: CheckOrigin should unconditionally return true (if this fails, origin validation may have been added)")
+	// RED: Today foundPermissiveOrigin is true — the upgrader accepts any origin.
+	// Security fix required: CheckOrigin must validate the Origin header against an allowlist.
+	assert.False(t, foundPermissiveOrigin,
+		"WebSocket upgrader must NOT use CheckOrigin that unconditionally returns true; origin validation against an allowlist is required")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -304,9 +342,10 @@ func TestIntegration_RED_CORSReflectsArbitraryOrigin(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	// The middleware reflects the attacker's origin
-	assert.Equal(t, "https://evil-attacker.com", rec.Header().Get("Access-Control-Allow-Origin"),
-		"RED: middleware should reflect attacker's Origin (if this fails, origin validation may have been added)")
+	// RED: Today the middleware reflects the attacker's origin verbatim.
+	// Security fix required: validate Origin against a configured allowlist, never reflect it blindly.
+	assert.NotEqual(t, "https://evil-attacker.com", rec.Header().Get("Access-Control-Allow-Origin"),
+		"CORS middleware must NOT reflect arbitrary Origin headers; only allowlisted origins should be set in Access-Control-Allow-Origin")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -352,8 +391,10 @@ func TestIntegration_RED_WebSocketTokenInQueryParam(t *testing.T) {
 		return true
 	})
 
-	assert.True(t, foundQueryToken,
-		"RED: WebSocket handler reads token from query parameter (if this fails, auth mechanism may have changed)")
+	// RED: Today foundQueryToken is true — the WebSocket handler reads the JWT from the query param.
+	// Security fix required: use a short-lived ticket exchange so the JWT never appears in URL logs.
+	assert.False(t, foundQueryToken,
+		"WebSocket handler must NOT read the JWT token from a URL query parameter; use a short-lived ticket exchange instead to prevent token leakage in logs and Referer headers")
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────

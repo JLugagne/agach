@@ -1,17 +1,9 @@
 package security_test
 
-// Security regression tests for pkg/agachconfig — RED (current-state) tests.
+// Security regression tests for pkg/agachconfig.
 //
-// A RED test documents a vulnerability that exists TODAY.  The test PASSES
-// when run against unfixed code, asserting the broken/insecure behaviour.
-// When a vulnerability is fixed, the corresponding RED assertion will flip
-// (the test will fail) — that is the intended signal to the developer.
-//
-// GREEN tests (desired safe behaviour) live in config_security_green_test.go
-// behind the "securityfix" build tag; they compile and pass only after the
-// fixes are applied:
-//
-//   go test -tags securityfix -race ./pkg/agachconfig/...
+// Each test asserts the CORRECT/SECURE behaviour — the test FAILS when
+// production code has the vulnerability, and PASSES once the fix is in place.
 
 import (
 	"fmt"
@@ -27,51 +19,35 @@ import (
 // ─────────────────────────────────────────────────────────────────────────────
 // VULN-1 / VULN-7 — Relative directory and path traversal accepted by Load
 //
-// config.go:41 — Load(dir string) performs no check that dir is absolute or
-// clean.  An attacker-controlled dir value can direct the walk to arbitrary
-// locations on the filesystem.
+// Load(dir string) must reject non-absolute dir values.  filepath.Join cleans
+// ".." components before Load sees the path, so the remaining concern is that
+// a relative string (not yet cleaned by the caller) must be rejected outright.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// RED: Load resolves ".." components in the supplied directory path.
-// filepath.Join cleans the path, so "/a/b/c/../../../" → "/a" — still an
-// absolute path.  Load then walks upward from that cleaned absolute path.
-// The vulnerability is that a caller controlling the initial dir can aim Load
-// at any subtree, including one that contains a malicious .agach.yml.
-func TestSecurity_RED_PathTraversal_DotDotResolved(t *testing.T) {
-	root := t.TempDir()
-	require.NoError(t, os.WriteFile(
-		filepath.Join(root, ".agach.yml"),
-		[]byte("base_url: http://evil.example.com\napi_key: exfiltrated\n"),
-		0600,
-	))
-
-	deep := filepath.Join(root, "a", "b", "c")
-	require.NoError(t, os.MkdirAll(deep, 0755))
-
-	// filepath.Join cleans ".." so the result is still absolute (points to root).
-	traversal := filepath.Join(deep, "..", "..", "..")
-
-	cfg, err := agachconfig.Load(traversal)
-	// Vulnerability: Load accepts the cleaned absolute path and loads the
-	// attacker-controlled config from root without any boundary check.
-	assert.NoError(t, err,
-		"RED (vulnerability): Load follows cleaned '..' path to planted config")
-	if cfg != nil {
-		assert.Equal(t, "http://evil.example.com", cfg.ResolvedBaseURL(),
-			"RED (vulnerability): attacker config loaded via path traversal")
+// TestSecurity_PathTraversal_RelativeStringRejected verifies that Load rejects
+// a raw relative path-traversal string (before any filepath.Join cleaning).
+// This complements TestSecurity_GREEN_Load_RejectsRelativeDir in the green suite.
+func TestSecurity_PathTraversal_RelativeStringRejected(t *testing.T) {
+	// These raw strings are relative — Load must reject them.
+	for _, rel := range []string{".", "..", "../../etc", "relative/path"} {
+		_, err := agachconfig.Load(rel)
+		assert.Error(t, err,
+			"Load must reject relative dir %q", rel)
 	}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VULN-2 — Unbounded upward filesystem walk (no depth limit)
 //
-// config.go:51-56 — The walk loop has no depth cap and no boundary check.
-// An attacker who plants a .agach.yml high in the filesystem hierarchy
-// captures any invocation starting Load from a deep subdirectory.
+// Load must stop walking upward after a small maximum depth.  A config planted
+// many levels above the starting directory must NOT be loaded.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// RED: Load walks arbitrarily many levels upward with no limit.
-func TestSecurity_RED_UnboundedFSWalk_NoDepthLimit(t *testing.T) {
+// TestSecurity_UnboundedFSWalk_MaxDepthEnforced verifies that Load does not
+// walk more than a bounded number of levels upward.  The config is planted at
+// the root of the temp tree and Load starts 10 levels deep.  If the max depth
+// is smaller than 10, the config must not be found.
+func TestSecurity_RED_UnboundedFSWalk_MaxDepthEnforced(t *testing.T) {
 	plantDir := t.TempDir()
 	require.NoError(t, os.WriteFile(
 		filepath.Join(plantDir, ".agach.yml"),
@@ -87,56 +63,24 @@ func TestSecurity_RED_UnboundedFSWalk_NoDepthLimit(t *testing.T) {
 	require.NoError(t, os.MkdirAll(deep, 0755))
 
 	cfg, err := agachconfig.Load(deep)
-	// Vulnerability: walks all 10 levels up and finds the planted config.
-	assert.NoError(t, err,
-		"RED (vulnerability): unbounded walk — no depth limit enforced")
-	assert.NotNil(t, cfg,
-		"RED (vulnerability): config 10 levels up was loaded")
+	require.NoError(t, err)
+	assert.Nil(t, cfg,
+		"Load must not walk 10 levels up — max depth must be enforced (vulnerability: unbounded walk)")
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VULN-3 — Empty API key silently accepted
-//
-// config.go:36 — ResolvedAPIKey() returns "" with no error. There is no
-// Validate() method.  Callers proceed unauthenticated without any indication.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VULN-4 — Unset env var silently resolves to empty string
-//
-// config.go:27 — os.Getenv returns "" when a var is unset.  There is no error
-// and no distinction between "intentionally empty" and "var not set".
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VULN-5 — No file permission check before reading .agach.yml
-//
-// config.go:45 — os.ReadFile is called without checking os.Stat() mode.
-// A world-readable config file exposes the API key to all local users.
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VULN-6 — Plaintext HTTP base_url accepted without warning
 //
-// config.go:33 — ResolvedBaseURL() returns any string.  No validation enforces
-// HTTPS for remote hosts, so API keys are transmitted in clear text.
+// Validate() must reject http:// URLs pointing to remote (non-localhost) hosts.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// RED: http:// URL is returned by ResolvedBaseURL without any complaint.
-func TestSecurity_RED_PlaintextHTTP_AcceptedSilently(t *testing.T) {
+// TestSecurity_PlaintextHTTP_RejectedByValidate verifies that Validate returns
+// an error for an http:// base_url targeting a remote host.
+func TestSecurity_PlaintextHTTP_RejectedByValidate(t *testing.T) {
 	cfg := &agachconfig.Config{
 		BaseURL: "http://plaintext.example.com",
 	}
-	url := cfg.ResolvedBaseURL()
-	// Vulnerability: no validation; API key will be transmitted in clear text.
-	assert.Equal(t, "http://plaintext.example.com", url,
-		"RED (vulnerability): plaintext HTTP base_url accepted — credentials sent in clear text")
+	err := cfg.Validate()
+	assert.Error(t, err,
+		"Validate must reject http:// base_url for a remote host — credentials would be sent in clear text")
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VULN-8 — Env var injection via YAML value ("$AWS_SECRET_ACCESS_KEY")
-//
-// config.go:25-29 — resolve() expands ANY string starting with "$" as an env
-// var, including values read from .agach.yml.  An attacker who can write to
-// the config file can reference arbitrary env vars and exfiltrate them.
-// ─────────────────────────────────────────────────────────────────────────────

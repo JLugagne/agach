@@ -24,17 +24,17 @@ import (
 // 1. Unbounded string lengths — Task.Title
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_TaskTitleUnbounded demonstrates that the domain type places
-// no upper-bound on Task.Title length. An attacker / buggy agent can create a
-// task with a megabyte-long title. The domain layer has no Validate() method or
-// constant that defines a maximum title length, so upper-bound enforcement is
-// entirely absent at the domain level and must currently be done (inconsistently)
-// in the HTTP layer only.
+// TestSecurity_RED_TaskTitleUnbounded asserts that the domain layer MUST enforce
+// an upper-bound on Task.Title length.
 //
-// RED: domain.Task has no maximum-length constraint on Title.
-// Fix: add a const MaxTaskTitleLength and a Validate() method (or use a
+// FIX REQUIRED: add a const MaxTaskTitleLength and a Validate() method (or
 // constructor) that returns domain.ErrInvalidTaskData when Title length exceeds it.
+//
+// This test FAILS today because domain.Task imposes no length constraint:
+// a title of 100 KB is accepted silently.
 func TestSecurity_RED_TaskTitleUnbounded(t *testing.T) {
+	const maxTaskTitleLength = 500 // desired domain constraint
+
 	longTitle := strings.Repeat("A", 100_001) // 100 KB title
 
 	task := domain.Task{
@@ -43,17 +43,13 @@ func TestSecurity_RED_TaskTitleUnbounded(t *testing.T) {
 		Summary: "short summary",
 	}
 
-	// RED: the domain type accepts any length title silently.
-	// After the fix a Validate() call should return an error.
-	// Currently there is no Validate() method, so this passes without error —
-	// demonstrating the vulnerability exists at the domain level.
-	//
-	// We assert the title was stored as-is (no truncation, no error), which is
-	// the current vulnerable state.
-	assert.Equal(t, 100_001, len(task.Title),
-		"RED: domain.Task silently accepts a 100 KB title; "+
-			"fix: add domain-level length validation (e.g. max 500 chars) so "+
-			"storage exhaustion / truncation attacks are caught at the domain boundary")
+	// DESIRED: the domain must reject (or not store) titles beyond the max length.
+	// Today domain.Task has no constraint, so len(task.Title) == 100_001 and this
+	// assertion fails — demonstrating the vulnerability.
+	assert.LessOrEqual(t, len(task.Title), maxTaskTitleLength,
+		"domain.Task must not accept a title longer than %d characters; "+
+			"fix: add domain-level length validation so storage exhaustion / "+
+			"truncation attacks are caught at the domain boundary", maxTaskTitleLength)
 }
 
 // TestSecurity_GREEN_TaskTitleNormalLength verifies that a normally-sized title
@@ -71,13 +67,17 @@ func TestSecurity_GREEN_TaskTitleNormalLength(t *testing.T) {
 // 2. Unbounded string lengths — Comment.Content
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_CommentContentUnbounded demonstrates that the domain type
-// places no upper-bound on Comment.Content length. This allows an attacker to
-// POST a gigabyte-sized comment body that exhausts server memory during JSON
-// decoding and database storage.
+// TestSecurity_RED_CommentContentUnbounded asserts that the domain layer MUST
+// enforce an upper-bound on Comment.Content length.
 //
-// RED: domain.Comment has no maximum-length constraint on Content.
+// FIX REQUIRED: add a const MaxCommentContentLength and a Validate() method
+// that returns an error when Content length exceeds it.
+//
+// This test FAILS today because domain.Comment imposes no length constraint:
+// a content of 1 MB is accepted silently.
 func TestSecurity_RED_CommentContentUnbounded(t *testing.T) {
+	const maxCommentContentLength = 10_000 // desired domain constraint
+
 	hugeContent := strings.Repeat("X", 1_000_001) // 1 MB content
 
 	comment := domain.Comment{
@@ -86,10 +86,13 @@ func TestSecurity_RED_CommentContentUnbounded(t *testing.T) {
 		Content: hugeContent,
 	}
 
-	// RED: the domain type accepts any length content silently.
-	assert.Equal(t, 1_000_001, len(comment.Content),
-		"RED: domain.Comment silently accepts a 1 MB content string; "+
-			"fix: add domain-level length validation (e.g. max 10 000 chars)")
+	// DESIRED: the domain must reject content beyond the max length.
+	// Today domain.Comment has no constraint, so len(comment.Content) == 1_000_001
+	// and this assertion fails — demonstrating the vulnerability.
+	assert.LessOrEqual(t, len(comment.Content), maxCommentContentLength,
+		"domain.Comment must not accept content longer than %d characters; "+
+			"fix: add domain-level length validation to prevent memory exhaustion "+
+			"during JSON decoding and database storage", maxCommentContentLength)
 }
 
 // TestSecurity_GREEN_CommentContentNormalLength verifies normally-sized content
@@ -107,13 +110,17 @@ func TestSecurity_GREEN_CommentContentNormalLength(t *testing.T) {
 // 3. Unbounded string lengths — Role.PromptTemplate
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_RolePromptTemplateUnbounded demonstrates that PromptTemplate
-// on a Role has no length bound. An admin storing a 10 MB prompt template causes
-// every RenderPrompt call for that role to allocate that memory on the heap and
-// pass it through the template engine, enabling repeated memory exhaustion.
+// TestSecurity_RED_RolePromptTemplateUnbounded asserts that the domain layer MUST
+// enforce an upper-bound on Role.PromptTemplate length.
 //
-// RED: domain.Role has no maximum-length constraint on PromptTemplate.
+// FIX REQUIRED: add a const MaxPromptTemplateLength and a Validate() method
+// that returns an error when PromptTemplate length exceeds it.
+//
+// This test FAILS today because domain.Role (alias for Agent) imposes no length
+// constraint: a template of 10 MB is accepted silently.
 func TestSecurity_RED_RolePromptTemplateUnbounded(t *testing.T) {
+	const maxPromptTemplateLength = 100_000 // desired domain constraint
+
 	bigTemplate := strings.Repeat("T", 10_000_001) // 10 MB
 
 	role := domain.Role{
@@ -123,10 +130,13 @@ func TestSecurity_RED_RolePromptTemplateUnbounded(t *testing.T) {
 		PromptTemplate: bigTemplate,
 	}
 
-	// RED: the domain type accepts any length prompt template silently.
-	assert.Equal(t, 10_000_001, len(role.PromptTemplate),
-		"RED: domain.Role silently accepts a 10 MB PromptTemplate; "+
-			"fix: add domain-level length validation (e.g. max 100 000 chars)")
+	// DESIRED: the domain must reject templates beyond the max length.
+	// Today domain.Role has no constraint, so len(role.PromptTemplate) == 10_000_001
+	// and this assertion fails — demonstrating the vulnerability.
+	assert.LessOrEqual(t, len(role.PromptTemplate), maxPromptTemplateLength,
+		"domain.Role must not accept a PromptTemplate longer than %d characters; "+
+			"fix: add domain-level length validation to prevent repeated heap "+
+			"exhaustion on every RenderPrompt call", maxPromptTemplateLength)
 }
 
 // TestSecurity_GREEN_RolePromptTemplateNormalLength verifies a normally-sized
@@ -145,27 +155,29 @@ func TestSecurity_GREEN_RolePromptTemplateNormalLength(t *testing.T) {
 // 4. Invalid Priority value silently defaults to medium
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_InvalidPriorityDefaultsToMedium demonstrates that any
-// arbitrary string is silently accepted as a Priority and treated as "medium"
-// (score 200) by Priority.Score(). This means a caller can pass
-// priority="hack" and it silently succeeds rather than being rejected.
-// An attacker can probe which values are "valid" by observing whether score
-// returns 200 for invalid inputs.
+// TestSecurity_RED_InvalidPriorityDefaultsToMedium asserts that an invalid
+// Priority value MUST NOT silently succeed as if it were "medium".
 //
-// RED: Priority.Score() returns 200 for unknown values without signalling an
-// error; there is no validation constructor or Validate() method on Priority.
+// FIX REQUIRED: add a Priority.IsValid() bool (or Priority.Validate() error)
+// so callers can detect and reject unknown priority values before persisting them.
+//
+// This test FAILS today because Priority.Score() returns 200 for any unknown
+// value, making "totally-invalid-priority" indistinguishable from "medium".
 func TestSecurity_RED_InvalidPriorityDefaultsToMedium(t *testing.T) {
 	invalid := domain.Priority("totally-invalid-priority")
 
 	score := invalid.Score()
 
-	// RED: no error is returned; the invalid value silently acts as "medium".
-	// The desired behaviour after fixing is for Priority to have a Validate()
-	// method (or constructor) that returns an error for unknown values.
-	assert.Equal(t, 200, score,
-		"RED: Priority(\"totally-invalid-priority\").Score() returns 200 (medium) "+
-			"instead of signalling an error; fix: add Priority.IsValid() bool or "+
-			"Priority.Validate() error that returns domain.ErrInvalidTaskData for unknown values")
+	// DESIRED: an invalid priority must NOT produce the same score as a valid
+	// "medium" priority (200). It should either be distinguishable via an
+	// IsValid() / Validate() method, or Score() should signal an error.
+	// Today score == 200 so this assertion fails — demonstrating the gap.
+	assert.NotEqual(t, 200, score,
+		"Priority(%q).Score() must not silently return 200 (medium) for an "+
+			"unknown value; fix: add Priority.IsValid() bool or "+
+			"Priority.Validate() error that returns domain.ErrInvalidTaskData "+
+			"for unknown values, and make Score() return a sentinel (e.g. 0) or "+
+			"panic for invalid input", invalid)
 }
 
 // TestSecurity_GREEN_ValidPriorityScoresAreCorrect verifies that the four known
@@ -190,14 +202,14 @@ func TestSecurity_GREEN_ValidPriorityScoresAreCorrect(t *testing.T) {
 // 5. Invalid AuthorType silently accepted
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_InvalidAuthorTypeAccepted demonstrates that AuthorType has
-// only two valid values ("agent", "human") but no validation is enforced at the
-// domain type level. Any string can be assigned without error.
+// TestSecurity_RED_InvalidAuthorTypeAccepted asserts that domain.Comment MUST
+// reject an AuthorType that is neither "agent" nor "human".
 //
-// RED: domain.AuthorType is a plain string alias with no IsValid() method.
-// An attacker can supply author_type="admin" to impersonate a privileged actor
-// in the comment history, or author_type="" to bypass author-type-based
-// display logic in the UI.
+// FIX REQUIRED: add an AuthorType.IsValid() bool (or a Comment constructor)
+// so callers can detect and reject unknown author types before persisting them.
+//
+// This test FAILS today because AuthorType is a plain string alias with no
+// validation; AuthorType("admin") is stored without any error.
 func TestSecurity_RED_InvalidAuthorTypeAccepted(t *testing.T) {
 	invalidType := domain.AuthorType("admin") // not "agent" or "human"
 
@@ -208,11 +220,16 @@ func TestSecurity_RED_InvalidAuthorTypeAccepted(t *testing.T) {
 		Content:    "I am an admin",
 	}
 
-	// RED: no validation occurs; the invalid author type is stored as-is.
-	assert.Equal(t, domain.AuthorType("admin"), comment.AuthorType,
-		"RED: domain.Comment accepts AuthorType(\"admin\") without any validation; "+
+	// DESIRED: the stored AuthorType must be one of the two valid values.
+	// Today the invalid value is stored as-is so this assertion fails —
+	// demonstrating that an attacker can impersonate a privileged actor.
+	isValid := comment.AuthorType == domain.AuthorTypeAgent ||
+		comment.AuthorType == domain.AuthorTypeHuman
+	assert.True(t, isValid,
+		"domain.Comment must not accept AuthorType(%q); only %q and %q are valid; "+
 			"fix: add AuthorType.IsValid() bool or a constructor that rejects values "+
-			"outside {\"agent\", \"human\"}")
+			"outside {\"agent\", \"human\"} to prevent author-type impersonation",
+		comment.AuthorType, domain.AuthorTypeAgent, domain.AuthorTypeHuman)
 }
 
 // TestSecurity_GREEN_ValidAuthorTypesAreAccepted verifies the two legitimate

@@ -2,25 +2,14 @@ package security_test
 
 // Security tests for numeric value handling across converters.
 //
-// Vulnerability 6 (RED)  — float64 fields in ColdStartStatResponse can carry
-//   math.NaN() or math.Inf(), which are not valid JSON values. Go's encoding/json
-//   marshal fails with an UnsupportedValueError for these, breaking downstream
-//   serialisation silently or causing a 500 error. The converters pass these values
-//   through without sanitisation.
-//   cold_start_stats.go: AvgInputTokens, AvgOutputTokens, AvgCacheReadTokens are
-//   copied directly from domain.RoleColdStartStat without bounds checking.
+// Vulnerability 6 — ToPublicColdStartStat sanitises non-finite float64 values
+//   (NaN, +Inf, -Inf) by replacing them with 0.0, ensuring the response is always
+//   JSON-serialisable. The AvgInputTokens, AvgOutputTokens, and AvgCacheReadTokens
+//   fields are bounded before being written to ColdStartStatResponse.
 //
-// Vulnerability 6 (GREEN) — ToPublicColdStartStat sanitises non-finite float64
-//   values (NaN, +Inf, -Inf) by replacing them with 0.0, ensuring the response
-//   is always JSON-serialisable.
-//
-// Vulnerability 7 (RED)  — Negative token counts (int fields) are passed through
-//   without validation in tasks.go and cold_start_stats.go. Token counts are
-//   semantically non-negative; negative values indicate corrupted or malicious input
-//   but are silently propagated to public responses.
-//
-// Vulnerability 7 (GREEN) — ToPublicTask and ToPublicColdStartStat normalise
-//   negative token counts to 0.
+// Vulnerability 7 — ToPublicTask and ToPublicColdStartStat normalise negative
+//   token counts to 0. Token counts are semantically non-negative; negative values
+//   indicate corrupted or malicious input and must not appear in public responses.
 
 import (
 	"encoding/json"
@@ -38,13 +27,10 @@ import (
 // Vulnerability 6: non-finite float64 values in ColdStartStatResponse
 // ---------------------------------------------------------------------------
 
-// TestToPublicColdStartStat_RED_NaNPropagates demonstrates that math.NaN() stored
-// in domain.RoleColdStartStat propagates to ColdStartStatResponse, which then
-// causes json.Marshal to fail with an UnsupportedValueError.
-//
-// This test is expected to FAIL against the current implementation (red test):
-// the NaN value is preserved and json.Marshal returns an error.
-func TestToPublicColdStartStat_RED_NaNPropagates(t *testing.T) {
+// TestToPublicColdStartStat_NaNPropagates verifies that math.NaN() and math.Inf()
+// stored in domain.RoleColdStartStat are sanitised to 0.0 by ToPublicColdStartStat,
+// ensuring the resulting ColdStartStatResponse is always JSON-serialisable.
+func TestToPublicColdStartStat_NaNPropagates(t *testing.T) {
 	stat := domain.RoleColdStartStat{
 		AssignedRole:       "backend",
 		Count:              1,
@@ -61,8 +47,6 @@ func TestToPublicColdStartStat_RED_NaNPropagates(t *testing.T) {
 
 	result := converters.ToPublicColdStartStat(stat)
 
-	// RED assertion: after a fix, the result should be JSON-serialisable.
-	// Currently NaN/Inf propagate and json.Marshal fails, so this assertion fails.
 	_, err := json.Marshal(result)
 	assert.NoError(t, err,
 		"ColdStartStatResponse with NaN/Inf must be JSON-serialisable after sanitisation")
@@ -95,13 +79,10 @@ func TestToPublicColdStartStat_GREEN_FiniteValuesSerialise(t *testing.T) {
 	assert.Equal(t, 500.0, result.AvgCacheReadTokens)
 }
 
-// TestToPublicColdStartStat_RED_NaNNormalisedToZero is the companion RED assertion
-// checking the actual normalised value after a fix is applied:
-// NaN/Inf must become 0.0, not any other sentinel.
-//
-// This test is expected to FAIL against the current implementation (red test):
-// the function returns NaN, not 0.0.
-func TestToPublicColdStartStat_RED_NaNNormalisedToZero(t *testing.T) {
+// TestToPublicColdStartStat_NaNNormalisedToZero verifies that NaN/Inf values in
+// domain.RoleColdStartStat are normalised to 0.0 (not any other sentinel) by
+// ToPublicColdStartStat.
+func TestToPublicColdStartStat_NaNNormalisedToZero(t *testing.T) {
 	stat := domain.RoleColdStartStat{
 		AvgInputTokens:     math.NaN(),
 		AvgOutputTokens:    math.Inf(1),
@@ -110,7 +91,6 @@ func TestToPublicColdStartStat_RED_NaNNormalisedToZero(t *testing.T) {
 
 	result := converters.ToPublicColdStartStat(stat)
 
-	// RED assertion: these should all be 0.0 after sanitisation.
 	assert.Equal(t, 0.0, result.AvgInputTokens,
 		"NaN AvgInputTokens must be normalised to 0.0")
 	assert.Equal(t, 0.0, result.AvgOutputTokens,
@@ -123,14 +103,10 @@ func TestToPublicColdStartStat_RED_NaNNormalisedToZero(t *testing.T) {
 // Vulnerability 7: negative token counts in task responses
 // ---------------------------------------------------------------------------
 
-// TestToPublicTask_RED_NegativeTokenCountsPropagates demonstrates that negative
-// token counts stored in a domain.Task pass through ToPublicTask unchecked.
-// Token counts are semantically non-negative; negative values signal either
-// corrupted data or a malicious manipulation.
-//
-// This test is expected to FAIL against the current implementation (red test):
-// the function preserves negative values.
-func TestToPublicTask_RED_NegativeTokenCountsPropagates(t *testing.T) {
+// TestToPublicTask_NegativeTokenCountsPropagates verifies that negative token
+// counts stored in a domain.Task are clamped to 0 by ToPublicTask. Token counts
+// are semantically non-negative; negative values must not appear in public responses.
+func TestToPublicTask_NegativeTokenCountsPropagates(t *testing.T) {
 	now := time.Now()
 	task := domain.Task{
 		ID:               domain.TaskID("task-neg"),
@@ -148,7 +124,6 @@ func TestToPublicTask_RED_NegativeTokenCountsPropagates(t *testing.T) {
 
 	result := converters.ToPublicTask(task)
 
-	// RED assertions: after a fix, negative counts must be clamped to 0.
 	assert.GreaterOrEqual(t, result.InputTokens, 0,
 		"InputTokens must not be negative in public response")
 	assert.GreaterOrEqual(t, result.OutputTokens, 0,
@@ -188,11 +163,10 @@ func TestToPublicTask_GREEN_ZeroAndPositiveTokenCountsPassThrough(t *testing.T) 
 	assert.Equal(t, 3600, result.DurationSeconds)
 }
 
-// TestToPublicColdStartStat_RED_NegativeMinMaxCounts demonstrates that negative
-// min/max token count integers propagate from domain struct to public response.
-//
-// This test is expected to FAIL against the current implementation (red test).
-func TestToPublicColdStartStat_RED_NegativeMinMaxCounts(t *testing.T) {
+// TestToPublicColdStartStat_NegativeMinMaxCounts verifies that negative min/max
+// token count integers in domain.RoleColdStartStat are clamped to 0 by
+// ToPublicColdStartStat rather than propagated to the public response.
+func TestToPublicColdStartStat_NegativeMinMaxCounts(t *testing.T) {
 	stat := domain.RoleColdStartStat{
 		AssignedRole:       "backend",
 		Count:              3,
@@ -209,7 +183,6 @@ func TestToPublicColdStartStat_RED_NegativeMinMaxCounts(t *testing.T) {
 
 	result := converters.ToPublicColdStartStat(stat)
 
-	// RED assertions: negative token counts must be clamped to 0.
 	assert.GreaterOrEqual(t, result.MinInputTokens, 0,
 		"MinInputTokens must not be negative")
 	assert.GreaterOrEqual(t, result.MaxInputTokens, 0,

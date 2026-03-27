@@ -29,11 +29,9 @@ import (
 // See: https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_OIDCValidateIDTokenAcceptsHMAC documents that the OIDC
+// TestSecurity_OIDCValidateIDTokenAcceptsHMAC documents that the OIDC
 // id_token validator accepts HMAC-signed tokens using the app's JWT secret.
-// TODO(security): Remove the HMAC case from validateIDToken's key function.
-// OIDC id_tokens must only be validated with asymmetric keys from the JWKS endpoint.
-func TestSecurity_RED_OIDCValidateIDTokenAcceptsHMAC(t *testing.T) {
+func TestSecurity_OIDCValidateIDTokenAcceptsHMAC(t *testing.T) {
 	// We verify this by source inspection since the SSO service requires
 	// an HTTP server for OIDC discovery which is complex to mock.
 	_, thisFile, _, _ := runtime.Caller(0)

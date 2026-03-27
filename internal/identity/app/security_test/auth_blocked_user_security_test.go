@@ -27,10 +27,9 @@ import (
 // via BlockUser can still authenticate and receive fresh access/refresh tokens.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_BlockedUserCanLogin documents that a blocked user can still
+// TestSecurity_BlockedUserCanLogin documents that a blocked user can still
 // successfully call Login and receive tokens.
-// TODO(security): Login must check user.IsBlocked() and return ErrUserBlocked.
-func TestSecurity_RED_BlockedUserCanLogin(t *testing.T) {
+func TestSecurity_BlockedUserCanLogin(t *testing.T) {
 	ctx := context.Background()
 
 	// Register a user first to get a real bcrypt hash.
@@ -71,10 +70,9 @@ func TestSecurity_RED_BlockedUserCanLogin(t *testing.T) {
 // continue to work until they expire.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_BlockedUserTokenStillValid documents that a blocked user's
+// TestSecurity_BlockedUserTokenStillValid documents that a blocked user's
 // access token is still accepted by ValidateJWT.
-// TODO(security): ValidateJWT must check user.IsBlocked() and return ErrUserBlocked.
-func TestSecurity_RED_BlockedUserTokenStillValid(t *testing.T) {
+func TestSecurity_BlockedUserTokenStillValid(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a user and get a valid token.
@@ -126,11 +124,9 @@ func TestSecurity_RED_BlockedUserTokenStillValid(t *testing.T) {
 // should invalidate all existing tokens for that user.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_ChangePasswordDoesNotInvalidateTokens documents that
+// TestSecurity_ChangePasswordDoesNotInvalidateTokens documents that
 // tokens issued before a password change remain valid afterward.
-// TODO(security): ChangePassword should invalidate all existing tokens for
-// the user (e.g., by bumping a token generation counter or blocklisting).
-func TestSecurity_RED_ChangePasswordDoesNotInvalidateTokens(t *testing.T) {
+func TestSecurity_ChangePasswordDoesNotInvalidateTokens(t *testing.T) {
 	ctx := context.Background()
 
 	// Register and login to get a valid access token.
@@ -180,11 +176,9 @@ func TestSecurity_RED_ChangePasswordDoesNotInvalidateTokens(t *testing.T) {
 // until it expires (7-30 days), giving an attacker persistent access.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_RefreshTokenNotRotated documents that a refresh token
+// TestSecurity_RefreshTokenNotRotated documents that a refresh token
 // can be reused multiple times to get new access tokens.
-// TODO(security): RefreshToken should rotate the refresh token (issue a new one
-// and invalidate the old one) on each use.
-func TestSecurity_RED_RefreshTokenNotRotated(t *testing.T) {
+func TestSecurity_RefreshTokenNotRotated(t *testing.T) {
 	ctx := context.Background()
 
 	mockUsersReg := &userstest.MockUserRepository{
@@ -238,11 +232,9 @@ func TestSecurity_RED_RefreshTokenNotRotated(t *testing.T) {
 // If the last admin demotes themselves, no one has admin access anymore.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_AdminCanSelfDemote documents that an admin can demote
+// TestSecurity_AdminCanSelfDemote documents that an admin can demote
 // themselves to member role.
-// TODO(security): SetUserRole should prevent an admin from changing their own
-// role, or at minimum prevent demotion of the last remaining admin.
-func TestSecurity_RED_AdminCanSelfDemote(t *testing.T) {
+func TestSecurity_AdminCanSelfDemote(t *testing.T) {
 	ctx := context.Background()
 
 	adminID := domain.NewUserID()
@@ -280,11 +272,9 @@ func TestSecurity_RED_AdminCanSelfDemote(t *testing.T) {
 // causing storage bloat and potential UI rendering issues (DoS via rendering).
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TestSecurity_RED_DisplayNameNoLengthLimit documents that Register accepts
+// TestSecurity_DisplayNameNoLengthLimit documents that Register accepts
 // an excessively long display name without validation.
-// TODO(security): Register, UpdateProfile, and CompleteInvite should reject
-// display names longer than a reasonable limit (e.g., 200 characters).
-func TestSecurity_RED_DisplayNameNoLengthLimit(t *testing.T) {
+func TestSecurity_DisplayNameNoLengthLimit(t *testing.T) {
 	ctx := context.Background()
 
 	mockUsers := &userstest.MockUserRepository{

@@ -2,12 +2,9 @@ package security_test
 
 // Security tests for comments.go converters.
 //
-// Vulnerability 4 (RED)  — ToPublicComment passes AuthorType through without enum
-//   validation. comments.go:15: string(comment.AuthorType) converts any stored value
-//   directly to the public response. Values outside {"agent","human"} propagate.
-//
-// Vulnerability 4 (GREEN) — ToPublicComment normalises unrecognised AuthorType
-//   values to a safe default ("agent") rather than leaking arbitrary strings.
+// Vulnerability 4 — ToPublicComment normalises unrecognised AuthorType values to
+//   a safe default ("agent") rather than leaking arbitrary strings into public
+//   responses. Values outside {"agent","human"} must not appear in API output.
 
 import (
 	"testing"
@@ -17,13 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestToPublicComment_RED_InvalidAuthorTypePropagates demonstrates that any
-// string stored in domain.Comment.AuthorType reaches the public CommentResponse
-// without validation. An attacker who can influence the domain object (e.g. via
-// direct DB writes or future inbound paths) can inject arbitrary values.
-//
-// This test is expected to FAIL against the current implementation (red test).
-func TestToPublicComment_RED_InvalidAuthorTypePropagates(t *testing.T) {
+// TestToPublicComment_InvalidAuthorTypePropagates verifies that any unrecognised
+// string in domain.Comment.AuthorType is normalised by ToPublicComment rather than
+// reaching the public CommentResponse unchanged.
+func TestToPublicComment_InvalidAuthorTypePropagates(t *testing.T) {
 	invalidAuthorTypes := []domain.AuthorType{
 		"admin",
 		"'; DROP TABLE comments; --",
@@ -44,8 +38,6 @@ func TestToPublicComment_RED_InvalidAuthorTypePropagates(t *testing.T) {
 		}
 		result := converters.ToPublicComment(comment)
 
-		// RED assertion: after a fix, invalid author types should be normalised.
-		// Currently the raw value is returned, so this assertion will fail.
 		validTypes := map[string]bool{"agent": true, "human": true}
 		assert.True(t, validTypes[result.AuthorType],
 			"AuthorType %q must be normalised to a valid value, got %q", at, result.AuthorType)

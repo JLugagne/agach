@@ -33,8 +33,8 @@ func TestSecurity_RED_SortOrderFieldsAcceptNegativeValues(t *testing.T) {
 		SortOrder: -999,
 	}
 	err := sharedValidator.Struct(req)
-	assert.NoError(t, err,
-		"RED: negative SortOrder is accepted — should be rejected with min=0")
+	assert.Error(t, err,
+		"RED: negative SortOrder should be rejected by min=0 validation")
 	t.Log("RED: SortOrder fields have no validation — negative values and extreme positives are accepted")
 }
 
@@ -48,8 +48,8 @@ func TestSecurity_RED_SortOrderFieldsAcceptMaxInt(t *testing.T) {
 		SortOrder: math.MaxInt32,
 	}
 	err := sharedValidator.Struct(req)
-	assert.NoError(t, err,
-		"RED: SortOrder of MaxInt32 is accepted — should be bounded to a reasonable max")
+	assert.Error(t, err,
+		"RED: SortOrder of MaxInt32 should be rejected by max= validation")
 	t.Log("RED: SortOrder fields accept arbitrarily large values that can corrupt ordering")
 }
 
@@ -71,8 +71,8 @@ func TestSecurity_RED_UpdateChatStatsNegativeTokensAccepted(t *testing.T) {
 		CacheWriteTokens: -999,
 	}
 	err := sharedValidator.Struct(req)
-	assert.NoError(t, err,
-		"RED: negative token counts on UpdateChatStatsRequest pass validation — should be rejected")
+	assert.Error(t, err,
+		"RED: negative token counts on UpdateChatStatsRequest should be rejected by min=0 validation")
 	t.Log("RED: UpdateChatStatsRequest token fields lack min=0 validation — negative values corrupt statistics")
 }
 
@@ -98,8 +98,8 @@ func TestSecurity_RED_GrantUserAccessUnboundedUserID(t *testing.T) {
 		Role:   "admin",
 	}
 	err := sharedValidator.Struct(req)
-	assert.NoError(t, err,
-		"RED: a 1 MB UserID passes validation — should be bounded by max= constraint")
+	assert.Error(t, err,
+		"RED: a 1 MB UserID should be rejected by max= constraint")
 	t.Log("RED: GrantUserAccessRequest.UserID has no max length — unbounded string accepted")
 }
 
@@ -115,8 +115,8 @@ func TestSecurity_RED_GrantTeamAccessUnboundedTeamID(t *testing.T) {
 		TeamID: string(hugeID),
 	}
 	err := sharedValidator.Struct(req)
-	assert.NoError(t, err,
-		"RED: a 1 MB TeamID passes validation — should be bounded by max= constraint")
+	assert.Error(t, err,
+		"RED: a 1 MB TeamID should be rejected by max= constraint")
 	t.Log("RED: GrantTeamAccessRequest.TeamID has no max length — unbounded string accepted")
 }
 
@@ -143,12 +143,12 @@ func TestSecurity_RED_NilSliceFieldsMarshalToNull(t *testing.T) {
 	var decoded map[string]any
 	assert.NoError(t, json.Unmarshal(data, &decoded))
 
-	// nil slices marshal to null in Go's encoding/json
-	assert.Nil(t, decoded["files_modified"],
-		"RED: nil FilesModified marshals to null — consumers expecting [] will crash")
-	assert.Nil(t, decoded["context_files"],
-		"RED: nil ContextFiles marshals to null — consumers expecting [] will crash")
-	assert.Nil(t, decoded["tags"],
-		"RED: nil Tags marshals to null — consumers expecting [] will crash")
+	// Slice fields should marshal to [] (empty array), not null.
+	assert.Equal(t, []any{}, decoded["files_modified"],
+		"RED: FilesModified should marshal to [] not null — null breaks API consumers")
+	assert.Equal(t, []any{}, decoded["context_files"],
+		"RED: ContextFiles should marshal to [] not null — null breaks API consumers")
+	assert.Equal(t, []any{}, decoded["tags"],
+		"RED: Tags should marshal to [] not null — null breaks API consumers")
 	t.Log("RED: nil slice fields in response types marshal to JSON null instead of [] — breaks API consumers")
 }
