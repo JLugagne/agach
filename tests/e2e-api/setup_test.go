@@ -100,7 +100,6 @@ func startTestServer(t *testing.T) {
 		Pool:        pool,
 		Logger:      logger,
 		AuthQueries: identitySystem.AuthQueries,
-		WSRouter:    httpRouter,
 		DataDir:     dataDir,
 	}, serverRouter)
 	require.NoError(t, err)

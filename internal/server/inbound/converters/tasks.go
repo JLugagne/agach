@@ -16,8 +16,9 @@ var (
 	unsafeCharsPattern = regexp.MustCompile("[\x00-\x08\x0B\x0C\x0E-\x1F\u200B-\u200F\u202A-\u202E\uFEFF]")
 )
 
-// sanitizeText normalizes Unicode (NFKC) and strips HTML tags and JavaScript protocol references.
-func sanitizeText(s string) string {
+// SanitizeText normalizes Unicode (NFKC) and strips HTML tags and JavaScript protocol references.
+// Exported for use by handlers that build broadcast event data maps.
+func SanitizeText(s string) string {
 	normalized := norm.NFKC.String(s)
 	noUnsafe := unsafeCharsPattern.ReplaceAllString(normalized, "")
 	noHTML := htmlTagPattern.ReplaceAllString(noUnsafe, "")
@@ -68,9 +69,9 @@ func ToPublicTask(task domain.Task) pkgserver.TaskResponse {
 		ID:                   string(task.ID),
 		ColumnID:             string(task.ColumnID),
 		FeatureID:            featureID,
-		Title:                sanitizeText(task.Title),
-		Summary:              sanitizeText(task.Summary),
-		Description:          sanitizeText(task.Description),
+		Title:                SanitizeText(task.Title),
+		Summary:              SanitizeText(task.Summary),
+		Description:          SanitizeText(task.Description),
 		Priority:             string(task.Priority),
 		PriorityScore:        task.PriorityScore,
 		Position:             task.Position,

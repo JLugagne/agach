@@ -2,6 +2,8 @@ package websocket
 
 import (
 	"encoding/json"
+	"net"
+	"regexp"
 	"sync"
 	"time"
 
@@ -10,8 +12,9 @@ import (
 )
 
 const (
-	maxClients      = 1000
-	broadcastBuffer = 256
+	maxClients        = 1000
+	maxClientsPerIP   = 20
+	broadcastBuffer   = 256
 )
 
 // Event represents a WebSocket event
@@ -26,15 +29,17 @@ type RelayHandlerFunc func(client *Client, msg []byte)
 
 // Hub maintains the set of active WebSocket connections and broadcasts events
 type Hub struct {
-	clients    map[*Client]bool
-	broadcast  chan Event
-	register   chan *Client
-	unregister chan *Client
-	relay      chan relayMessage
-	stop       chan struct{}
-	handlers   map[string]RelayHandlerFunc
-	mu         sync.Mutex
-	logger     *logrus.Logger
+	clients      map[*Client]bool
+	ipCount      map[string]int // per-IP connection count
+	broadcast    chan Event
+	register     chan *Client
+	unregister   chan *Client
+	relay        chan relayMessage
+	stop         chan struct{}
+	handlers     map[string]RelayHandlerFunc
+	mu           sync.Mutex
+	logger       *logrus.Logger
+	droppedCount int64 // backpressure counter for broadcast overflow
 }
 
 // relayMessage carries a raw message from one client to be forwarded to others.
@@ -45,12 +50,13 @@ type relayMessage struct {
 
 // Client represents a WebSocket client connection
 type Client struct {
-	hub       *Hub
-	conn      *websocket.Conn
-	send      chan Event
-	projectID string
-	isDaemon  bool
-	nodeID    string
+	hub        *Hub
+	conn       *websocket.Conn
+	send       chan Event
+	projectID  string
+	remoteAddr string
+	isDaemon   bool
+	nodeID     string
 	closed    bool
 	closeMu   sync.Mutex
 	writeMu   sync.Mutex // protects conn writes (WritePump, sendRaw, pings)
@@ -70,6 +76,7 @@ func (c *Client) DoCloseSend() {
 func NewHub(logger *logrus.Logger) *Hub {
 	return &Hub{
 		clients:    make(map[*Client]bool),
+		ipCount:    make(map[string]int),
 		broadcast:  make(chan Event, broadcastBuffer),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
@@ -107,11 +114,33 @@ func (h *Hub) Run() {
 				client.conn.Close()
 				continue
 			}
+			// Per-IP connection limit
+			ip := client.remoteAddr
+			if ip != "" && h.ipCount[ip] >= maxClientsPerIP {
+				h.mu.Unlock()
+				h.logger.WithFields(logrus.Fields{"ip": ip, "limit": maxClientsPerIP}).Warn("Per-IP connection limit reached, rejecting")
+				client.conn.Close()
+				continue
+			}
 			h.clients[client] = true
+			if ip != "" {
+				h.ipCount[ip]++
+			}
 			h.mu.Unlock()
 			h.logger.WithField("client_count", clientCount+1).Debug("Client registered")
 
 		case client := <-h.unregister:
+			h.mu.Lock()
+			if _, ok := h.clients[client]; ok {
+				ip := client.remoteAddr
+				if ip != "" {
+					h.ipCount[ip]--
+					if h.ipCount[ip] <= 0 {
+						delete(h.ipCount, ip)
+					}
+				}
+			}
+			h.mu.Unlock()
 			HandleUnregister(h.clients, &h.mu, client, h.logger)
 
 		case event := <-h.broadcast:
@@ -131,13 +160,23 @@ func (h *Hub) Run() {
 			h.mu.Unlock()
 
 		case msg := <-h.relay:
+			// Extract project_id from the relay message payload for filtering.
+			msgProjectID := msg.from.projectID
+			if msgProjectID == "" {
+				var envelope struct {
+					ProjectID string `json:"project_id"`
+				}
+				_ = json.Unmarshal(msg.data, &envelope)
+				msgProjectID = envelope.ProjectID
+			}
+
 			h.mu.Lock()
 			if msg.from.isDaemon {
 				for client := range h.clients {
 					if client.isDaemon {
 						continue
 					}
-					if client.projectID != msg.from.projectID {
+					if msgProjectID != "" && client.projectID != msgProjectID {
 						continue
 					}
 					h.sendRaw(client, msg.data)
@@ -147,7 +186,7 @@ func (h *Hub) Run() {
 					if !client.isDaemon {
 						continue
 					}
-					if client.projectID != msg.from.projectID {
+					if msgProjectID != "" && client.projectID != msgProjectID {
 						continue
 					}
 					h.sendRaw(client, msg.data)
@@ -179,13 +218,45 @@ func (h *Hub) Stop() {
 	close(h.stop)
 }
 
+var (
+	scriptBlockRe = regexp.MustCompile(`(?i)<script[^>]*>.*?</script>`)
+	htmlTagRe     = regexp.MustCompile(`<[^>]*>`)
+)
+
+// sanitizeEventData strips HTML tags from string values in the event data.
+func sanitizeEventData(data interface{}) interface{} {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		cleaned := make(map[string]interface{}, len(v))
+		for k, val := range v {
+			cleaned[k] = sanitizeEventData(val)
+		}
+		return cleaned
+	case map[string]string:
+		cleaned := make(map[string]string, len(v))
+		for k, val := range v {
+			val = scriptBlockRe.ReplaceAllString(val, "")
+			cleaned[k] = htmlTagRe.ReplaceAllString(val, "")
+		}
+		return cleaned
+	case string:
+		v = scriptBlockRe.ReplaceAllString(v, "")
+		return htmlTagRe.ReplaceAllString(v, "")
+	default:
+		return data
+	}
+}
+
 // Broadcast sends an event to all connected clients. Non-blocking: drops the
-// event and logs if the broadcast channel is full.
+// event and logs if the broadcast channel is full. String values in the event
+// data are sanitized to strip HTML tags.
 func (h *Hub) Broadcast(event Event) {
+	event.Data = sanitizeEventData(event.Data)
 	select {
 	case h.broadcast <- event:
 	default:
-		h.logger.WithField("event_type", event.Type).Warn("Broadcast channel full, dropping event")
+		h.droppedCount++
+		h.logger.WithField("event_type", event.Type).Warn("Broadcast channel full, dropping event (backpressure)")
 	}
 }
 
@@ -336,11 +407,29 @@ func (h *Hub) ConnectedDaemonNodeIDs() []string {
 }
 
 // ServeWS handles WebSocket requests from clients.
+// CanAcceptIP checks if the hub can accept another connection from the given IP.
+// Call this before upgrading the WebSocket connection to reject early.
+func (h *Hub) CanAcceptIP(ip string) bool {
+	if ip == "" {
+		return true
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.ipCount[ip] < maxClientsPerIP
+}
+
 func (h *Hub) ServeWS(conn *websocket.Conn, opts ...ServeWSOption) {
+	// Extract IP from remote address (strip port)
+	addr := conn.RemoteAddr().String()
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		addr = host
+	}
+
 	client := &Client{
-		hub:  h,
-		conn: conn,
-		send: make(chan Event, 256),
+		hub:        h,
+		conn:       conn,
+		send:       make(chan Event, 256),
+		remoteAddr: addr,
 	}
 	for _, opt := range opts {
 		opt(client)

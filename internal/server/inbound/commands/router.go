@@ -3,7 +3,6 @@ package commands
 import (
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
-	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
 	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/gorilla/mux"
 )
@@ -17,10 +16,10 @@ type App interface {
 
 // NewRouter wires all command handlers onto the given router.
 // chatSvc is optional: when provided the chat command routes are registered.
-func NewRouter(router *mux.Router, app App, ctrl *controller.Controller, hub *websocket.Hub, sseHub *sse.Hub, dataDir string, chatSvc ...service.ChatService) {
+func NewRouter(router *mux.Router, app App, ctrl *controller.Controller, hub *websocket.Hub, dataDir string, chatSvc ...service.ChatService) {
 	NewProjectCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
 	NewAgentCommandsHandler(app, app, ctrl, hub).RegisterRoutes(router)
-	NewTaskCommandsHandler(app, ctrl, hub, sseHub, app).RegisterRoutes(router)
+	NewTaskCommandsHandler(app, ctrl, hub, app).RegisterRoutes(router)
 	NewCommentCommandsHandlerWithQueries(app, app, ctrl, hub).RegisterRoutes(router)
 	NewImageCommandsHandler(app, ctrl).RegisterRoutes(router)
 	NewSeenCommandsHandler(app, ctrl, hub).RegisterRoutes(router)

@@ -1,12 +1,11 @@
 package commands
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"net/http"
 
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
-	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
 	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
@@ -23,16 +22,14 @@ type TaskCommandsHandler struct {
 	queries    service.Queries
 	controller *controller.Controller
 	hub        *websocket.Hub
-	sseHub     *sse.Hub
 }
 
 // NewTaskCommandsHandler creates a new task commands handler
-func NewTaskCommandsHandler(commands service.Commands, ctrl *controller.Controller, hub *websocket.Hub, sseHub *sse.Hub, queries ...service.Queries) *TaskCommandsHandler {
+func NewTaskCommandsHandler(commands service.Commands, ctrl *controller.Controller, hub *websocket.Hub, queries ...service.Queries) *TaskCommandsHandler {
 	h := &TaskCommandsHandler{
 		commands:   commands,
 		controller: ctrl,
 		hub:        hub,
-		sseHub:     sseHub,
 	}
 	if len(queries) > 0 {
 		h.queries = queries[0]
@@ -122,19 +119,6 @@ func (h *TaskCommandsHandler) CreateTask(w http.ResponseWriter, r *http.Request)
 		ProjectID: string(projectID),
 		Data:      converters.ToPublicTask(task),
 	})
-
-	// Publish task_created to SSE subscribers
-	if h.sseHub != nil {
-		type ssePayload struct {
-			ID    string `json:"id"`
-			Title string `json:"title"`
-			Role  string `json:"role"`
-		}
-		payload := ssePayload{ID: string(task.ID), Title: task.Title, Role: task.AssignedRole}
-		if b, err := json.Marshal(payload); err == nil {
-			h.sseHub.Publish(string(projectID), string(b))
-		}
-	}
 
 	h.controller.SendSuccess(w, r, converters.ToPublicTask(task))
 }
@@ -303,11 +287,6 @@ func (h *TaskCommandsHandler) MoveTask(w http.ResponseWriter, r *http.Request) {
 			ProjectID: string(projectID),
 			Data:      map[string]string{"project_id": string(projectID)},
 		})
-		if h.sseHub != nil {
-			if eventBytes, err := json.Marshal(map[string]any{"type": "wip_slot_available", "project_id": string(projectID)}); err == nil {
-				h.sseHub.Publish(string(projectID), string(eventBytes))
-			}
-		}
 	}
 
 	h.controller.SendSuccess(w, r, map[string]string{"message": "task moved"})
@@ -366,9 +345,9 @@ func (h *TaskCommandsHandler) CompleteTask(w http.ResponseWriter, r *http.Reques
 		ProjectID: string(projectID),
 		Data: map[string]interface{}{
 			"task_id":            string(taskID),
-			"completion_summary": req.CompletionSummary,
+			"completion_summary": converters.SanitizeText(req.CompletionSummary),
 			"files_modified":     req.FilesModified,
-			"completed_by_agent": req.CompletedByAgent,
+			"completed_by_agent": converters.SanitizeText(req.CompletedByAgent),
 		},
 	})
 
@@ -377,11 +356,6 @@ func (h *TaskCommandsHandler) CompleteTask(w http.ResponseWriter, r *http.Reques
 		ProjectID: string(projectID),
 		Data:      map[string]string{"project_id": string(projectID)},
 	})
-	if h.sseHub != nil {
-		if eventBytes, err := json.Marshal(map[string]any{"type": "wip_slot_available", "project_id": string(projectID)}); err == nil {
-			h.sseHub.Publish(string(projectID), string(eventBytes))
-		}
-	}
 
 	h.controller.SendSuccess(w, r, map[string]string{"message": "task completed"})
 }
@@ -416,6 +390,8 @@ func (h *TaskCommandsHandler) BlockTask(w http.ResponseWriter, r *http.Request) 
 			"reason":        req.BlockedReason,
 		},
 	})
+
+	h.notifyTaskBlocked(r.Context(), projectID, taskID, req.BlockedByAgent)
 
 	h.controller.SendSuccess(w, r, map[string]string{"message": "task blocked"})
 }
@@ -675,4 +651,25 @@ func (h *TaskCommandsHandler) AddDependency(w http.ResponseWriter, r *http.Reque
 	}
 
 	h.controller.SendSuccess(w, r, map[string]string{"message": "dependency added"})
+}
+
+// notifyTaskBlocked creates and broadcasts a notification when a task is blocked.
+func (h *TaskCommandsHandler) notifyTaskBlocked(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, agentSlug string) {
+	taskTitle := string(taskID)
+	if h.queries != nil {
+		if t, err := h.queries.GetTask(ctx, projectID, taskID); err == nil && t != nil {
+			taskTitle = t.Title
+		}
+	}
+
+	pid := projectID
+	notification, err := h.commands.CreateNotification(ctx, &pid, domain.NotificationScopeProject, agentSlug, domain.SeverityWarning, "Task blocked", taskTitle, "", "", "")
+	if err != nil {
+		return
+	}
+	h.hub.Broadcast(websocket.Event{
+		Type:      "notification",
+		ProjectID: string(projectID),
+		Data:      converters.ToPublicNotification(notification),
+	})
 }

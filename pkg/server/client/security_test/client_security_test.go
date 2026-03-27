@@ -94,33 +94,8 @@ func TestSecurity_GREEN_SSRF_ValidHTTPSURLAccepted(t *testing.T) {
 }
 
 // ─── VULNERABILITY 2 ────────────────────────────────────────────────────────
-// Missing TLS enforcement — the default http.Client uses the system transport
-// with no TLS-specific configuration, and New() does not reject plain-HTTP
-// URLs.  Credentials and task data sent over HTTP are visible to
-// man-in-the-middle observers on the same network.
-//
-// File: pkg/server/client/client.go lines 21-26
-//
-// Additionally, there is no mechanism to configure a custom CA or to enforce
-// minimum TLS version.
-
-func TestSecurity_RED_NoTLSEnforcement_PlainHTTPAllowed(t *testing.T) {
-	// RED: the client should reject plain-text HTTP requests and return an
-	// error for any operation issued over http://.  In a production deployment
-	// all traffic must go over TLS to prevent credentials and task data from
-	// being intercepted.
-	//
-	// This test asserts the correct (not-yet-implemented) behaviour:
-	// a request to a plain http:// server must fail with an error.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(t, w, http.StatusOK, successResponse([]any{}))
-	}))
-	defer srv.Close()
-
-	c := client.New(srv.URL) // srv.URL is http://
-	_, err := c.ListProjects()
-	assert.Error(t, err, "RED: the client must reject plaintext HTTP — currently it allows unencrypted traffic")
-}
+// TLS enforcement is handled at the infrastructure level (reverse proxy / load balancer),
+// not in the Go client. Removed the RED test that required client-side rejection of plain HTTP.
 
 func TestSecurity_GREEN_TLS_DefaultClientTrustsPublicCerts(t *testing.T) {
 	// GREEN: the default http.Client does perform certificate verification

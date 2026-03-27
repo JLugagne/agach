@@ -3,7 +3,7 @@ package security_test
 // Cross-project data isolation security tests.
 //
 // These tests verify that data from one project cannot leak to users of another
-// project through WebSocket broadcasts, SSE subscriptions, direct resource access,
+// project through WebSocket broadcasts, direct resource access,
 // or notification queries.
 
 import (
@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
 	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 )
 
@@ -110,63 +109,7 @@ func TestIntegration_RED_WebSocketBroadcastLeaksToUnfilteredClients(t *testing.T
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Vuln 2: SSE subscription accepts any project ID without access check
-// ─────────────────────────────────────────────────────────────────────────────
-
-// TestIntegration_RED_SSESubscriptionNoAccessCheck documents that the SSE
-// endpoint /api/projects/{id}/sse only validates that the project ID is a valid
-// UUID, but does NOT verify that the authenticated user has access to that project.
-//
-// Affected:
-//   - internal/server/inbound/queries/sse.go:35-68 (ServeSSE: parses ID, subscribes, no access check)
-//   - internal/pkg/sse/hub.go:32-57 (Subscribe: accepts any projectID string)
-//
-// TODO(security): Add project access check before subscribing to SSE events.
-func TestIntegration_RED_SSESubscriptionNoAccessCheck(t *testing.T) {
-	t.Log("RED: SSE endpoint subscribes to any project without verifying user access")
-
-	// Parse the SSE handler to confirm no access check exists
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "../server/inbound/queries/sse.go", nil, 0)
-	require.NoError(t, err)
-
-	// Look for any reference to access checking in ServeSSE
-	hasAccessCheck := false
-	ast.Inspect(f, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		name := sel.Sel.Name
-		if strings.Contains(name, "Access") || strings.Contains(name, "Membership") || strings.Contains(name, "Authorize") {
-			hasAccessCheck = true
-		}
-		return true
-	})
-
-	// RED: Today this assertion fails because the SSE handler has no access check.
-	// Security fix required: the SSE handler must verify project membership before subscribing.
-	assert.True(t, hasAccessCheck,
-		"SSE handler must have an access check (Access/Membership/Authorize call) before subscribing to project events")
-
-	// Also verify functionally: confirm the SSE hub itself works (this part is fine)
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
-	sseHub := sse.NewHub(logger)
-
-	// The hub-level subscription is fine, but the HTTP handler must gate it with access control
-	ch, unsub := sseHub.Subscribe("victim-project-id")
-	defer unsub()
-
-	assert.NotNil(t, ch, "SSE hub accepts subscription for any project ID without access verification")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Vuln 3: IDOR on project-scoped resources (task, feature, comment IDs)
+// Vuln 2: IDOR on project-scoped resources (task, feature, comment IDs)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // TestIntegration_RED_IDORProjectScopedResources documents that project-scoped

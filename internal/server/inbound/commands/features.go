@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
@@ -168,6 +169,10 @@ func (h *FeatureCommandsHandler) UpdateFeatureStatus(w http.ResponseWriter, r *h
 	}
 
 	h.hub.Broadcast(websocket.Event{Type: "feature_status_updated", Data: map[string]string{"feature_id": string(featureID), "status": req.Status}})
+
+	// Send notification for notable feature status changes
+	h.notifyFeatureStatusChange(r.Context(), projectID, featureID, status)
+
 	h.controller.SendSuccess(w, r, map[string]string{"message": "feature status updated"})
 }
 
@@ -227,4 +232,42 @@ func (h *FeatureCommandsHandler) DeleteFeature(w http.ResponseWriter, r *http.Re
 	})
 
 	h.controller.SendSuccess(w, r, map[string]string{"message": "feature deleted"})
+}
+
+// notifyFeatureStatusChange creates and broadcasts a notification for notable feature transitions.
+func (h *FeatureCommandsHandler) notifyFeatureStatusChange(ctx context.Context, projectID domain.ProjectID, featureID domain.FeatureID, status domain.FeatureStatus) {
+	var severity domain.NotificationSeverity
+	var title string
+
+	switch status {
+	case domain.FeatureStatusDone:
+		severity = domain.SeveritySuccess
+		title = "Feature completed"
+	case domain.FeatureStatusBlocked:
+		severity = domain.SeverityWarning
+		title = "Feature blocked"
+	case domain.FeatureStatusInProgress:
+		severity = domain.SeverityInfo
+		title = "Feature started"
+	default:
+		return
+	}
+
+	featureName := string(featureID)
+	if h.queries != nil {
+		if f, err := h.queries.GetFeature(ctx, featureID); err == nil && f != nil {
+			featureName = f.Name
+		}
+	}
+
+	pid := projectID
+	notification, err := h.commands.CreateNotification(ctx, &pid, domain.NotificationScopeProject, "", severity, title, featureName, "", "", "")
+	if err != nil {
+		return
+	}
+	h.hub.Broadcast(websocket.Event{
+		Type:      "notification",
+		ProjectID: string(projectID),
+		Data:      converters.ToPublicNotification(notification),
+	})
 }

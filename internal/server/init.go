@@ -5,7 +5,6 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/JLugagne/agach-mcp/internal/pkg/middleware"
-	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
 	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/internal/server/app"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/commands"
@@ -24,11 +23,6 @@ type Config struct {
 	AuthQueries      AuthQueries
 	DataDir          string // Directory for storing chat session JSONL files
 	ResourceManifest *ResourceManifest
-	// WSRouter is the router on which to register the /ws endpoint.
-	// Use a router without auth middleware, since browsers cannot send
-	// Authorization headers on WebSocket connections; auth is done via
-	// the ?token= query parameter instead. If nil, router is used.
-	WSRouter *mux.Router
 }
 
 // InitHTTP initializes the Kanban system with HTTP REST API and WebSocket
@@ -98,9 +92,6 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 
 	logger.Info("WebSocket hub initialized")
 
-	// Initialize SSE hub
-	sseHub := sse.NewHub(logger)
-
 	// Initialize controller
 	ctrl := controller.NewController(logger)
 
@@ -109,24 +100,20 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 
 	// Register routes
 	chatService := appInstance.ChatService()
-	commands.NewRouter(router, appInstance, ctrl, hub, sseHub, cfg.DataDir, chatService)
-	queries.NewRouter(router, appInstance, ctrl, sseHub, cfg.DataDir, chatService, cfg.AuthQueries)
+	commands.NewRouter(router, appInstance, ctrl, hub, cfg.DataDir, chatService)
+	queries.NewRouter(router, appInstance, ctrl, cfg.DataDir, chatService, cfg.AuthQueries)
 
 	// Register resource download routes
 	if cfg.ResourceManifest != nil {
 		cfg.ResourceManifest.RegisterRoutes(router)
 	}
 
-	wsRouter := router
-	if cfg.WSRouter != nil {
-		wsRouter = cfg.WSRouter
-	}
 	var manifestJSON json.RawMessage
 	if cfg.ResourceManifest != nil {
 		manifestJSON, _ = json.Marshal(cfg.ResourceManifest.Entries())
 	}
-	wsHandler := commands.NewWSHandler(cfg.AuthQueries, hub, logger, manifestJSON)
-	wsRouter.Handle("/ws", wsHandler).Methods("GET")
+	wsHandler := commands.NewWSHandler(cfg.AuthQueries, hub, logger, manifestJSON, appInstance)
+	router.Handle("/ws", middleware.LimitBodySize(wsHandler)).Methods("GET")
 
 	logger.Info("REST API and WebSocket initialized successfully")
 

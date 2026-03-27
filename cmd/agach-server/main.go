@@ -112,7 +112,6 @@ func runHTTP(logger *logrus.Logger, pool *pgxpool.Pool, cfg *serverConfig, jwtSe
 		Pool:             pool,
 		Logger:           logger,
 		AuthQueries:      identitySystem.AuthQueries,
-		WSRouter:         httpRouter,
 		ResourceManifest: resourceManifest,
 	}, serverRouter); err != nil {
 		logger.WithError(err).Fatal("Failed to initialize HTTP server")

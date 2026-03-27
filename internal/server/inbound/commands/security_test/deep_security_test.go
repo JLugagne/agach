@@ -41,7 +41,6 @@ import (
 	"testing"
 
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
-	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
 	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service/servicetest"
@@ -66,10 +65,9 @@ func newDeepSecurityRouter(t *testing.T, app commands.App) *mux.Router {
 	ctrl := controller.NewController(logger)
 	hub := websocket.NewHub(logger)
 	go hub.Run()
-	sseHub := sse.NewHub(logrus.New())
 
 	router := mux.NewRouter()
-	commands.NewRouter(router, app, ctrl, hub, sseHub, "")
+	commands.NewRouter(router, app, ctrl, hub, "")
 	return router
 }
 
@@ -371,7 +369,6 @@ func TestSecurity_SEC03_PromptTemplateBoundedByBodyLimit_GREEN(t *testing.T) {
 	ctrl := controller.NewController(logger)
 	hub := websocket.NewHub(logger)
 	go hub.Run()
-	sseHub := sse.NewHub(logrus.New())
 	router := mux.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -383,7 +380,7 @@ func TestSecurity_SEC03_PromptTemplateBoundedByBodyLimit_GREEN(t *testing.T) {
 			next.ServeHTTP(w, r)
 		})
 	})
-	commands.NewRouter(router, newTestApp(cmds, qrs), ctrl, hub, sseHub, "")
+	commands.NewRouter(router, newTestApp(cmds, qrs), ctrl, hub, "")
 
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)

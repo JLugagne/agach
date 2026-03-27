@@ -20,13 +20,11 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/tasks"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service/servicetest"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/queries"
 	"github.com/gorilla/mux"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,12 +39,6 @@ func newSecurityRouter(mock *servicetest.MockQueries) *mux.Router {
 	queries.NewTaskQueriesHandler(mock, ctrl).RegisterRoutes(router)
 	queries.NewCommentQueriesHandler(mock, ctrl).RegisterRoutes(router)
 	queries.NewProjectQueriesHandler(mock, ctrl, nil).RegisterRoutes(router)
-	return router
-}
-
-func newSSERouter(hub *sse.Hub) *mux.Router {
-	router := mux.NewRouter()
-	queries.NewSSEHandler(hub).RegisterRoutes(router)
 	return router
 }
 
@@ -207,78 +199,7 @@ func TestSecurity_GREEN_ListTasks_IncludeChildrenErrorPropagated(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// VULN-5: SSE endpoint — raw projectID is not validated before use as
-//         channel key
-// File: sse.go:25
-//
-// The handler uses the raw mux path variable directly:
-//   projectID := mux.Vars(r)["id"]
-// Unlike every other handler in the package, it does NOT call
-// domain.ParseProjectID, meaning any string — including empty strings,
-// path traversal attempts, or deliberately crafted channel names — is
-// accepted as a subscription key.
-// ---------------------------------------------------------------------------
-
-// GREEN — after fixing, a non-UUID projectID must be rejected with 400.
-func TestSecurity_GREEN_SSE_InvalidProjectIDRejected(t *testing.T) {
-	hub := sse.NewHub(logrus.New())
-	router := newSSERouter(hub)
-
-	ctx, cancel := makeQuickContext()
-	defer cancel()
-
-	req := httptest.NewRequest(http.MethodGet,
-		"/api/projects/not-a-uuid/sse",
-		nil).WithContext(ctx)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code,
-		"GREEN: SSE handler must validate the projectID and return 400 for invalid UUIDs")
-}
-
-// makeQuickContext returns a context that is already cancelled, so the SSE
-// handler's select immediately picks up <-r.Context().Done() and returns.
-func makeQuickContext() (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // cancel immediately so SSE handler exits on first select
-	return ctx, cancel
-}
-
-// ---------------------------------------------------------------------------
-// VULN-6: SSE endpoint — wildcard CORS header
-// File: sse.go:28
-//
-//   w.Header().Set("Access-Control-Allow-Origin", "*")
-//
-// The SSE stream is opened without any authentication, and then immediately
-// announces that any origin may access it.  Although this is a single-user
-// system today, the header makes cross-origin data exfiltration trivial if
-// auth is added later (cookies/credentials would still be sent).
-// ---------------------------------------------------------------------------
-
-// GREEN — after fixing, either the header is absent or set to a specific
-// trusted origin (never the wildcard).
-func TestSecurity_GREEN_SSE_NoCORSWildcard(t *testing.T) {
-	hub := sse.NewHub(logrus.New())
-	router := newSSERouter(hub)
-
-	ctx, cancel := makeQuickContext()
-	defer cancel()
-
-	req := httptest.NewRequest(http.MethodGet,
-		"/api/projects/"+string(newValidProjectID())+"/sse",
-		nil).WithContext(ctx)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	acao := rr.Header().Get("Access-Control-Allow-Origin")
-	assert.NotEqual(t, "*", acao,
-		"GREEN: CORS header must not be a wildcard '*'")
-}
-
-// ---------------------------------------------------------------------------
-// VULN-7: GetBoard — unvalidated, unbounded done_since duration
+// VULN-5: GetBoard — unvalidated, unbounded done_since duration
 // File: tasks.go:185-188
 //
 // The ?done_since= parameter is parsed with time.ParseDuration with no

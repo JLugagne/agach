@@ -6,7 +6,6 @@ import (
 	identitydomain "github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
-	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
 	"github.com/gorilla/mux"
 )
 
@@ -16,7 +15,7 @@ type TeamIDResolver interface {
 }
 
 // NewRouter wires all query handlers onto the given router.
-func NewRouter(router *mux.Router, app service.Queries, ctrl *controller.Controller, sseHub *sse.Hub, dataDir string, chatService service.ChatService, teamResolver ...TeamIDResolver) {
+func NewRouter(router *mux.Router, app service.Queries, ctrl *controller.Controller, dataDir string, chatService service.ChatService, teamResolver ...TeamIDResolver) {
 	var resolver TeamIDResolver
 	if len(teamResolver) > 0 {
 		resolver = teamResolver[0]
@@ -38,7 +37,6 @@ func NewRouter(router *mux.Router, app service.Queries, ctrl *controller.Control
 	NewFeatureQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewFeatureSummariesHandler(app, ctrl).RegisterRoutes(router)
 	NewNotificationQueriesHandler(app, ctrl).RegisterRoutes(router)
-	NewSSEHandler(sseHub, ctrl).RegisterRoutes(router)
 
 	if chatService != nil {
 		NewChatQueriesHandler(chatService, ctrl, dataDir).RegisterRoutes(router)

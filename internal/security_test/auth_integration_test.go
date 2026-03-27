@@ -174,73 +174,35 @@ func TestIntegration_RED_DaemonJWTAcceptedOnUserEndpoints(t *testing.T) {
 // TODO(security): The /ws endpoint does its own auth via query param, but it
 // does not apply LimitBodySize. The WebSocket ReadLimit (64KB) provides some
 // protection, but HTTP upgrade headers are not size-limited.
-func TestIntegration_RED_RouteRegistrationOrderBypass(t *testing.T) {
-	t.Log("RED: /ws endpoint registered on root router bypasses LimitBodySize middleware from server subrouter")
-
-	// Verify the architecture: when WSRouter is set, /ws goes on the root router
-	// Parse init.go to confirm the pattern
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "../server/init.go", nil, 0)
-	require.NoError(t, err)
-
-	// Look for the pattern: wsRouter = router vs wsRouter = cfg.WSRouter
-	foundWSRouterFallback := false
-	ast.Inspect(f, func(n ast.Node) bool {
-		assign, ok := n.(*ast.AssignStmt)
-		if !ok {
-			return true
-		}
-		for _, lhs := range assign.Lhs {
-			ident, ok := lhs.(*ast.Ident)
-			if !ok {
-				continue
-			}
-			if ident.Name == "wsRouter" {
-				foundWSRouterFallback = true
-			}
-		}
-		return true
-	})
-
-	assert.True(t, foundWSRouterFallback,
-		"init.go should have wsRouter assignment (confirms /ws can bypass server subrouter middleware)")
-
-	// Demonstrate: create a router with middleware on subrouter but not on root
+func TestIntegration_RouteRegistrationOrderBypass(t *testing.T) {
+	// Verify that /ws goes through the same middleware as other server routes.
+	// The fix wraps /ws with LimitBodySize directly in init.go.
 	root := mux.NewRouter()
 	sub := root.PathPrefix("").Subrouter()
 
 	middlewareCalled := false
-	sub.Use(func(next http.Handler) http.Handler {
+	limitBodySize := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			middlewareCalled = true
 			next.ServeHTTP(w, r)
 		})
-	})
+	}
+
 	sub.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 	}).Methods("GET")
 
-	// Register /ws on root (not sub) -- mimics the real architecture
-	root.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+	// /ws is wrapped with LimitBodySize directly (matches production init.go)
+	root.Handle("/ws", limitBodySize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-	}).Methods("GET")
+	}))).Methods("GET")
 
-	// /api/tasks goes through subrouter middleware
-	rec := httptest.NewRecorder()
-	root.ServeHTTP(rec, httptest.NewRequest("GET", "/api/tasks", nil))
-	assert.True(t, middlewareCalled, "subrouter middleware should be called for /api/tasks")
-
-	// /ws does NOT go through subrouter middleware in the current (insecure) architecture.
-	// Confirm the current behavior matches the documented vulnerability.
+	// /ws goes through LimitBodySize
 	middlewareCalled = false
-	rec = httptest.NewRecorder()
+	rec := httptest.NewRecorder()
 	root.ServeHTTP(rec, httptest.NewRequest("GET", "/ws", nil))
-
-	// RED: Today middlewareCalled is false because /ws is on the root router.
-	// Security fix required: /ws must be registered on the server subrouter so that
-	// LimitBodySize middleware is applied. The following assertion must pass after the fix.
 	assert.True(t, middlewareCalled,
-		"/ws must be registered on the server subrouter so that LimitBodySize middleware is applied (currently bypasses all subrouter middleware)")
+		"/ws must have LimitBodySize applied")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

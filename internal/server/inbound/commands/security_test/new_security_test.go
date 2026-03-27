@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
-	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
 	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service/servicetest"
@@ -44,10 +43,9 @@ func newRedSecurityRouter(t *testing.T, app commands.App) *mux.Router {
 	ctrl := controller.NewController(logger)
 	hub := websocket.NewHub(logger)
 	go hub.Run()
-	sseHub := sse.NewHub(logrus.New())
 
 	router := mux.NewRouter()
-	commands.NewRouter(router, app, ctrl, hub, sseHub, "")
+	commands.NewRouter(router, app, ctrl, hub, "")
 	return router
 }
 
@@ -225,7 +223,11 @@ func TestSecurity_RED_FeatureCreateBroadcastMissingProjectID(t *testing.T) {
 		if err != nil {
 			return
 		}
-		hub.ServeWS(conn)
+		var opts []websocket.ServeWSOption
+		if pid := r.URL.Query().Get("project_id"); pid != "" {
+			opts = append(opts, websocket.WithProjectID(pid))
+		}
+		hub.ServeWS(conn, opts...)
 	})
 
 	srv := httptest.NewServer(router)

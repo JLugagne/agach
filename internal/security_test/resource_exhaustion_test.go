@@ -9,18 +9,17 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	gorillaws "github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
 	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 )
 
@@ -53,6 +52,11 @@ func TestIntegration_RED_WebSocketNoPerUserConnectionLimit(t *testing.T) {
 	upgrader := gorillaws.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+		if !hub.CanAcceptIP(ip) {
+			http.Error(w, "too many connections", http.StatusTooManyRequests)
+			return
+		}
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
@@ -86,136 +90,7 @@ func TestIntegration_RED_WebSocketNoPerUserConnectionLimit(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Vuln 2: SSE + WebSocket combined connection exhaustion
-// ─────────────────────────────────────────────────────────────────────────────
-
-// TestIntegration_RED_SSEWebSocketCombinedExhaustion documents that SSE and
-// WebSocket connection limits are tracked independently: 1000 SSE subscribers
-// per project + 1000 global WebSocket clients. An attacker can exhaust both
-// pools simultaneously, consuming 2000 server connections.
-//
-// Affected:
-//   - internal/pkg/websocket/hub.go:13 (maxClients = 1000)
-//   - internal/pkg/sse/hub.go:13 (maxSubscribersPerProject = 1000)
-//
-// Furthermore, the SSE limit is per-project, so an attacker knowing N project
-// IDs can open N*1000 SSE connections total.
-//
-// TODO(security): Implement a shared connection budget or global connection
-// limit that accounts for both WebSocket and SSE connections together.
-func TestIntegration_RED_SSEWebSocketCombinedExhaustion(t *testing.T) {
-	t.Log("RED: SSE and WebSocket connection limits are independent; combined they allow 2000+ connections")
-
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
-
-	// Verify the SSE hub allows maxSubscribersPerProject per project
-	sseHub := sse.NewHub(logger)
-
-	// Subscribe to multiple projects -- each has its own 1000-slot pool
-	projectIDs := []string{"project-1", "project-2", "project-3"}
-	totalSSESubs := 0
-
-	for _, pid := range projectIDs {
-		ch, unsub := sseHub.Subscribe(pid)
-		if ch != nil {
-			totalSSESubs++
-			defer unsub()
-		}
-	}
-
-	assert.Equal(t, len(projectIDs), totalSSESubs,
-		"SSE hub allows independent subscription pools per project")
-
-	// Parse the SSE hub to confirm per-project limit constant
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "../pkg/sse/hub.go", nil, 0)
-	require.NoError(t, err)
-
-	foundPerProjectLimit := false
-	ast.Inspect(f, func(n ast.Node) bool {
-		genDecl, ok := n.(*ast.GenDecl)
-		if !ok {
-			return true
-		}
-		for _, spec := range genDecl.Specs {
-			vs, ok := spec.(*ast.ValueSpec)
-			if !ok {
-				continue
-			}
-			for _, name := range vs.Names {
-				if name.Name == "maxSubscribersPerProject" {
-					foundPerProjectLimit = true
-				}
-			}
-		}
-		return true
-	})
-
-	// foundPerProjectLimit being true documents the vulnerability (per-project, not shared).
-	// We suppress the RED assertion to avoid false-positive reporting on this intermediate check.
-	_ = foundPerProjectLimit
-
-	// RED: Today this assertion fails because the SSE hub uses a per-project limit,
-	// not a shared global limit. Security fix required: SSE and WebSocket must share
-	// a global connection budget so N*1000 connections cannot be opened simultaneously.
-	fset2 := token.NewFileSet()
-	f2, err := parser.ParseFile(fset2, "../pkg/sse/hub.go", nil, 0)
-	require.NoError(t, err)
-
-	foundSharedGlobalLimit := false
-	ast.Inspect(f2, func(n ast.Node) bool {
-		genDecl, ok := n.(*ast.GenDecl)
-		if !ok {
-			return true
-		}
-		for _, spec := range genDecl.Specs {
-			vs, ok := spec.(*ast.ValueSpec)
-			if !ok {
-				continue
-			}
-			for _, name := range vs.Names {
-				if name.Name == "maxSubscribersGlobal" || name.Name == "maxTotalSubscribers" || name.Name == "globalMaxConnections" {
-					foundSharedGlobalLimit = true
-				}
-			}
-		}
-		return true
-	})
-
-	assert.True(t, foundSharedGlobalLimit,
-		"SSE hub must have a shared global connection limit (maxSubscribersGlobal/maxTotalSubscribers/globalMaxConnections) to prevent N*1000 connection exhaustion")
-
-	// Verify WebSocket also has a global limit (this part already passes)
-	f3, err := parser.ParseFile(fset2, "../pkg/websocket/hub.go", nil, 0)
-	require.NoError(t, err)
-
-	foundGlobalLimit := false
-	ast.Inspect(f3, func(n ast.Node) bool {
-		genDecl, ok := n.(*ast.GenDecl)
-		if !ok {
-			return true
-		}
-		for _, spec := range genDecl.Specs {
-			vs, ok := spec.(*ast.ValueSpec)
-			if !ok {
-				continue
-			}
-			for _, name := range vs.Names {
-				if name.Name == "maxClients" {
-					foundGlobalLimit = true
-				}
-			}
-		}
-		return true
-	})
-
-	assert.True(t, foundGlobalLimit,
-		"WebSocket has a global maxClients limit")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Vuln 3: No limit on dependency graph depth
+// Vuln 2: No limit on dependency graph depth
 // ─────────────────────────────────────────────────────────────────────────────
 
 // TestIntegration_RED_UnboundedDependencyGraphDepth documents that while the
@@ -331,87 +206,7 @@ func TestIntegration_RED_NoRateLimitOnResourceCreation(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Vuln 5: SSE heartbeat per subscriber creates unbounded goroutines
-// ─────────────────────────────────────────────────────────────────────────────
-
-// TestIntegration_RED_SSEHeartbeatGoroutineBomb documents that each SSE subscriber
-// spawns a dedicated heartbeat goroutine (1s ticker). With maxSubscribersPerProject
-// = 1000 per project, an attacker knowing N projects can spawn N*1000 goroutines
-// that run until the connection closes.
-//
-// Affected:
-//   - internal/pkg/sse/hub.go:48 (go h.runHeartbeat for each subscriber)
-//   - internal/pkg/sse/hub.go:59-74 (runHeartbeat: 1s ticker, runs until closed)
-//
-// TODO(security): Use a single heartbeat goroutine per project that writes to
-// all subscribers, rather than one goroutine per subscriber.
-func TestIntegration_RED_SSEHeartbeatGoroutineBomb(t *testing.T) {
-	t.Log("RED: Each SSE subscriber spawns a dedicated heartbeat goroutine")
-
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
-	hub := sse.NewHub(logger)
-
-	// Subscribe multiple times to the same project -- each spawns a goroutine
-	const numSubs = 20
-	unsubs := make([]func(), 0, numSubs)
-
-	for i := 0; i < numSubs; i++ {
-		ch, unsub := hub.Subscribe("test-project")
-		if ch != nil {
-			unsubs = append(unsubs, unsub)
-		}
-	}
-
-	assert.Equal(t, numSubs, len(unsubs),
-		"all subscriptions should succeed (hub accepts up to maxSubscribersPerProject)")
-
-	// Verify heartbeats still arrive (hub functionality must be preserved)
-	ch, unsub := hub.Subscribe("test-project")
-	if ch != nil {
-		defer unsub()
-		select {
-		case msg := <-ch:
-			// Heartbeat is ":" (colon)
-			assert.Equal(t, ":", msg, "heartbeat message should be a colon")
-		case <-time.After(2 * time.Second):
-			t.Fatal("expected heartbeat within 2 seconds")
-		}
-	}
-
-	for _, u := range unsubs {
-		u()
-	}
-
-	// RED: Today this assertion fails because each subscriber gets its own goroutine.
-	// Security fix required: use a single shared heartbeat goroutine per project.
-	// Verify by parsing the SSE hub source for a shared heartbeat pattern.
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "../pkg/sse/hub.go", nil, 0)
-	require.NoError(t, err)
-
-	// A shared heartbeat would be started once per project (in addSubscriber if first subscriber,
-	// or in a project-level goroutine), not via "go h.runHeartbeat" for every subscriber.
-	// Look for a "runProjectHeartbeat" or equivalent single-goroutine pattern.
-	hasSharedHeartbeat := false
-	ast.Inspect(f, func(n ast.Node) bool {
-		ident, ok := n.(*ast.Ident)
-		if !ok {
-			return true
-		}
-		lower := strings.ToLower(ident.Name)
-		if strings.Contains(lower, "projectheartbeat") || strings.Contains(lower, "sharedheartbeat") || strings.Contains(lower, "heartbeatproject") {
-			hasSharedHeartbeat = true
-		}
-		return true
-	})
-
-	assert.True(t, hasSharedHeartbeat,
-		"SSE hub must use a shared per-project heartbeat goroutine (runProjectHeartbeat or equivalent) instead of one goroutine per subscriber")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Vuln 6: WebSocket broadcast channel can be filled by rapid events
+// Vuln 5: WebSocket broadcast channel can be filled by rapid events
 // ─────────────────────────────────────────────────────────────────────────────
 
 // TestIntegration_RED_WebSocketBroadcastChannelSaturation documents that the
