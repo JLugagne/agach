@@ -19,69 +19,69 @@ import (
 //		},
 //	}
 type MockCommands struct {
-	CreateProjectFunc        func(ctx context.Context, name, description, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
-	UpdateProjectFunc        func(ctx context.Context, projectID domain.ProjectID, name, description string, gitURL, defaultRole *string) error
-	DeleteProjectFunc        func(ctx context.Context, projectID domain.ProjectID) error
-	CreateAgentFunc           func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) (domain.Agent, error)
-	UpdateAgentFunc           func(ctx context.Context, roleID domain.AgentID, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) error
-	DeleteAgentFunc           func(ctx context.Context, roleID domain.AgentID) error
-	CreateProjectAgentFunc    func(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) (domain.Agent, error)
-	UpdateProjectAgentFunc    func(ctx context.Context, projectID domain.ProjectID, roleID domain.AgentID, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) error
-	DeleteProjectAgentFunc    func(ctx context.Context, projectID domain.ProjectID, roleID domain.AgentID) error
-	CreateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.FeatureID) (domain.Task, error)
-	BulkCreateTasksFunc      func(ctx context.Context, projectID domain.ProjectID, inputs []service.BulkTaskInput) ([]domain.Task, error)
-	UpdateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.FeatureID, clearFeature bool) error
-	UpdateTaskFilesFunc      func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error
-	DeleteTaskFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
-	MoveTaskFunc             func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnSlug domain.ColumnSlug, nodeID string) error
-	ReorderTaskFunc          func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error
-	StartTaskFunc            func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, nodeID string) error
-	CompleteTaskFunc         func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage, nodeID string) error
-	BlockTaskFunc            func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, blockedReason, blockedByAgent, nodeID string) error
-	UnblockTaskFunc          func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, nodeID string) error
-	RequestWontDoFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, wontDoReason, wontDoRequestedBy, nodeID string) error
-	ApproveWontDoFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
-	RejectWontDoFunc         func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, reason string) error
-	CreateCommentFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, authorRole, authorName string, authorType domain.AuthorType, content string) (domain.Comment, error)
-	UpdateCommentFunc        func(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID, content string) error
-	DeleteCommentFunc        func(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID) error
-	AddDependencyFunc        func(ctx context.Context, projectID domain.ProjectID, taskID, dependsOnTaskID domain.TaskID) error
-	RemoveDependencyFunc     func(ctx context.Context, projectID domain.ProjectID, taskID, dependsOnTaskID domain.TaskID) error
-	MarkTaskSeenFunc         func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
-	MoveTaskToProjectFunc func(ctx context.Context, sourceProjectID domain.ProjectID, taskID domain.TaskID, targetProjectID domain.ProjectID) error
-	IncrementToolUsageFunc          func(ctx context.Context, projectID domain.ProjectID, toolName string) error
-	UpdateTaskSessionIDFunc         func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
-	CloneAgentFunc                   func(ctx context.Context, sourceSlug, newSlug, newName string) (domain.Agent, error)
-	AssignAgentToProjectFunc        func(ctx context.Context, projectID domain.ProjectID, agentSlug string) error
-	RemoveAgentFromProjectFunc      func(ctx context.Context, projectID domain.ProjectID, agentSlug string, reassignTo *string, clearAssignment bool) error
-	BulkReassignTasksFunc           func(ctx context.Context, projectID domain.ProjectID, oldSlug, newSlug string) (int, error)
-	CreateSkillFunc                 func(ctx context.Context, slug, name, description, content, icon, color string, sortOrder int) (domain.Skill, error)
-	UpdateSkillFunc                 func(ctx context.Context, skillID domain.SkillID, name, description, content, icon, color string, sortOrder int) error
-	DeleteSkillFunc                 func(ctx context.Context, skillID domain.SkillID) error
-	AddSkillToAgentFunc             func(ctx context.Context, agentSlug, skillSlug string) error
-	RemoveSkillFromAgentFunc        func(ctx context.Context, agentSlug, skillSlug string) error
-	CreateDockerfileFunc            func(ctx context.Context, slug, name, description, version, content string, isLatest bool, sortOrder int) (domain.Dockerfile, error)
-	UpdateDockerfileFunc            func(ctx context.Context, dockerfileID domain.DockerfileID, name, description, content *string, isLatest *bool, sortOrder *int) error
-	DeleteDockerfileFunc            func(ctx context.Context, dockerfileID domain.DockerfileID) error
-	SetProjectDockerfileFunc        func(ctx context.Context, projectID domain.ProjectID, dockerfileID domain.DockerfileID) error
-	ClearProjectDockerfileFunc      func(ctx context.Context, projectID domain.ProjectID) error
-	CreateFeatureFunc               func(ctx context.Context, projectID domain.ProjectID, name, description, createdByRole, createdByAgent string) (domain.Feature, error)
-	UpdateFeatureFunc               func(ctx context.Context, featureID domain.FeatureID, name, description string) error
-	UpdateFeatureStatusFunc         func(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus, nodeID string) error
-	DeleteFeatureFunc               func(ctx context.Context, featureID domain.FeatureID) error
-	UpdateFeatureChangelogsFunc     func(ctx context.Context, featureID domain.FeatureID, userChangelog, techChangelog *string) error
+	CreateProjectFunc            func(ctx context.Context, name, description, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error)
+	UpdateProjectFunc            func(ctx context.Context, projectID domain.ProjectID, name, description string, gitURL, defaultRole *string) error
+	DeleteProjectFunc            func(ctx context.Context, projectID domain.ProjectID) error
+	CreateAgentFunc              func(ctx context.Context, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) (domain.Agent, error)
+	UpdateAgentFunc              func(ctx context.Context, roleID domain.AgentID, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) error
+	DeleteAgentFunc              func(ctx context.Context, roleID domain.AgentID) error
+	CreateProjectAgentFunc       func(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) (domain.Agent, error)
+	UpdateProjectAgentFunc       func(ctx context.Context, projectID domain.ProjectID, roleID domain.AgentID, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) error
+	DeleteProjectAgentFunc       func(ctx context.Context, projectID domain.ProjectID, roleID domain.AgentID) error
+	CreateTaskFunc               func(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.FeatureID) (domain.Task, error)
+	BulkCreateTasksFunc          func(ctx context.Context, projectID domain.ProjectID, inputs []service.BulkTaskInput) ([]domain.Task, error)
+	UpdateTaskFunc               func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.FeatureID, clearFeature bool) error
+	UpdateTaskFilesFunc          func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error
+	DeleteTaskFunc               func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
+	MoveTaskFunc                 func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnSlug domain.ColumnSlug, nodeID string) error
+	ReorderTaskFunc              func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error
+	StartTaskFunc                func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, nodeID string) error
+	CompleteTaskFunc             func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage, nodeID string) error
+	BlockTaskFunc                func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, blockedReason, blockedByAgent, nodeID string) error
+	UnblockTaskFunc              func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, nodeID string) error
+	RequestWontDoFunc            func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, wontDoReason, wontDoRequestedBy, nodeID string) error
+	ApproveWontDoFunc            func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
+	RejectWontDoFunc             func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, reason string) error
+	CreateCommentFunc            func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, authorRole, authorName string, authorType domain.AuthorType, content string) (domain.Comment, error)
+	UpdateCommentFunc            func(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID, content string) error
+	DeleteCommentFunc            func(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID) error
+	AddDependencyFunc            func(ctx context.Context, projectID domain.ProjectID, taskID, dependsOnTaskID domain.TaskID) error
+	RemoveDependencyFunc         func(ctx context.Context, projectID domain.ProjectID, taskID, dependsOnTaskID domain.TaskID) error
+	MarkTaskSeenFunc             func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
+	MoveTaskToProjectFunc        func(ctx context.Context, sourceProjectID domain.ProjectID, taskID domain.TaskID, targetProjectID domain.ProjectID) error
+	IncrementToolUsageFunc       func(ctx context.Context, projectID domain.ProjectID, toolName string) error
+	UpdateTaskSessionIDFunc      func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
+	CloneAgentFunc               func(ctx context.Context, sourceSlug, newSlug, newName string) (domain.Agent, error)
+	AssignAgentToProjectFunc     func(ctx context.Context, projectID domain.ProjectID, agentSlug string) error
+	RemoveAgentFromProjectFunc   func(ctx context.Context, projectID domain.ProjectID, agentSlug string, reassignTo *string, clearAssignment bool) error
+	BulkReassignTasksFunc        func(ctx context.Context, projectID domain.ProjectID, oldSlug, newSlug string) (int, error)
+	CreateSkillFunc              func(ctx context.Context, slug, name, description, content, icon, color string, sortOrder int) (domain.Skill, error)
+	UpdateSkillFunc              func(ctx context.Context, skillID domain.SkillID, name, description, content, icon, color string, sortOrder int) error
+	DeleteSkillFunc              func(ctx context.Context, skillID domain.SkillID) error
+	AddSkillToAgentFunc          func(ctx context.Context, agentSlug, skillSlug string) error
+	RemoveSkillFromAgentFunc     func(ctx context.Context, agentSlug, skillSlug string) error
+	CreateDockerfileFunc         func(ctx context.Context, slug, name, description, version, content string, isLatest bool, sortOrder int) (domain.Dockerfile, error)
+	UpdateDockerfileFunc         func(ctx context.Context, dockerfileID domain.DockerfileID, name, description, content *string, isLatest *bool, sortOrder *int) error
+	DeleteDockerfileFunc         func(ctx context.Context, dockerfileID domain.DockerfileID) error
+	SetProjectDockerfileFunc     func(ctx context.Context, projectID domain.ProjectID, dockerfileID domain.DockerfileID) error
+	ClearProjectDockerfileFunc   func(ctx context.Context, projectID domain.ProjectID) error
+	CreateFeatureFunc            func(ctx context.Context, projectID domain.ProjectID, name, description, createdByRole, createdByAgent string) (domain.Feature, error)
+	UpdateFeatureFunc            func(ctx context.Context, featureID domain.FeatureID, name, description string) error
+	UpdateFeatureStatusFunc      func(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus, nodeID string) error
+	DeleteFeatureFunc            func(ctx context.Context, featureID domain.FeatureID) error
+	UpdateFeatureChangelogsFunc  func(ctx context.Context, featureID domain.FeatureID, userChangelog, techChangelog *string) error
 	CreateNotificationFunc       func(ctx context.Context, projectID *domain.ProjectID, scope domain.NotificationScope, agentSlug string, severity domain.NotificationSeverity, title, text, linkURL, linkText, linkStyle string) (domain.Notification, error)
 	MarkNotificationReadFunc     func(ctx context.Context, notificationID domain.NotificationID) error
 	MarkAllNotificationsReadFunc func(ctx context.Context, projectID *domain.ProjectID) error
 	DeleteNotificationFunc       func(ctx context.Context, notificationID domain.NotificationID) error
-	CreateSpecializedAgentFunc  func(ctx context.Context, parentSlug, slug, name string, skillSlugs []string, sortOrder int) (domain.SpecializedAgent, error)
-	UpdateSpecializedAgentFunc  func(ctx context.Context, id domain.SpecializedAgentID, name string, skillSlugs []string, sortOrder int) error
-	DeleteSpecializedAgentFunc  func(ctx context.Context, id domain.SpecializedAgentID) error
-	GrantUserAccessFunc         func(ctx context.Context, projectID domain.ProjectID, userID, role string) error
-	RevokeUserAccessFunc        func(ctx context.Context, projectID domain.ProjectID, userID string) error
-	UpdateUserAccessRoleFunc    func(ctx context.Context, projectID domain.ProjectID, userID, role string) error
-	GrantTeamAccessFunc         func(ctx context.Context, projectID domain.ProjectID, teamID string) error
-	RevokeTeamAccessFunc        func(ctx context.Context, projectID domain.ProjectID, teamID string) error
+	CreateSpecializedAgentFunc   func(ctx context.Context, parentSlug, slug, name string, skillSlugs []string, sortOrder int) (domain.SpecializedAgent, error)
+	UpdateSpecializedAgentFunc   func(ctx context.Context, id domain.SpecializedAgentID, name string, skillSlugs []string, sortOrder int) error
+	DeleteSpecializedAgentFunc   func(ctx context.Context, id domain.SpecializedAgentID) error
+	GrantUserAccessFunc          func(ctx context.Context, projectID domain.ProjectID, userID, role string) error
+	RevokeUserAccessFunc         func(ctx context.Context, projectID domain.ProjectID, userID string) error
+	UpdateUserAccessRoleFunc     func(ctx context.Context, projectID domain.ProjectID, userID, role string) error
+	GrantTeamAccessFunc          func(ctx context.Context, projectID domain.ProjectID, teamID string) error
+	RevokeTeamAccessFunc         func(ctx context.Context, projectID domain.ProjectID, teamID string) error
 }
 
 func (m *MockCommands) CreateProject(ctx context.Context, name, description, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
@@ -527,61 +527,61 @@ func (m *MockCommands) RevokeTeamAccess(ctx context.Context, projectID domain.Pr
 
 // MockQueries is a function-based mock implementation of the service.Queries interface.
 type MockQueries struct {
-	GetProjectFunc                  func(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error)
-	ListProjectsFunc                func(ctx context.Context) ([]domain.Project, error)
-	ListProjectsWithSummaryFunc     func(ctx context.Context) ([]domain.ProjectWithSummary, error)
-	ListSubProjectsFunc             func(ctx context.Context, parentID domain.ProjectID) ([]domain.Project, error)
-	ListSubProjectsWithSummaryFunc  func(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error)
-	GetProjectSummaryFunc           func(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectSummary, error)
-	GetProjectInfoFunc              func(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectInfo, error)
-	GetAgentFunc                     func(ctx context.Context, roleID domain.AgentID) (*domain.Agent, error)
-	GetAgentBySlugFunc               func(ctx context.Context, slug string) (*domain.Agent, error)
-	ListAgentsFunc                   func(ctx context.Context) ([]domain.Agent, error)
-	ListProjectAgentsFunc            func(ctx context.Context, projectID domain.ProjectID) ([]domain.Agent, error)
-	GetProjectAgentBySlugFunc        func(ctx context.Context, projectID domain.ProjectID, slug string) (*domain.Agent, error)
-	GetTaskFunc                     func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (*domain.Task, error)
-	ListTasksFunc                   func(ctx context.Context, projectID domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error)
-	GetNextTaskFunc                 func(ctx context.Context, projectID domain.ProjectID, role string, featureID *domain.ProjectID) (*domain.Task, error)
-	GetNextTasksFunc                func(ctx context.Context, projectID domain.ProjectID, role string, count int, featureID *domain.ProjectID) ([]domain.Task, error)
-	GetDependencyContextFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.DependencyContext, error)
-	GetColumnFunc                   func(ctx context.Context, projectID domain.ProjectID, columnID domain.ColumnID) (*domain.Column, error)
-	GetColumnBySlugFunc             func(ctx context.Context, projectID domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error)
-	ListColumnsFunc                 func(ctx context.Context, projectID domain.ProjectID) ([]domain.Column, error)
-	GetCommentFunc                  func(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID) (*domain.Comment, error)
-	ListCommentsFunc                func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, limit, offset int) ([]domain.Comment, error)
-	CountCommentsFunc               func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (int, error)
-	ListDependenciesFunc            func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.TaskDependency, error)
-	GetDependencyTasksFunc          func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.Task, error)
-	GetDependentTasksFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.Task, error)
-	GetToolUsageForProjectFunc      func(ctx context.Context, projectID domain.ProjectID) ([]domain.ToolUsageStat, error)
-	GetTimelineFunc                 func(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error)
-	GetColdStartStatsFunc           func(ctx context.Context, projectID domain.ProjectID) ([]domain.AgentColdStartStat, error)
-	GetSkillFunc                    func(ctx context.Context, skillID domain.SkillID) (*domain.Skill, error)
-	GetSkillBySlugFunc              func(ctx context.Context, slug string) (*domain.Skill, error)
-	ListSkillsFunc                  func(ctx context.Context) ([]domain.Skill, error)
-	ListAgentSkillsFunc             func(ctx context.Context, agentSlug string) ([]domain.Skill, error)
-	GetProjectTasksByAgentFunc      func(ctx context.Context, projectID domain.ProjectID, agentSlug string) ([]domain.Task, error)
-	GetDockerfileFunc               func(ctx context.Context, dockerfileID domain.DockerfileID) (*domain.Dockerfile, error)
-	GetDockerfileBySlugFunc          func(ctx context.Context, slug string) (*domain.Dockerfile, error)
+	GetProjectFunc                    func(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error)
+	ListProjectsFunc                  func(ctx context.Context) ([]domain.Project, error)
+	ListProjectsWithSummaryFunc       func(ctx context.Context) ([]domain.ProjectWithSummary, error)
+	ListSubProjectsFunc               func(ctx context.Context, parentID domain.ProjectID) ([]domain.Project, error)
+	ListSubProjectsWithSummaryFunc    func(ctx context.Context, parentID domain.ProjectID) ([]domain.ProjectWithSummary, error)
+	GetProjectSummaryFunc             func(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectSummary, error)
+	GetProjectInfoFunc                func(ctx context.Context, projectID domain.ProjectID) (*domain.ProjectInfo, error)
+	GetAgentFunc                      func(ctx context.Context, roleID domain.AgentID) (*domain.Agent, error)
+	GetAgentBySlugFunc                func(ctx context.Context, slug string) (*domain.Agent, error)
+	ListAgentsFunc                    func(ctx context.Context) ([]domain.Agent, error)
+	ListProjectAgentsFunc             func(ctx context.Context, projectID domain.ProjectID) ([]domain.Agent, error)
+	GetProjectAgentBySlugFunc         func(ctx context.Context, projectID domain.ProjectID, slug string) (*domain.Agent, error)
+	GetTaskFunc                       func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (*domain.Task, error)
+	ListTasksFunc                     func(ctx context.Context, projectID domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error)
+	GetNextTaskFunc                   func(ctx context.Context, projectID domain.ProjectID, role string, featureID *domain.ProjectID) (*domain.Task, error)
+	GetNextTasksFunc                  func(ctx context.Context, projectID domain.ProjectID, role string, count int, featureID *domain.ProjectID) ([]domain.Task, error)
+	GetDependencyContextFunc          func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.DependencyContext, error)
+	GetColumnFunc                     func(ctx context.Context, projectID domain.ProjectID, columnID domain.ColumnID) (*domain.Column, error)
+	GetColumnBySlugFunc               func(ctx context.Context, projectID domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error)
+	ListColumnsFunc                   func(ctx context.Context, projectID domain.ProjectID) ([]domain.Column, error)
+	GetCommentFunc                    func(ctx context.Context, projectID domain.ProjectID, commentID domain.CommentID) (*domain.Comment, error)
+	ListCommentsFunc                  func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, limit, offset int) ([]domain.Comment, error)
+	CountCommentsFunc                 func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (int, error)
+	ListDependenciesFunc              func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.TaskDependency, error)
+	GetDependencyTasksFunc            func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.Task, error)
+	GetDependentTasksFunc             func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.Task, error)
+	GetToolUsageForProjectFunc        func(ctx context.Context, projectID domain.ProjectID) ([]domain.ToolUsageStat, error)
+	GetTimelineFunc                   func(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error)
+	GetColdStartStatsFunc             func(ctx context.Context, projectID domain.ProjectID) ([]domain.AgentColdStartStat, error)
+	GetSkillFunc                      func(ctx context.Context, skillID domain.SkillID) (*domain.Skill, error)
+	GetSkillBySlugFunc                func(ctx context.Context, slug string) (*domain.Skill, error)
+	ListSkillsFunc                    func(ctx context.Context) ([]domain.Skill, error)
+	ListAgentSkillsFunc               func(ctx context.Context, agentSlug string) ([]domain.Skill, error)
+	GetProjectTasksByAgentFunc        func(ctx context.Context, projectID domain.ProjectID, agentSlug string) ([]domain.Task, error)
+	GetDockerfileFunc                 func(ctx context.Context, dockerfileID domain.DockerfileID) (*domain.Dockerfile, error)
+	GetDockerfileBySlugFunc           func(ctx context.Context, slug string) (*domain.Dockerfile, error)
 	GetDockerfileBySlugAndVersionFunc func(ctx context.Context, slug, version string) (*domain.Dockerfile, error)
-	ListDockerfilesFunc             func(ctx context.Context) ([]domain.Dockerfile, error)
-	GetProjectDockerfileFunc        func(ctx context.Context, projectID domain.ProjectID) (*domain.Dockerfile, error)
-	GetModelTokenStatsFunc          func(ctx context.Context, projectID domain.ProjectID) ([]domain.ModelTokenStat, error)
-	ListModelPricingFunc            func(ctx context.Context) ([]domain.ModelPricing, error)
-	GetFeatureFunc                  func(ctx context.Context, featureID domain.FeatureID) (*domain.Feature, error)
-	ListFeaturesFunc                func(ctx context.Context, projectID domain.ProjectID, statusFilter []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error)
-	GetFeatureStatsFunc             func(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error)
-	ListFeatureTaskSummariesFunc    func(ctx context.Context, featureID domain.FeatureID) ([]domain.FeatureTaskSummary, error)
-	ListNotificationsFunc           func(ctx context.Context, projectID *domain.ProjectID, scope *domain.NotificationScope, agentSlug string, unreadOnly bool, limit, offset int) ([]domain.Notification, error)
-	GetNotificationUnreadCountFunc  func(ctx context.Context, projectID *domain.ProjectID, scope *domain.NotificationScope, agentSlug string) (int, error)
-	ListSpecializedAgentsFunc       func(ctx context.Context, parentSlug string) ([]domain.SpecializedAgent, error)
-	GetSpecializedAgentFunc         func(ctx context.Context, slug string) (*domain.SpecializedAgent, error)
-	ListSpecializedAgentSkillsFunc  func(ctx context.Context, slug string) ([]domain.Skill, error)
-	CountSpecializedByParentFunc    func(ctx context.Context, parentSlug string) (int, error)
-	ListProjectUserAccessFunc       func(ctx context.Context, projectID domain.ProjectID) ([]domain.ProjectUserAccess, error)
-	ListProjectTeamAccessFunc       func(ctx context.Context, projectID domain.ProjectID) ([]domain.ProjectTeamAccess, error)
-	HasProjectAccessFunc            func(ctx context.Context, projectID domain.ProjectID, userID string, teamIDs []string) (bool, error)
-	ListAccessibleProjectIDsFunc    func(ctx context.Context, userID string, teamIDs []string) ([]domain.ProjectID, error)
+	ListDockerfilesFunc               func(ctx context.Context) ([]domain.Dockerfile, error)
+	GetProjectDockerfileFunc          func(ctx context.Context, projectID domain.ProjectID) (*domain.Dockerfile, error)
+	GetModelTokenStatsFunc            func(ctx context.Context, projectID domain.ProjectID) ([]domain.ModelTokenStat, error)
+	ListModelPricingFunc              func(ctx context.Context) ([]domain.ModelPricing, error)
+	GetFeatureFunc                    func(ctx context.Context, featureID domain.FeatureID) (*domain.Feature, error)
+	ListFeaturesFunc                  func(ctx context.Context, projectID domain.ProjectID, statusFilter []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error)
+	GetFeatureStatsFunc               func(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error)
+	ListFeatureTaskSummariesFunc      func(ctx context.Context, featureID domain.FeatureID) ([]domain.FeatureTaskSummary, error)
+	ListNotificationsFunc             func(ctx context.Context, projectID *domain.ProjectID, scope *domain.NotificationScope, agentSlug string, unreadOnly bool, limit, offset int) ([]domain.Notification, error)
+	GetNotificationUnreadCountFunc    func(ctx context.Context, projectID *domain.ProjectID, scope *domain.NotificationScope, agentSlug string) (int, error)
+	ListSpecializedAgentsFunc         func(ctx context.Context, parentSlug string) ([]domain.SpecializedAgent, error)
+	GetSpecializedAgentFunc           func(ctx context.Context, slug string) (*domain.SpecializedAgent, error)
+	ListSpecializedAgentSkillsFunc    func(ctx context.Context, slug string) ([]domain.Skill, error)
+	CountSpecializedByParentFunc      func(ctx context.Context, parentSlug string) (int, error)
+	ListProjectUserAccessFunc         func(ctx context.Context, projectID domain.ProjectID) ([]domain.ProjectUserAccess, error)
+	ListProjectTeamAccessFunc         func(ctx context.Context, projectID domain.ProjectID) ([]domain.ProjectTeamAccess, error)
+	HasProjectAccessFunc              func(ctx context.Context, projectID domain.ProjectID, userID string, teamIDs []string) (bool, error)
+	ListAccessibleProjectIDsFunc      func(ctx context.Context, userID string, teamIDs []string) ([]domain.ProjectID, error)
 }
 
 func (m *MockQueries) GetProject(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error) {

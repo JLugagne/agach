@@ -1,5 +1,3 @@
-version: '3.8'
-
 name: agach-qa
 services:
   postgres:
@@ -24,7 +22,7 @@ services:
       - AGACH_HOST=0.0.0.0
       - AGACH_PORT=8322
       - DATABASE_URL=postgres://agach:agach@postgres:5432/agach
-      - AGACH_JWT_SECRET=changeme_use_at_least_32_bytes_here
+      - AGACH_JWT_SECRET=changeme_use_at_least_64_bytes_for_production_this_is_only_for_playwright_tests!
       - AGACH_CONFIG=/etc/agach/agach-server.yml
     volumes:
       - ./playwright/agach-server.yml:/etc/agach/agach-server.yml:ro

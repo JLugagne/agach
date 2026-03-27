@@ -180,7 +180,7 @@ func TestChatManager_TTL_ExpiresIdleSession(t *testing.T) {
 		ProjectID:    "proj-ttl",
 		StartedAt:    time.Now().Add(-time.Hour),
 		LastActivity: time.Now().Add(-time.Hour), // well past TTL
-		jsonlPath:    "",                          // no file to upload
+		jsonlPath:    "",                         // no file to upload
 	}
 	addMockSession(m, session)
 

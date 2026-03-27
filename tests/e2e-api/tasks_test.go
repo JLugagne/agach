@@ -297,7 +297,7 @@ func TestTasks_Complete(t *testing.T) {
 		token,
 		map[string]any{
 			"completion_summary": summary,
-			"files_modified":    []string{"main.go", "handler.go"},
+			"files_modified":     []string{"main.go", "handler.go"},
 			"completed_by_agent": "e2e-test-agent",
 		},
 	)

@@ -980,7 +980,9 @@ func TestSecurity_GREEN_GetNextTaskRoleFilterEnforced(t *testing.T) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vuln 10 — RejectWontDo does not verify task is in blocked column
-//           (tasks.go:769-834)
+//
+//	(tasks.go:769-834)
+//
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // Issue: RejectWontDo only checks task.WontDoRequested == true (line 786) but

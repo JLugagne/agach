@@ -1,12 +1,15 @@
 package commands
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 
-	"github.com/JLugagne/agach-mcp/internal/server/domain"
-	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
+	"github.com/JLugagne/agach-mcp/internal/server/domain"
+	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
+	"github.com/JLugagne/agach-mcp/internal/server/inbound/converters"
 	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
 	"github.com/gorilla/mux"
 )
@@ -64,6 +67,7 @@ func (h *ProjectAccessHandler) GrantUserAccess(w http.ResponseWriter, r *http.Re
 		return
 	}
 	h.hub.Broadcast(websocket.Event{Type: "project_access_updated", Data: map[string]string{"project_id": string(projectID)}})
+	h.notifyAccessChange(r.Context(), projectID, domain.SeverityInfo, "Project shared with you", fmt.Sprintf("Role: %s", req.Role))
 	h.controller.SendSuccess(w, r, map[string]string{"message": "user access granted"})
 }
 
@@ -80,6 +84,7 @@ func (h *ProjectAccessHandler) UpdateUserAccessRole(w http.ResponseWriter, r *ht
 		return
 	}
 	h.hub.Broadcast(websocket.Event{Type: "project_access_updated", Data: map[string]string{"project_id": string(projectID)}})
+	h.notifyAccessChange(r.Context(), projectID, domain.SeverityInfo, "Project role updated", fmt.Sprintf("New role: %s", req.Role))
 	h.controller.SendSuccess(w, r, map[string]string{"message": "user access role updated"})
 }
 
@@ -91,6 +96,7 @@ func (h *ProjectAccessHandler) RevokeUserAccess(w http.ResponseWriter, r *http.R
 		return
 	}
 	h.hub.Broadcast(websocket.Event{Type: "project_access_updated", Data: map[string]string{"project_id": string(projectID)}})
+	h.notifyAccessChange(r.Context(), projectID, domain.SeverityWarning, "Project access revoked", "")
 	h.controller.SendSuccess(w, r, map[string]string{"message": "user access revoked"})
 }
 
@@ -125,6 +131,7 @@ func (h *ProjectAccessHandler) GrantTeamAccess(w http.ResponseWriter, r *http.Re
 		return
 	}
 	h.hub.Broadcast(websocket.Event{Type: "project_access_updated", Data: map[string]string{"project_id": string(projectID)}})
+	h.notifyAccessChange(r.Context(), projectID, domain.SeverityInfo, "Team added to project", "")
 	h.controller.SendSuccess(w, r, map[string]string{"message": "team access granted"})
 }
 
@@ -136,5 +143,30 @@ func (h *ProjectAccessHandler) RevokeTeamAccess(w http.ResponseWriter, r *http.R
 		return
 	}
 	h.hub.Broadcast(websocket.Event{Type: "project_access_updated", Data: map[string]string{"project_id": string(projectID)}})
+	h.notifyAccessChange(r.Context(), projectID, domain.SeverityWarning, "Team removed from project", "")
 	h.controller.SendSuccess(w, r, map[string]string{"message": "team access revoked"})
+}
+
+// notifyAccessChange creates and broadcasts a notification for project access changes.
+func (h *ProjectAccessHandler) notifyAccessChange(ctx context.Context, projectID domain.ProjectID, severity domain.NotificationSeverity, title, text string) {
+	projectName := string(projectID)
+	if p, err := h.queries.GetProject(ctx, projectID); err == nil && p != nil {
+		projectName = p.Name
+	}
+
+	detail := projectName
+	if text != "" {
+		detail = fmt.Sprintf("%s — %s", projectName, text)
+	}
+
+	pid := projectID
+	notification, err := h.commands.CreateNotification(ctx, &pid, domain.NotificationScopeProject, "", severity, title, detail, "", "", "")
+	if err != nil {
+		return
+	}
+	h.hub.Broadcast(websocket.Event{
+		Type:      "notification",
+		ProjectID: string(projectID),
+		Data:      converters.ToPublicNotification(notification),
+	})
 }

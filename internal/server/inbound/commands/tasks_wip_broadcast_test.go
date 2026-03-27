@@ -16,17 +16,17 @@ import (
 	"testing"
 	"time"
 
-	gorillaws "github.com/gorilla/websocket"
 	"github.com/gorilla/mux"
+	gorillaws "github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service/servicetest"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/commands"
-	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
-	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 )
 
 // newTestTaskHandlerAndHub creates a TaskCommandsHandler together with its Hub,

@@ -24,8 +24,8 @@ import (
 // ─────────────────────────────────────────────────────────────────────────────
 
 type mockOnboardingCommands struct {
-	generateCodeFunc        func(ctx context.Context, actor domain.Actor, mode domain.NodeMode, nodeName string) (domain.OnboardingCode, error)
-	completeOnboardingFunc  func(ctx context.Context, code string, nodeName string) (string, string, domain.Node, error)
+	generateCodeFunc       func(ctx context.Context, actor domain.Actor, mode domain.NodeMode, nodeName string) (domain.OnboardingCode, error)
+	completeOnboardingFunc func(ctx context.Context, code string, nodeName string) (string, string, domain.Node, error)
 }
 
 func (m *mockOnboardingCommands) GenerateCode(ctx context.Context, actor domain.Actor, mode domain.NodeMode, nodeName string) (domain.OnboardingCode, error) {

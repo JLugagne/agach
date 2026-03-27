@@ -77,7 +77,7 @@ func TestDeepSecurity_IPSpoofingBypassesRateLimit(t *testing.T) {
 		req.RemoteAddr = "10.0.0.1:9999" // single real connection
 		req.Header.Set("X-Forwarded-For", strings.Join([]string{
 			"1.2.3.", // different fake IP per request
-		}, "") + string(rune('0'+i%10)))
+		}, "")+string(rune('0'+i%10)))
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
 		if rr.Code == http.StatusTooManyRequests {

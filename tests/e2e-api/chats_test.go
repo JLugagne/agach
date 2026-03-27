@@ -46,12 +46,16 @@ type chatStatsResponse struct {
 func createChatFixtures(t *testing.T, token string) (projectID, featureID string) {
 	t.Helper()
 
-	type proj struct{ ID string `json:"id"` }
+	type proj struct {
+		ID string `json:"id"`
+	}
 	p := createAndDecode[proj](t, "/api/projects", token, map[string]any{
 		"name": "Chat Test Project " + t.Name(),
 	})
 
-	type feat struct{ ID string `json:"id"` }
+	type feat struct {
+		ID string `json:"id"`
+	}
 	f := createAndDecode[feat](t,
 		fmt.Sprintf("/api/projects/%s/features", p.ID), token,
 		map[string]any{"name": "Chat Feature " + t.Name()})

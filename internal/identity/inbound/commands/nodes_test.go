@@ -69,7 +69,6 @@ func (m *mockNodeQueries) ListAllNodes(ctx context.Context, actor domain.Actor) 
 	return m.listAllNodesFunc(ctx, actor)
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────

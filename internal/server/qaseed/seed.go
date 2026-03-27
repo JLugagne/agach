@@ -61,7 +61,7 @@ func Run(ctx context.Context, pool *pgxpool.Pool, logger *logrus.Logger) (*Resul
 
 	svc := app.NewApp(app.Config{
 		Projects:     repos.Projects,
-		Agents:        repos.Agents,
+		Agents:       repos.Agents,
 		Features:     repos.Features,
 		Tasks:        repos.Tasks,
 		Columns:      repos.Columns,

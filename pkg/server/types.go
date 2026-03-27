@@ -187,25 +187,25 @@ type CreateTaskRequest struct {
 
 // UpdateTaskRequest represents a request to update a task
 type UpdateTaskRequest struct {
-	Title                *string   `json:"title" validate:"omitempty,min=1,max=500"`
-	Description          *string   `json:"description" validate:"omitempty,max=10000"`
-	Priority             *string   `json:"priority" validate:"omitempty,oneof=critical high medium low"`
-	AssignedRole         *string   `json:"assigned_role" validate:"omitempty,max=100"`
-	ContextFiles         *[]string `json:"context_files" validate:"omitempty,max=100,dive,max=500"`
-	Tags                 *[]string `json:"tags" validate:"omitempty,max=100,dive,max=50"`
-	EstimatedEffort      *string   `json:"estimated_effort" validate:"omitempty,oneof=XS S M L XL"`
-	Resolution           *string   `json:"resolution" validate:"omitempty,max=10000"`
-	InputTokens          *int      `json:"input_tokens,omitempty" validate:"omitempty,min=0"`
-	OutputTokens         *int      `json:"output_tokens,omitempty" validate:"omitempty,min=0"`
-	CacheReadTokens      *int      `json:"cache_read_tokens,omitempty" validate:"omitempty,min=0"`
-	CacheWriteTokens     *int      `json:"cache_write_tokens,omitempty" validate:"omitempty,min=0"`
+	Title                     *string   `json:"title" validate:"omitempty,min=1,max=500"`
+	Description               *string   `json:"description" validate:"omitempty,max=10000"`
+	Priority                  *string   `json:"priority" validate:"omitempty,oneof=critical high medium low"`
+	AssignedRole              *string   `json:"assigned_role" validate:"omitempty,max=100"`
+	ContextFiles              *[]string `json:"context_files" validate:"omitempty,max=100,dive,max=500"`
+	Tags                      *[]string `json:"tags" validate:"omitempty,max=100,dive,max=50"`
+	EstimatedEffort           *string   `json:"estimated_effort" validate:"omitempty,oneof=XS S M L XL"`
+	Resolution                *string   `json:"resolution" validate:"omitempty,max=10000"`
+	InputTokens               *int      `json:"input_tokens,omitempty" validate:"omitempty,min=0"`
+	OutputTokens              *int      `json:"output_tokens,omitempty" validate:"omitempty,min=0"`
+	CacheReadTokens           *int      `json:"cache_read_tokens,omitempty" validate:"omitempty,min=0"`
+	CacheWriteTokens          *int      `json:"cache_write_tokens,omitempty" validate:"omitempty,min=0"`
 	Model                     *string   `json:"model,omitempty" validate:"omitempty,max=200"`
 	ColdStartInputTokens      *int      `json:"cold_start_input_tokens,omitempty" validate:"omitempty,min=0"`
 	ColdStartOutputTokens     *int      `json:"cold_start_output_tokens,omitempty" validate:"omitempty,min=0"`
 	ColdStartCacheReadTokens  *int      `json:"cold_start_cache_read_tokens,omitempty" validate:"omitempty,min=0"`
 	ColdStartCacheWriteTokens *int      `json:"cold_start_cache_write_tokens,omitempty" validate:"omitempty,min=0"`
 	HumanEstimateSeconds      *int      `json:"human_estimate_seconds,omitempty" validate:"omitempty,min=0"`
-	FeatureID            *string   `json:"feature_id" validate:"omitempty,entity_id"`
+	FeatureID                 *string   `json:"feature_id" validate:"omitempty,entity_id"`
 }
 
 // MoveTaskRequest represents a request to move a task
@@ -260,41 +260,41 @@ type ReorderTaskRequest struct {
 
 // TaskResponse represents a task in API responses
 type TaskResponse struct {
-	ID                string     `json:"id"`
-	ColumnID          string     `json:"column_id"`
-	FeatureID         *string    `json:"feature_id"`
-	Title             string     `json:"title"`
-	Summary           string     `json:"summary"`
-	Description       string     `json:"description"`
-	Priority          string     `json:"priority"`
-	PriorityScore     int        `json:"priority_score"`
-	Position          int        `json:"position"`
-	CreatedByRole     string     `json:"created_by_role"`
-	CreatedByAgent    string     `json:"created_by_agent"`
-	AssignedRole      string     `json:"assigned_role"`
-	IsBlocked         bool       `json:"is_blocked"`
-	BlockedReason     string     `json:"blocked_reason"`
-	BlockedAt         *time.Time `json:"blocked_at"`
-	BlockedByAgent    string     `json:"blocked_by_agent"`
-	WontDoRequested   bool       `json:"wont_do_requested"`
-	WontDoReason      string     `json:"wont_do_reason"`
-	WontDoRequestedBy string     `json:"wont_do_requested_by"`
-	WontDoRequestedAt *time.Time `json:"wont_do_requested_at"`
-	CompletionSummary string     `json:"completion_summary"`
-	CompletedByAgent  string     `json:"completed_by_agent"`
-	CompletedAt       *time.Time `json:"completed_at"`
-	FilesModified     []string   `json:"files_modified"`
-	Resolution        string     `json:"resolution"`
-	ContextFiles      []string   `json:"context_files"`
-	Tags              []string   `json:"tags"`
-	EstimatedEffort   string     `json:"estimated_effort"`
-	InputTokens       int        `json:"input_tokens"`
-	OutputTokens      int        `json:"output_tokens"`
-	CacheReadTokens   int        `json:"cache_read_tokens"`
-	CacheWriteTokens  int        `json:"cache_write_tokens"`
-	Model             string     `json:"model"`
-	SessionID         string     `json:"session_id"`
-	NodeID            string     `json:"node_id,omitempty"`
+	ID                   string     `json:"id"`
+	ColumnID             string     `json:"column_id"`
+	FeatureID            *string    `json:"feature_id"`
+	Title                string     `json:"title"`
+	Summary              string     `json:"summary"`
+	Description          string     `json:"description"`
+	Priority             string     `json:"priority"`
+	PriorityScore        int        `json:"priority_score"`
+	Position             int        `json:"position"`
+	CreatedByRole        string     `json:"created_by_role"`
+	CreatedByAgent       string     `json:"created_by_agent"`
+	AssignedRole         string     `json:"assigned_role"`
+	IsBlocked            bool       `json:"is_blocked"`
+	BlockedReason        string     `json:"blocked_reason"`
+	BlockedAt            *time.Time `json:"blocked_at"`
+	BlockedByAgent       string     `json:"blocked_by_agent"`
+	WontDoRequested      bool       `json:"wont_do_requested"`
+	WontDoReason         string     `json:"wont_do_reason"`
+	WontDoRequestedBy    string     `json:"wont_do_requested_by"`
+	WontDoRequestedAt    *time.Time `json:"wont_do_requested_at"`
+	CompletionSummary    string     `json:"completion_summary"`
+	CompletedByAgent     string     `json:"completed_by_agent"`
+	CompletedAt          *time.Time `json:"completed_at"`
+	FilesModified        []string   `json:"files_modified"`
+	Resolution           string     `json:"resolution"`
+	ContextFiles         []string   `json:"context_files"`
+	Tags                 []string   `json:"tags"`
+	EstimatedEffort      string     `json:"estimated_effort"`
+	InputTokens          int        `json:"input_tokens"`
+	OutputTokens         int        `json:"output_tokens"`
+	CacheReadTokens      int        `json:"cache_read_tokens"`
+	CacheWriteTokens     int        `json:"cache_write_tokens"`
+	Model                string     `json:"model"`
+	SessionID            string     `json:"session_id"`
+	NodeID               string     `json:"node_id,omitempty"`
 	SeenAt               *time.Time `json:"seen_at"`
 	StartedAt            *time.Time `json:"started_at"`
 	DurationSeconds      int        `json:"duration_seconds"`

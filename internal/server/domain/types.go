@@ -233,17 +233,17 @@ const (
 
 // Project represents a project or sub-project
 type Project struct {
-	ID             ProjectID    `json:"id"`
-	ParentID       *ProjectID   `json:"parent_id"`
-	Name           string       `json:"name"`
-	Description    string       `json:"description"`
-	GitURL         string       `json:"git_url"`
-	DefaultRole    string       `json:"default_role"`
-	CreatedByRole  string       `json:"created_by_role"`
-	CreatedByAgent string       `json:"created_by_agent"`
+	ID             ProjectID     `json:"id"`
+	ParentID       *ProjectID    `json:"parent_id"`
+	Name           string        `json:"name"`
+	Description    string        `json:"description"`
+	GitURL         string        `json:"git_url"`
+	DefaultRole    string        `json:"default_role"`
+	CreatedByRole  string        `json:"created_by_role"`
+	CreatedByAgent string        `json:"created_by_agent"`
 	DockerfileID   *DockerfileID `json:"dockerfile_id"`
-	CreatedAt      time.Time    `json:"created_at"`
-	UpdatedAt      time.Time    `json:"updated_at"`
+	CreatedAt      time.Time     `json:"created_at"`
+	UpdatedAt      time.Time     `json:"updated_at"`
 }
 
 // Feature represents a feature (story/epic) within a project
@@ -348,51 +348,51 @@ type TokenUsage struct {
 
 // Task represents a task in the kanban board
 type Task struct {
-	ID        TaskID     `json:"id"`
-	ColumnID  ColumnID   `json:"column_id"`
-	FeatureID *FeatureID `json:"feature_id"`
-	Title     string     `json:"title"`
-	Summary           string     `json:"summary"` // Brief description (required at creation)
-	Description       string     `json:"description"`
-	Priority          Priority   `json:"priority"`
-	PriorityScore     int        `json:"priority_score"`
-	Position          int        `json:"position"`
-	CreatedByRole     string     `json:"created_by_role"`
-	CreatedByAgent    string     `json:"created_by_agent"`
-	AssignedRole      string     `json:"assigned_role"`
-	IsBlocked         bool       `json:"is_blocked"` // 1 when in "blocked" column
-	BlockedReason     string     `json:"blocked_reason"`
-	BlockedAt         *time.Time `json:"blocked_at"`
-	BlockedByAgent    string     `json:"blocked_by_agent"`
-	WontDoRequested   bool       `json:"wont_do_requested"` // 1 when agent requests won't-do (task in "blocked")
-	WontDoReason      string     `json:"wont_do_reason"`
-	WontDoRequestedBy string     `json:"wont_do_requested_by"`
-	WontDoRequestedAt *time.Time `json:"wont_do_requested_at"`
-	CompletionSummary string     `json:"completion_summary"`
-	CompletedByAgent  string     `json:"completed_by_agent"`
-	CompletedAt       *time.Time `json:"completed_at"`
-	FilesModified     []string   `json:"files_modified"`
-	Resolution        string     `json:"resolution"` // Filled when agent stops work or human moves back
-	ContextFiles      []string   `json:"context_files"`
-	Tags              []string   `json:"tags"`
-	EstimatedEffort   string     `json:"estimated_effort"`
-	InputTokens       int        `json:"input_tokens"`
-	OutputTokens      int        `json:"output_tokens"`
-	CacheReadTokens   int        `json:"cache_read_tokens"`
-	CacheWriteTokens  int        `json:"cache_write_tokens"`
+	ID                        TaskID     `json:"id"`
+	ColumnID                  ColumnID   `json:"column_id"`
+	FeatureID                 *FeatureID `json:"feature_id"`
+	Title                     string     `json:"title"`
+	Summary                   string     `json:"summary"` // Brief description (required at creation)
+	Description               string     `json:"description"`
+	Priority                  Priority   `json:"priority"`
+	PriorityScore             int        `json:"priority_score"`
+	Position                  int        `json:"position"`
+	CreatedByRole             string     `json:"created_by_role"`
+	CreatedByAgent            string     `json:"created_by_agent"`
+	AssignedRole              string     `json:"assigned_role"`
+	IsBlocked                 bool       `json:"is_blocked"` // 1 when in "blocked" column
+	BlockedReason             string     `json:"blocked_reason"`
+	BlockedAt                 *time.Time `json:"blocked_at"`
+	BlockedByAgent            string     `json:"blocked_by_agent"`
+	WontDoRequested           bool       `json:"wont_do_requested"` // 1 when agent requests won't-do (task in "blocked")
+	WontDoReason              string     `json:"wont_do_reason"`
+	WontDoRequestedBy         string     `json:"wont_do_requested_by"`
+	WontDoRequestedAt         *time.Time `json:"wont_do_requested_at"`
+	CompletionSummary         string     `json:"completion_summary"`
+	CompletedByAgent          string     `json:"completed_by_agent"`
+	CompletedAt               *time.Time `json:"completed_at"`
+	FilesModified             []string   `json:"files_modified"`
+	Resolution                string     `json:"resolution"` // Filled when agent stops work or human moves back
+	ContextFiles              []string   `json:"context_files"`
+	Tags                      []string   `json:"tags"`
+	EstimatedEffort           string     `json:"estimated_effort"`
+	InputTokens               int        `json:"input_tokens"`
+	OutputTokens              int        `json:"output_tokens"`
+	CacheReadTokens           int        `json:"cache_read_tokens"`
+	CacheWriteTokens          int        `json:"cache_write_tokens"`
 	Model                     string     `json:"model"`
 	ColdStartInputTokens      int        `json:"cold_start_input_tokens"`
 	ColdStartOutputTokens     int        `json:"cold_start_output_tokens"`
 	ColdStartCacheReadTokens  int        `json:"cold_start_cache_read_tokens"`
 	ColdStartCacheWriteTokens int        `json:"cold_start_cache_write_tokens"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
-	SeenAt               *time.Time `json:"seen_at"` // NULL = unseen, non-NULL = timestamp of first view
-	StartedAt            *time.Time `json:"started_at"`
-	DurationSeconds      int        `json:"duration_seconds"`
-	HumanEstimateSeconds int        `json:"human_estimate_seconds"`
-	SessionID            string     `json:"session_id"` // Claude Code session ID for resuming
-	NodeID               string     `json:"node_id,omitempty"`
+	CreatedAt                 time.Time  `json:"created_at"`
+	UpdatedAt                 time.Time  `json:"updated_at"`
+	SeenAt                    *time.Time `json:"seen_at"` // NULL = unseen, non-NULL = timestamp of first view
+	StartedAt                 *time.Time `json:"started_at"`
+	DurationSeconds           int        `json:"duration_seconds"`
+	HumanEstimateSeconds      int        `json:"human_estimate_seconds"`
+	SessionID                 string     `json:"session_id"` // Claude Code session ID for resuming
+	NodeID                    string     `json:"node_id,omitempty"`
 }
 
 // Comment represents a comment on a task
@@ -487,46 +487,46 @@ type RoleColdStartStat = AgentColdStartStat
 
 // TimelineEntry represents task counts for a single day
 type TimelineEntry struct {
-	Date           string `json:"date"`            // "2026-03-17"
+	Date           string `json:"date"` // "2026-03-17"
 	TasksCreated   int    `json:"tasks_created"`
 	TasksCompleted int    `json:"tasks_completed"`
 }
 
 // ModelTokenStat holds aggregated token usage for a single model
 type ModelTokenStat struct {
-	Model           string `json:"model"`
-	TaskCount       int    `json:"task_count"`
-	InputTokens     int    `json:"input_tokens"`
-	OutputTokens    int    `json:"output_tokens"`
-	CacheReadTokens int    `json:"cache_read_tokens"`
-	CacheWriteTokens int   `json:"cache_write_tokens"`
+	Model            string `json:"model"`
+	TaskCount        int    `json:"task_count"`
+	InputTokens      int    `json:"input_tokens"`
+	OutputTokens     int    `json:"output_tokens"`
+	CacheReadTokens  int    `json:"cache_read_tokens"`
+	CacheWriteTokens int    `json:"cache_write_tokens"`
 }
 
 // FeatureTaskSummary represents a completed task's summary for a feature changelog view
 type FeatureTaskSummary struct {
-	ID                TaskID     `json:"id"`
-	Title             string     `json:"title"`
-	CompletionSummary string     `json:"completion_summary"`
-	CompletedByAgent  string     `json:"completed_by_agent"`
-	CompletedAt       time.Time  `json:"completed_at"`
-	FilesModified     []string   `json:"files_modified"`
-	DurationSeconds   int        `json:"duration_seconds"`
-	InputTokens       int        `json:"input_tokens"`
-	OutputTokens      int        `json:"output_tokens"`
-	CacheReadTokens   int        `json:"cache_read_tokens"`
-	CacheWriteTokens  int        `json:"cache_write_tokens"`
-	Model             string     `json:"model"`
+	ID                TaskID    `json:"id"`
+	Title             string    `json:"title"`
+	CompletionSummary string    `json:"completion_summary"`
+	CompletedByAgent  string    `json:"completed_by_agent"`
+	CompletedAt       time.Time `json:"completed_at"`
+	FilesModified     []string  `json:"files_modified"`
+	DurationSeconds   int       `json:"duration_seconds"`
+	InputTokens       int       `json:"input_tokens"`
+	OutputTokens      int       `json:"output_tokens"`
+	CacheReadTokens   int       `json:"cache_read_tokens"`
+	CacheWriteTokens  int       `json:"cache_write_tokens"`
+	Model             string    `json:"model"`
 }
 
 // ModelPricing holds per-model pricing rates (per million tokens)
 type ModelPricing struct {
-	ID               string    `json:"id"`
-	ModelID          string    `json:"model_id"`
-	InputPricePer1M  float64   `json:"input_price_per_1m"`
-	OutputPricePer1M float64   `json:"output_price_per_1m"`
-	CacheReadPricePer1M  float64 `json:"cache_read_price_per_1m"`
-	CacheWritePricePer1M float64 `json:"cache_write_price_per_1m"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID                   string    `json:"id"`
+	ModelID              string    `json:"model_id"`
+	InputPricePer1M      float64   `json:"input_price_per_1m"`
+	OutputPricePer1M     float64   `json:"output_price_per_1m"`
+	CacheReadPricePer1M  float64   `json:"cache_read_price_per_1m"`
+	CacheWritePricePer1M float64   `json:"cache_write_price_per_1m"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 // ProjectUserAccess represents a user's access grant to a project.
@@ -642,9 +642,9 @@ type Notification struct {
 
 // Domain validation constants.
 const (
-	MaxTaskTitleLength       = 500
-	MaxCommentContentLength  = 10_000
-	MaxPromptTemplateLength  = 100_000
+	MaxTaskTitleLength      = 500
+	MaxCommentContentLength = 10_000
+	MaxPromptTemplateLength = 100_000
 )
 
 // ValidateTitle checks that the task title is within bounds.

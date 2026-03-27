@@ -56,7 +56,7 @@ func TestSecurity_GREEN_RateLimitBypass_XForwardedFor_SameRemoteAddr(t *testing.
 		req := httptest.NewRequest("POST", "/api/auth/login", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Forwarded-For", fmt.Sprintf("10.0.0.%d", i+1)) // rotating fake IP
-		req.RemoteAddr = "192.168.1.1:1234"                               // same real IP
+		req.RemoteAddr = "192.168.1.1:1234"                              // same real IP
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 		codes = append(codes, rr.Code)

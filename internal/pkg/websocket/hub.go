@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	maxClients        = 1000
-	maxClientsPerIP   = 20
-	broadcastBuffer   = 256
+	maxClients      = 1000
+	maxClientsPerIP = 20
+	broadcastBuffer = 256
 )
 
 // Event represents a WebSocket event
@@ -57,9 +57,9 @@ type Client struct {
 	remoteAddr string
 	isDaemon   bool
 	nodeID     string
-	closed    bool
-	closeMu   sync.Mutex
-	writeMu   sync.Mutex // protects conn writes (WritePump, sendRaw, pings)
+	closed     bool
+	closeMu    sync.Mutex
+	writeMu    sync.Mutex // protects conn writes (WritePump, sendRaw, pings)
 }
 
 // DoCloseSend closes the send channel exactly once. Safe to call from multiple goroutines.

@@ -10,14 +10,14 @@ import (
 var _ features.FeatureRepository = (*MockFeature)(nil)
 
 type MockFeature struct {
-	CreateFunc           func(ctx context.Context, feature domain.Feature) error
-	FindByIDFunc         func(ctx context.Context, id domain.FeatureID) (*domain.Feature, error)
-	ListFunc             func(ctx context.Context, projectID domain.ProjectID, statusFilter []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error)
-	UpdateFunc           func(ctx context.Context, feature domain.Feature) error
-	UpdateStatusFunc     func(ctx context.Context, id domain.FeatureID, status domain.FeatureStatus, nodeID string) error
-	DeleteFunc           func(ctx context.Context, id domain.FeatureID) error
-	GetStatsFunc         func(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error)
-	UpdateChangelogsFunc func(ctx context.Context, id domain.FeatureID, userChangelog, techChangelog *string) error
+	CreateFunc            func(ctx context.Context, feature domain.Feature) error
+	FindByIDFunc          func(ctx context.Context, id domain.FeatureID) (*domain.Feature, error)
+	ListFunc              func(ctx context.Context, projectID domain.ProjectID, statusFilter []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error)
+	UpdateFunc            func(ctx context.Context, feature domain.Feature) error
+	UpdateStatusFunc      func(ctx context.Context, id domain.FeatureID, status domain.FeatureStatus, nodeID string) error
+	DeleteFunc            func(ctx context.Context, id domain.FeatureID) error
+	GetStatsFunc          func(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error)
+	UpdateChangelogsFunc  func(ctx context.Context, id domain.FeatureID, userChangelog, techChangelog *string) error
 	ListTaskSummariesFunc func(ctx context.Context, featureID domain.FeatureID) ([]domain.FeatureTaskSummary, error)
 }
 

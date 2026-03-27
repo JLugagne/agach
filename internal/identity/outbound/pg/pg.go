@@ -33,11 +33,11 @@ const queryTimeout = 30 * time.Second
 
 // Repositories holds all identity PostgreSQL repository implementations.
 type Repositories struct {
-	Users          users.UserRepository
-	Teams          teams.TeamRepository
-	Nodes          nodes.NodeRepository
+	Users           users.UserRepository
+	Teams           teams.TeamRepository
+	Nodes           nodes.NodeRepository
 	OnboardingCodes onboardingcodes.OnboardingCodeRepository
-	NodeAccess     nodeaccess.NodeAccessRepository
+	NodeAccess      nodeaccess.NodeAccessRepository
 }
 
 // NewRepositories creates identity repositories backed by a pgxpool.Pool and runs migrations.

@@ -207,7 +207,9 @@ func TestNodeID_FeatureStatusUpdate(t *testing.T) {
 	featurePath := fmt.Sprintf("/api/projects/%s/features/%s", projectID, created.ID)
 
 	// Update status with node_id
-	patchAndDecode[struct{ Message string `json:"message"` }](t, statusPath, token,
+	patchAndDecode[struct {
+		Message string `json:"message"`
+	}](t, statusPath, token,
 		map[string]any{"status": "ready", "node_id": "node-feat-1"})
 
 	got := getAndDecode[feature](t, featurePath, token)
@@ -220,7 +222,9 @@ func TestNodeID_FeatureStatusUpdate(t *testing.T) {
 	require.Equal(t, "node-feat-1", *dbNodeID)
 
 	// Update status again with a different node_id
-	patchAndDecode[struct{ Message string `json:"message"` }](t, statusPath, token,
+	patchAndDecode[struct {
+		Message string `json:"message"`
+	}](t, statusPath, token,
 		map[string]any{"status": "in_progress", "node_id": "node-feat-2"})
 
 	got = getAndDecode[feature](t, featurePath, token)
@@ -246,11 +250,15 @@ func TestNodeID_FeatureStatus_PreservesWhenEmpty(t *testing.T) {
 	featurePath := fmt.Sprintf("/api/projects/%s/features/%s", projectID, created.ID)
 
 	// Set node_id on first status update
-	patchAndDecode[struct{ Message string `json:"message"` }](t, statusPath, token,
+	patchAndDecode[struct {
+		Message string `json:"message"`
+	}](t, statusPath, token,
 		map[string]any{"status": "ready", "node_id": "node-preserve"})
 
 	// Update status without node_id — should preserve
-	patchAndDecode[struct{ Message string `json:"message"` }](t, statusPath, token,
+	patchAndDecode[struct {
+		Message string `json:"message"`
+	}](t, statusPath, token,
 		map[string]any{"status": "in_progress"})
 
 	got := getAndDecode[feature](t, featurePath, token)

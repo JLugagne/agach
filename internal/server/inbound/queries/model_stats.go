@@ -3,9 +3,9 @@ package queries
 import (
 	"net/http"
 
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
-	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/gorilla/mux"
 )
 

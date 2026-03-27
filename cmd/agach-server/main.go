@@ -16,11 +16,11 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/identity"
 	service "github.com/JLugagne/agach-mcp/internal/identity/domain/service"
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/middleware"
 	"github.com/JLugagne/agach-mcp/internal/server"
 	"github.com/JLugagne/agach-mcp/internal/server/ux"
 	"github.com/JLugagne/agach-mcp/resources"
-	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
-	"github.com/JLugagne/agach-mcp/internal/pkg/middleware"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"

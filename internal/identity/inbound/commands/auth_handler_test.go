@@ -61,7 +61,7 @@ func TestAuthHandler_Register_Success(t *testing.T) {
 		},
 	}
 	qrs := &mockAuthQueries{
-		validateJWTFunc: func(_ context.Context, _ string) (domain.Actor, error) { return actor, nil },
+		validateJWTFunc:    func(_ context.Context, _ string) (domain.Actor, error) { return actor, nil },
 		getCurrentUserFunc: func(_ context.Context, _ domain.Actor) (domain.User, error) { return user, nil },
 	}
 

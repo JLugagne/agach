@@ -113,7 +113,7 @@ type testCodedError struct {
 	msg  string
 }
 
-func (e *testCodedError) Error() string       { return e.msg }
+func (e *testCodedError) Error() string        { return e.msg }
 func (e *testCodedError) ErrorCode() string    { return e.code }
 func (e *testCodedError) ErrorMessage() string { return e.msg }
 
@@ -137,7 +137,7 @@ func TestSecurity_RED_SendSuccess_PanicsOnUnmarshalableData(t *testing.T) {
 
 	// A channel cannot be JSON-marshaled; json.Encoder.Encode returns an error.
 	type leaky struct {
-		Name string     `json:"name"`
+		Name string      `json:"name"`
 		Ch   chan string `json:"ch"`
 	}
 

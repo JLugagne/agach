@@ -12,10 +12,10 @@ import (
 )
 
 type SpecializedAgentService struct {
-	specAgents      agentsrepo.AgentRepository
-	specSkills      skillsrepo.SkillRepository
-	specRepo        specializedrepo.SpecializedAgentRepository
-	specLogger      *logrus.Logger
+	specAgents agentsrepo.AgentRepository
+	specSkills skillsrepo.SkillRepository
+	specRepo   specializedrepo.SpecializedAgentRepository
+	specLogger *logrus.Logger
 }
 
 func newSpecializedAgentService(

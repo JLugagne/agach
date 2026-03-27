@@ -18,11 +18,11 @@ import (
 )
 
 type mockBuildRepo struct {
-	builds              []domain.DockerBuild
-	createCalled        bool
-	updateCalled        bool
-	lastStatus          domain.BuildStatus
-	lastLog             string
+	builds               []domain.DockerBuild
+	createCalled         bool
+	updateCalled         bool
+	lastStatus           domain.BuildStatus
+	lastLog              string
 	deleteNonLatestSlugs []string
 }
 

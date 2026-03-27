@@ -7,8 +7,8 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/service"
-	"github.com/JLugagne/agach-mcp/pkg/apierror"
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/pkg/apierror"
 	"github.com/gorilla/mux"
 )
 
@@ -86,8 +86,8 @@ type completeOnboardingRequest struct {
 }
 
 type completeOnboardingResponse struct {
-	AccessToken  string      `json:"access_token"`
-	RefreshToken string      `json:"refresh_token"`
+	AccessToken  string       `json:"access_token"`
+	RefreshToken string       `json:"refresh_token"`
 	Node         nodeResponse `json:"node"`
 }
 
@@ -181,4 +181,3 @@ func (h *OnboardingHandler) RefreshDaemonToken(w http.ResponseWriter, r *http.Re
 		"access_token": newAccessToken,
 	})
 }
-

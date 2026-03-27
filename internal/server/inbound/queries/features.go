@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/converters"
-	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/gorilla/mux"
 )
 

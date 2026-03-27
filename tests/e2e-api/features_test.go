@@ -129,19 +129,25 @@ func TestFeatures_StatusWorkflow(t *testing.T) {
 	featurePath := fmt.Sprintf("/api/projects/%s/features/%s", projectID, created.ID)
 
 	// draft → ready
-	patchAndDecode[struct{ Message string `json:"message"` }](t, statusPath, token,
+	patchAndDecode[struct {
+		Message string `json:"message"`
+	}](t, statusPath, token,
 		map[string]any{"status": "ready"})
 	f := getAndDecode[feature](t, featurePath, token)
 	require.Equal(t, "ready", f.Status)
 
 	// ready → in_progress
-	patchAndDecode[struct{ Message string `json:"message"` }](t, statusPath, token,
+	patchAndDecode[struct {
+		Message string `json:"message"`
+	}](t, statusPath, token,
 		map[string]any{"status": "in_progress"})
 	f = getAndDecode[feature](t, featurePath, token)
 	require.Equal(t, "in_progress", f.Status)
 
 	// in_progress → done
-	patchAndDecode[struct{ Message string `json:"message"` }](t, statusPath, token,
+	patchAndDecode[struct {
+		Message string `json:"message"`
+	}](t, statusPath, token,
 		map[string]any{"status": "done"})
 	f = getAndDecode[feature](t, featurePath, token)
 	require.Equal(t, "done", f.Status)
@@ -169,7 +175,9 @@ func TestFeatures_Changelogs(t *testing.T) {
 	featurePath := fmt.Sprintf("/api/projects/%s/features/%s", projectID, created.ID)
 
 	// Update both changelogs.
-	patchAndDecode[struct{ Message string `json:"message"` }](t, changelogPath, token,
+	patchAndDecode[struct {
+		Message string `json:"message"`
+	}](t, changelogPath, token,
 		map[string]any{
 			"user_changelog": "Added dark mode support",
 			"tech_changelog": "Refactored CSS variables",
@@ -180,7 +188,9 @@ func TestFeatures_Changelogs(t *testing.T) {
 	require.Equal(t, "Refactored CSS variables", got.TechChangelog)
 
 	// Update only user_changelog.
-	patchAndDecode[struct{ Message string `json:"message"` }](t, changelogPath, token,
+	patchAndDecode[struct {
+		Message string `json:"message"`
+	}](t, changelogPath, token,
 		map[string]any{
 			"user_changelog": "Added dark mode and high contrast",
 		})
@@ -296,7 +306,7 @@ func TestFeatures_TaskSummaries(t *testing.T) {
 	resp := doAuth(t, "POST",
 		fmt.Sprintf("/api/projects/%s/tasks/%s/complete", projectID, task.ID), token,
 		map[string]any{
-			"completion_summary":  completionSummary,
+			"completion_summary": completionSummary,
 			"files_modified":     []string{"dashboard.go", "dashboard_test.go"},
 			"completed_by_agent": "claude",
 		})

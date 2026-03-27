@@ -7,13 +7,13 @@ import (
 )
 
 type MockNodeRepository struct {
-	CreateFunc           func(ctx context.Context, node domain.Node) error
-	FindByIDFunc         func(ctx context.Context, id domain.NodeID) (domain.Node, error)
-	ListByOwnerFunc      func(ctx context.Context, ownerID domain.UserID) ([]domain.Node, error)
+	CreateFunc            func(ctx context.Context, node domain.Node) error
+	FindByIDFunc          func(ctx context.Context, id domain.NodeID) (domain.Node, error)
+	ListByOwnerFunc       func(ctx context.Context, ownerID domain.UserID) ([]domain.Node, error)
 	ListActiveByOwnerFunc func(ctx context.Context, ownerID domain.UserID) ([]domain.Node, error)
-	UpdateFunc           func(ctx context.Context, node domain.Node) error
-	UpdateLastSeenFunc   func(ctx context.Context, id domain.NodeID) error
-	ListAllFunc          func(ctx context.Context) ([]domain.Node, error)
+	UpdateFunc            func(ctx context.Context, node domain.Node) error
+	UpdateLastSeenFunc    func(ctx context.Context, id domain.NodeID) error
+	ListAllFunc           func(ctx context.Context) ([]domain.Node, error)
 }
 
 func (m *MockNodeRepository) Create(ctx context.Context, node domain.Node) error {

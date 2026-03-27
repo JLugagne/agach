@@ -120,12 +120,12 @@ func TestSecurity_GREEN_CreateTaskRequest_DependsOnReasonableSize(t *testing.T) 
 
 func TestSecurity_RED_CompleteTaskRequest_NegativeTokensAccepted(t *testing.T) {
 	req := server.CompleteTaskRequest{
-		CompletionSummary: strings.Repeat("x", 100), // meets min=100
-		CompletedByAgent:  "agent-007",
-		InputTokens:       -999_999,
-		OutputTokens:      -1,
-		CacheReadTokens:   -42,
-		CacheWriteTokens:  -1,
+		CompletionSummary:    strings.Repeat("x", 100), // meets min=100
+		CompletedByAgent:     "agent-007",
+		InputTokens:          -999_999,
+		OutputTokens:         -1,
+		CacheReadTokens:      -42,
+		CacheWriteTokens:     -1,
 		HumanEstimateSeconds: -3600,
 	}
 	err := sharedValidator.Struct(req)

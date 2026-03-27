@@ -290,10 +290,10 @@ func TestOnboardingHandler_CompleteOnboarding_Success(t *testing.T) {
 			AccessToken  string `json:"access_token"`
 			RefreshToken string `json:"refresh_token"`
 			Node         struct {
-				ID        string `json:"id"`
-				Name      string `json:"name"`
-				Mode      string `json:"mode"`
-				Status    string `json:"status"`
+				ID        string    `json:"id"`
+				Name      string    `json:"name"`
+				Mode      string    `json:"mode"`
+				Status    string    `json:"status"`
 				CreatedAt time.Time `json:"created_at"`
 			} `json:"node"`
 		} `json:"data"`

@@ -36,7 +36,7 @@ func TestToPublicColdStartStat_NaNPropagates(t *testing.T) {
 		Count:              1,
 		MinInputTokens:     100,
 		MaxInputTokens:     200,
-		AvgInputTokens:     math.NaN(),  // crafted NaN
+		AvgInputTokens:     math.NaN(), // crafted NaN
 		MinOutputTokens:    50,
 		MaxOutputTokens:    100,
 		AvgOutputTokens:    math.Inf(1), // crafted +Inf

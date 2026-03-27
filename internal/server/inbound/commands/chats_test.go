@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/internal/server/app"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/chats/chatstest"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/commands"
-	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"

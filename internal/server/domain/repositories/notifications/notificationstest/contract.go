@@ -76,7 +76,6 @@ func ptrProjectID(id domain.ProjectID) *domain.ProjectID {
 	return &id
 }
 
-
 // NotificationsContractTesting runs all contract tests for a NotificationRepository implementation.
 func NotificationsContractTesting(t *testing.T, repo notifications.NotificationRepository, projectID domain.ProjectID) {
 	ctx := context.Background()

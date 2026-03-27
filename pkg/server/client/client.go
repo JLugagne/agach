@@ -501,4 +501,3 @@ func (c *Client) AddDependency(projectID, taskID, dependsOnTaskID string) error 
 	_, err = decodeResponse[map[string]string](resp)
 	return err
 }
-

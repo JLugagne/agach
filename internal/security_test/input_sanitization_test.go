@@ -228,9 +228,9 @@ func TestIntegration_RED_UnicodeNormalizationSlugBypass(t *testing.T) {
 		name  string
 		input string // Non-normalized input
 	}{
-		{"fullwidth a", "\uff41\uff42\uff43"}, // fullwidth abc
-		{"combining accent", "e\u0301"},        // e + combining acute = e with accent
-		{"zero-width joiner", "ab\u200dc"},      // invisible character between b and c
+		{"fullwidth a", "\uff41\uff42\uff43"},      // fullwidth abc
+		{"combining accent", "e\u0301"},            // e + combining acute = e with accent
+		{"zero-width joiner", "ab\u200dc"},         // invisible character between b and c
 		{"right-to-left override", "\u202eterces"}, // RTL override
 	}
 

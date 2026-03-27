@@ -56,22 +56,22 @@ func WithBuildRepository(repo builds.DockerBuildRepository) Option {
 }
 
 type App struct {
-	cfg           *config.Config
-	logger        *logrus.Logger
-	tokenStore    *TokenStore
-	tokens        *Tokens
-	state         State
-	ctx           context.Context
-	wsClient      domain.ServerConnection
-	onboarding    domain.ServerOnboarding
-	authClient    domain.ServerAuth
-	dockerService *DockerService
-	buildRepo     builds.DockerBuildRepository
-	gitService    *GitService
-	projectClient    domain.ProjectFetcher
-	chatManager      *ChatManager
-	resourceCache    *ResourceCache
-	resourceClient   domain.ResourceDownloader
+	cfg            *config.Config
+	logger         *logrus.Logger
+	tokenStore     *TokenStore
+	tokens         *Tokens
+	state          State
+	ctx            context.Context
+	wsClient       domain.ServerConnection
+	onboarding     domain.ServerOnboarding
+	authClient     domain.ServerAuth
+	dockerService  *DockerService
+	buildRepo      builds.DockerBuildRepository
+	gitService     *GitService
+	projectClient  domain.ProjectFetcher
+	chatManager    *ChatManager
+	resourceCache  *ResourceCache
+	resourceClient domain.ResourceDownloader
 }
 
 func New(cfg *config.Config, logger *logrus.Logger, opts ...Option) (*App, error) {

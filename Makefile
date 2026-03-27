@@ -37,5 +37,8 @@ docker_build:
 	docker build -f Dockerfile.local --output type=local,dest=. .
 
 run-playwright:
-	docker compose -f docker-compose.playwright.yml up --build --abort-on-container-exit --exit-code-from playwright; \
-	docker compose -f docker-compose.playwright.yml down -v
+	docker compose -f docker-compose.playwright.yml up --build -d postgres server qa-seed && \
+	docker compose -f docker-compose.playwright.yml up --build --exit-code-from playwright playwright; \
+	rc=$$?; \
+	docker compose -f docker-compose.playwright.yml down -v; \
+	exit $$rc

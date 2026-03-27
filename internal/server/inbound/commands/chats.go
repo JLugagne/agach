@@ -94,8 +94,8 @@ func (h *ChatsHandler) StartSession(w http.ResponseWriter, r *http.Request) {
 			InitialMessage:  initialMessage,
 		})
 		chatStartMsg, _ := json.Marshal(struct {
-			Type    string          `json:"type"`
-			Data    json.RawMessage `json:"data"`
+			Type string          `json:"type"`
+			Data json.RawMessage `json:"data"`
 		}{
 			Type: daemonws.TypeChatStart,
 			Data: startPayload,

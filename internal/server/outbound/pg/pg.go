@@ -33,20 +33,20 @@ var migrationsFS embed.FS
 
 // Repositories holds all PostgreSQL repository implementations.
 type Repositories struct {
-	Projects           projects.ProjectRepository
-	Agents             agentsrepo.AgentRepository
-	Tasks              tasks.TaskRepository
-	Columns            columns.ColumnRepository
-	Comments           comments.CommentRepository
-	Dependencies       dependencies.DependencyRepository
-	ToolUsage          toolusage.ToolUsageRepository
-	Skills             skills.SkillRepository
-	Dockerfiles        dockerfiles.DockerfileRepository
-	Features           featuresrepo.FeatureRepository
-	Notifications      notificationsrepo.NotificationRepository
-	Chats              chatsrepo.ChatSessionRepository
-	SpecializedAgents  specializedrepo.SpecializedAgentRepository
-	ProjectAccess      projectaccessrepo.ProjectAccessRepository
+	Projects          projects.ProjectRepository
+	Agents            agentsrepo.AgentRepository
+	Tasks             tasks.TaskRepository
+	Columns           columns.ColumnRepository
+	Comments          comments.CommentRepository
+	Dependencies      dependencies.DependencyRepository
+	ToolUsage         toolusage.ToolUsageRepository
+	Skills            skills.SkillRepository
+	Dockerfiles       dockerfiles.DockerfileRepository
+	Features          featuresrepo.FeatureRepository
+	Notifications     notificationsrepo.NotificationRepository
+	Chats             chatsrepo.ChatSessionRepository
+	SpecializedAgents specializedrepo.SpecializedAgentRepository
+	ProjectAccess     projectaccessrepo.ProjectAccessRepository
 }
 
 // NewRepositories creates all repository implementations backed by a pgxpool.Pool and runs migrations.
@@ -172,16 +172,16 @@ type scanner interface {
 
 // compile-time interface checks
 var (
-	_ projects.ProjectRepository                          = (*projectRepository)(nil)
-	_ agentsrepo.AgentRepository                          = (*agentRepository)(nil)
-	_ tasks.TaskRepository                                = (*taskRepository)(nil)
-	_ columns.ColumnRepository                            = (*columnRepository)(nil)
-	_ comments.CommentRepository                          = (*commentRepository)(nil)
-	_ dependencies.DependencyRepository                   = (*dependencyRepository)(nil)
-	_ toolusage.ToolUsageRepository                       = (*toolUsageRepository)(nil)
-	_ skills.SkillRepository                              = (*skillRepository)(nil)
-	_ featuresrepo.FeatureRepository                      = (*featureRepository)(nil)
-	_ notificationsrepo.NotificationRepository            = (*notificationRepository)(nil)
-	_ chatsrepo.ChatSessionRepository                     = (*chatSessionRepository)(nil)
-	_ specializedrepo.SpecializedAgentRepository          = (*specializedAgentRepository)(nil)
+	_ projects.ProjectRepository                 = (*projectRepository)(nil)
+	_ agentsrepo.AgentRepository                 = (*agentRepository)(nil)
+	_ tasks.TaskRepository                       = (*taskRepository)(nil)
+	_ columns.ColumnRepository                   = (*columnRepository)(nil)
+	_ comments.CommentRepository                 = (*commentRepository)(nil)
+	_ dependencies.DependencyRepository          = (*dependencyRepository)(nil)
+	_ toolusage.ToolUsageRepository              = (*toolUsageRepository)(nil)
+	_ skills.SkillRepository                     = (*skillRepository)(nil)
+	_ featuresrepo.FeatureRepository             = (*featureRepository)(nil)
+	_ notificationsrepo.NotificationRepository   = (*notificationRepository)(nil)
+	_ chatsrepo.ChatSessionRepository            = (*chatSessionRepository)(nil)
+	_ specializedrepo.SpecializedAgentRepository = (*specializedAgentRepository)(nil)
 )

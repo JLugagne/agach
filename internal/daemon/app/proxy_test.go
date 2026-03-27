@@ -43,8 +43,8 @@ func doProxyReq(t *testing.T, client *http.Client, method, path, apiKey string, 
 
 func TestProxy_RewritesProjectID(t *testing.T) {
 	var captured struct {
-		path  string
-		auth  string
+		path            string
+		auth            string
 		apiKeyForwarded string
 	}
 

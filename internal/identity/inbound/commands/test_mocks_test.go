@@ -40,16 +40,16 @@ func (m *mockAuthQueries) GetUserTeamIDs(ctx context.Context, userID domain.User
 
 // mockAuthCommands is a shared mock for AuthCommands across all command handler tests.
 type mockAuthCommands struct {
-	registerFunc            func(ctx context.Context, email, password, displayName string) (domain.User, error)
-	loginFunc               func(ctx context.Context, email, password string, rememberMe bool) (string, string, error)
-	loginSSOFunc            func(ctx context.Context, provider, idToken, nonce string) (string, string, error)
-	refreshTokenFunc        func(ctx context.Context, refreshToken string) (string, error)
-	logoutFunc              func(ctx context.Context, token string) error
-	updateProfileFunc       func(ctx context.Context, actor domain.Actor, displayName string) (domain.User, error)
-	changePasswordFunc      func(ctx context.Context, actor domain.Actor, currentPassword, newPassword string) error
-	refreshDaemonTokenFunc  func(ctx context.Context, nodeID domain.NodeID, refreshToken string) (string, error)
-	inviteUserFunc          func(ctx context.Context, actor domain.Actor, email string) (string, error)
-	completeInviteFunc      func(ctx context.Context, token, displayName, password string) (domain.User, error)
+	registerFunc           func(ctx context.Context, email, password, displayName string) (domain.User, error)
+	loginFunc              func(ctx context.Context, email, password string, rememberMe bool) (string, string, error)
+	loginSSOFunc           func(ctx context.Context, provider, idToken, nonce string) (string, string, error)
+	refreshTokenFunc       func(ctx context.Context, refreshToken string) (string, error)
+	logoutFunc             func(ctx context.Context, token string) error
+	updateProfileFunc      func(ctx context.Context, actor domain.Actor, displayName string) (domain.User, error)
+	changePasswordFunc     func(ctx context.Context, actor domain.Actor, currentPassword, newPassword string) error
+	refreshDaemonTokenFunc func(ctx context.Context, nodeID domain.NodeID, refreshToken string) (string, error)
+	inviteUserFunc         func(ctx context.Context, actor domain.Actor, email string) (string, error)
+	completeInviteFunc     func(ctx context.Context, token, displayName, password string) (domain.User, error)
 }
 
 func (m *mockAuthCommands) Register(ctx context.Context, email, password, displayName string) (domain.User, error) {

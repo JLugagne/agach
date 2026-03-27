@@ -15,10 +15,10 @@ import (
 // ---------------------------------------------------------------------------
 
 type projectInfoResp struct {
-	Project     projectResponse      `json:"project"`
+	Project     projectResponse        `json:"project"`
 	TaskSummary projectSummaryResponse `json:"task_summary"`
-	Children    []projectWithSummary `json:"children"`
-	Breadcrumb  []projectResponse    `json:"breadcrumb"`
+	Children    []projectWithSummary   `json:"children"`
+	Breadcrumb  []projectResponse      `json:"breadcrumb"`
 }
 
 type timelineEntryResp struct {

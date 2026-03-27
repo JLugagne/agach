@@ -12,12 +12,12 @@ import (
 )
 
 type MockTeamRepository struct {
-	CreateFunc      func(ctx context.Context, team domain.Team) error
-	FindByIDFunc    func(ctx context.Context, id domain.TeamID) (domain.Team, error)
-	FindBySlugFunc  func(ctx context.Context, slug string) (domain.Team, error)
-	ListFunc        func(ctx context.Context) ([]domain.Team, error)
-	UpdateFunc      func(ctx context.Context, team domain.Team) error
-	DeleteFunc      func(ctx context.Context, id domain.TeamID) error
+	CreateFunc     func(ctx context.Context, team domain.Team) error
+	FindByIDFunc   func(ctx context.Context, id domain.TeamID) (domain.Team, error)
+	FindBySlugFunc func(ctx context.Context, slug string) (domain.Team, error)
+	ListFunc       func(ctx context.Context) ([]domain.Team, error)
+	UpdateFunc     func(ctx context.Context, team domain.Team) error
+	DeleteFunc     func(ctx context.Context, id domain.TeamID) error
 }
 
 func (m *MockTeamRepository) Create(ctx context.Context, team domain.Team) error {

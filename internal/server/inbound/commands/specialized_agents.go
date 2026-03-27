@@ -4,12 +4,12 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/converters"
-	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
-	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/gorilla/mux"
 )
 

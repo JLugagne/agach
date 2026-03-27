@@ -113,7 +113,7 @@ func assertJSONFailCode(t *testing.T, data []byte, expectedCode string) {
 // HTTP layer.
 func TestSecurity_SEC01_IDORUpdateCommentIgnoresTaskID_RED(t *testing.T) {
 	projectID := domain.NewProjectID()
-	realTaskID := domain.NewTaskID()   // the comment actually belongs to this task
+	realTaskID := domain.NewTaskID()    // the comment actually belongs to this task
 	foreignTaskID := domain.NewTaskID() // attacker uses a different task ID in URL
 	commentID := domain.NewCommentID()
 

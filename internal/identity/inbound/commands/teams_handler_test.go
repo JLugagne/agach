@@ -22,14 +22,14 @@ import (
 // ─────────────────────────────────────────────────────────────────────────────
 
 type mockTeamCommands struct {
-	createTeamFunc        func(ctx context.Context, actor domain.Actor, name, slug, description string) (domain.Team, error)
-	updateTeamFunc        func(ctx context.Context, actor domain.Actor, team domain.Team) error
-	deleteTeamFunc        func(ctx context.Context, actor domain.Actor, id domain.TeamID) error
-	addUserToTeamFunc     func(ctx context.Context, actor domain.Actor, userID domain.UserID, teamID domain.TeamID) error
+	createTeamFunc         func(ctx context.Context, actor domain.Actor, name, slug, description string) (domain.Team, error)
+	updateTeamFunc         func(ctx context.Context, actor domain.Actor, team domain.Team) error
+	deleteTeamFunc         func(ctx context.Context, actor domain.Actor, id domain.TeamID) error
+	addUserToTeamFunc      func(ctx context.Context, actor domain.Actor, userID domain.UserID, teamID domain.TeamID) error
 	removeUserFromTeamFunc func(ctx context.Context, actor domain.Actor, userID domain.UserID, teamID domain.TeamID) error
-	setUserRoleFunc       func(ctx context.Context, actor domain.Actor, userID domain.UserID, role domain.MemberRole) error
-	blockUserFunc         func(ctx context.Context, actor domain.Actor, userID domain.UserID) error
-	unblockUserFunc       func(ctx context.Context, actor domain.Actor, userID domain.UserID) error
+	setUserRoleFunc        func(ctx context.Context, actor domain.Actor, userID domain.UserID, role domain.MemberRole) error
+	blockUserFunc          func(ctx context.Context, actor domain.Actor, userID domain.UserID) error
+	unblockUserFunc        func(ctx context.Context, actor domain.Actor, userID domain.UserID) error
 }
 
 func (m *mockTeamCommands) CreateTeam(ctx context.Context, actor domain.Actor, name, slug, description string) (domain.Team, error) {
@@ -642,4 +642,3 @@ func TestTeamsHandler_ListUsers_ServiceError_ReturnsInternalError(t *testing.T) 
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }
-

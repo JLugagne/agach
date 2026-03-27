@@ -5,8 +5,8 @@ import (
 	"io"
 	"testing"
 
-	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )

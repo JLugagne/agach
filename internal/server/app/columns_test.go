@@ -207,4 +207,3 @@ func TestApp_ListColumns_ProjectNotFound_ReturnsError(t *testing.T) {
 	assert.True(t, domain.IsDomainError(err))
 	assert.ErrorIs(t, err, domain.ErrProjectNotFound)
 }
-

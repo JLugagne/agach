@@ -7,8 +7,8 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/server/app"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
-	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/projects/projectstest"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/agents/agentstest"
+	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/projects/projectstest"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/skills/skillstest"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/tasks/taskstest"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +18,7 @@ import (
 func newAgentMgmtApp(mockProjects *projectstest.MockProjectRepository, mockRoles *agentstest.MockRoleRepository, mockTasks *taskstest.MockTaskRepository, mockSkills *skillstest.MockSkill) *app.App {
 	return app.NewApp(app.Config{
 		Projects: mockProjects,
-		Agents:    mockRoles,
+		Agents:   mockRoles,
 		Tasks:    mockTasks,
 		Skills:   mockSkills,
 	})

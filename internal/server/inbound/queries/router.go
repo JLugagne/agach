@@ -4,8 +4,8 @@ import (
 	"context"
 
 	identitydomain "github.com/JLugagne/agach-mcp/internal/identity/domain"
-	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/gorilla/mux"
 )
 

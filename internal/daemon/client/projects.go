@@ -49,7 +49,7 @@ func (c *ProjectClient) GetProject(ctx context.Context, token, projectID string)
 	}
 
 	var result struct {
-		Status string           `json:"status"`
+		Status string             `json:"status"`
 		Data   domain.ProjectInfo `json:"data"`
 	}
 	if err := json.Unmarshal(body, &result); err != nil {

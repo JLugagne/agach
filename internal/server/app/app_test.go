@@ -8,11 +8,11 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/server/app"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
+	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/agents/agentstest"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/columns/columnstest"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/comments/commentstest"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/dependencies/dependenciestest"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/projects/projectstest"
-	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/agents/agentstest"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/tasks/taskstest"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +33,7 @@ func setupTestApp() (*app.App, *projectstest.MockProjectRepository, *agentstest.
 
 	a := app.NewApp(app.Config{
 		Projects:     mockProjects,
-		Agents:        mockRoles,
+		Agents:       mockRoles,
 		Tasks:        mockTasks,
 		Columns:      mockColumns,
 		Comments:     mockComments,

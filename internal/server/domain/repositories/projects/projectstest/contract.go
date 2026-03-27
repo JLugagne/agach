@@ -22,14 +22,14 @@ import (
 //		},
 //	}
 type MockProjectRepository struct {
-	CreateFunc                 func(ctx context.Context, project domain.Project) error
-	FindByIDFunc               func(ctx context.Context, id domain.ProjectID) (*domain.Project, error)
-	ListFunc                   func(ctx context.Context, parentID *domain.ProjectID) ([]domain.Project, error)
-	GetTreeFunc                func(ctx context.Context, id domain.ProjectID) ([]domain.Project, error)
-	UpdateFunc                 func(ctx context.Context, project domain.Project) error
-	DeleteFunc                 func(ctx context.Context, id domain.ProjectID) ([]domain.ProjectID, error)
-	GetSummaryFunc             func(ctx context.Context, id domain.ProjectID) (*domain.ProjectSummary, error)
-	CountChildrenFunc          func(ctx context.Context, id domain.ProjectID) (int, error)
+	CreateFunc           func(ctx context.Context, project domain.Project) error
+	FindByIDFunc         func(ctx context.Context, id domain.ProjectID) (*domain.Project, error)
+	ListFunc             func(ctx context.Context, parentID *domain.ProjectID) ([]domain.Project, error)
+	GetTreeFunc          func(ctx context.Context, id domain.ProjectID) ([]domain.Project, error)
+	UpdateFunc           func(ctx context.Context, project domain.Project) error
+	DeleteFunc           func(ctx context.Context, id domain.ProjectID) ([]domain.ProjectID, error)
+	GetSummaryFunc       func(ctx context.Context, id domain.ProjectID) (*domain.ProjectSummary, error)
+	CountChildrenFunc    func(ctx context.Context, id domain.ProjectID) (int, error)
 	ListModelPricingFunc func(ctx context.Context) ([]domain.ModelPricing, error)
 }
 
@@ -408,4 +408,3 @@ func ProjectFeaturesContractTesting(
 	_ func(t *testing.T, projectID domain.ProjectID, columnSlug domain.ColumnSlug),
 ) {
 }
-

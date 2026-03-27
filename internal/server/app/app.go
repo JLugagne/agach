@@ -1,6 +1,7 @@
 package app
 
 import (
+	agentsrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/agents"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/columns"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/comments"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/dependencies"
@@ -9,7 +10,6 @@ import (
 	notificationsrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/notifications"
 	projectaccessrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/projectaccess"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/projects"
-	agentsrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/agents"
 	skillsrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/skills"
 	specializedrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/specialized"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/tasks"
@@ -74,7 +74,7 @@ func NewApp(cfg Config) *App {
 		ColumnService:           newColumnService(cfg.Columns, cfg.Projects, cfg.Logger),
 		DependencyService:       newDependencyService(cfg.Dependencies, cfg.Tasks, cfg.Logger),
 		SpecializedAgentService: newSpecializedAgentService(cfg.Agents, cfg.Skills, cfg.Specialized, cfg.Logger),
-		ProjectAccessService:   newProjectAccessService(cfg.ProjectAccess, cfg.Logger),
+		ProjectAccessService:    newProjectAccessService(cfg.ProjectAccess, cfg.Logger),
 		chats:                   cfg.Chats,
 	}
 }

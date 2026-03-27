@@ -21,9 +21,9 @@ import (
 //		},
 //	}
 type MockColumnRepository struct {
-	FindByIDFunc       func(ctx context.Context, projectID domain.ProjectID, id domain.ColumnID) (*domain.Column, error)
-	FindBySlugFunc     func(ctx context.Context, projectID domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error)
-	ListFunc           func(ctx context.Context, projectID domain.ProjectID) ([]domain.Column, error)
+	FindByIDFunc      func(ctx context.Context, projectID domain.ProjectID, id domain.ColumnID) (*domain.Column, error)
+	FindBySlugFunc    func(ctx context.Context, projectID domain.ProjectID, slug domain.ColumnSlug) (*domain.Column, error)
+	ListFunc          func(ctx context.Context, projectID domain.ProjectID) ([]domain.Column, error)
 	EnsureBacklogFunc func(ctx context.Context, projectID domain.ProjectID) (*domain.Column, error)
 }
 
