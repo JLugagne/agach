@@ -34,6 +34,10 @@ func (m *mockAuthQueries) GetCurrentUser(ctx context.Context, actor domain.Actor
 	return domain.User{}, nil
 }
 
+func (m *mockAuthQueries) GetUserTeamIDs(ctx context.Context, userID domain.UserID) ([]domain.TeamID, error) {
+	return nil, nil
+}
+
 // mockAuthCommands is a shared mock for AuthCommands across all command handler tests.
 type mockAuthCommands struct {
 	registerFunc            func(ctx context.Context, email, password, displayName string) (domain.User, error)
@@ -44,6 +48,8 @@ type mockAuthCommands struct {
 	updateProfileFunc       func(ctx context.Context, actor domain.Actor, displayName string) (domain.User, error)
 	changePasswordFunc      func(ctx context.Context, actor domain.Actor, currentPassword, newPassword string) error
 	refreshDaemonTokenFunc  func(ctx context.Context, nodeID domain.NodeID, refreshToken string) (string, error)
+	inviteUserFunc          func(ctx context.Context, actor domain.Actor, email string) (string, error)
+	completeInviteFunc      func(ctx context.Context, token, displayName, password string) (domain.User, error)
 }
 
 func (m *mockAuthCommands) Register(ctx context.Context, email, password, displayName string) (domain.User, error) {
@@ -79,7 +85,7 @@ func (m *mockAuthCommands) UpdateProfile(ctx context.Context, actor domain.Actor
 	return domain.User{}, nil
 }
 
-func (m *mockAuthCommands) ChangePassword(ctx context.Context, actor domain.Actor, currentPassword, newPassword string) error {
+func (m *mockAuthCommands) ChangePassword(ctx context.Context, actor domain.Actor, currentPassword, newPassword, callerToken string) error {
 	if m.changePasswordFunc != nil {
 		return m.changePasswordFunc(ctx, actor, currentPassword, newPassword)
 	}
@@ -91,4 +97,18 @@ func (m *mockAuthCommands) RefreshDaemonToken(ctx context.Context, nodeID domain
 		return m.refreshDaemonTokenFunc(ctx, nodeID, refreshToken)
 	}
 	return "", nil
+}
+
+func (m *mockAuthCommands) InviteUser(ctx context.Context, actor domain.Actor, email string) (string, error) {
+	if m.inviteUserFunc != nil {
+		return m.inviteUserFunc(ctx, actor, email)
+	}
+	return "", nil
+}
+
+func (m *mockAuthCommands) CompleteInvite(ctx context.Context, token, displayName, password string) (domain.User, error) {
+	if m.completeInviteFunc != nil {
+		return m.completeInviteFunc(ctx, token, displayName, password)
+	}
+	return domain.User{}, nil
 }

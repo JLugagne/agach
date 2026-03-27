@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/JLugagne/agach-mcp/internal/pkg/apierror"
+	"github.com/JLugagne/agach-mcp/pkg/apierror"
 	"github.com/go-playground/validator/v10"
 	"github.com/sirupsen/logrus"
 )

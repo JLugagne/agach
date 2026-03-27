@@ -9,6 +9,11 @@ import (
 
 // ToPublicFeature converts domain.Feature to pkgserver.FeatureResponse
 func ToPublicFeature(f domain.Feature) pkgserver.FeatureResponse {
+	status := string(domain.FeatureStatusDraft)
+	if domain.ValidFeatureStatuses[f.Status] {
+		status = string(f.Status)
+	}
+
 	return pkgserver.FeatureResponse{
 		ID:             f.ID.String(),
 		ProjectID:      f.ProjectID.String(),
@@ -16,9 +21,10 @@ func ToPublicFeature(f domain.Feature) pkgserver.FeatureResponse {
 		Description:    f.Description,
 		UserChangelog:  f.UserChangelog,
 		TechChangelog:  f.TechChangelog,
-		Status:         string(f.Status),
+		Status:         status,
 		CreatedByRole:  f.CreatedByRole,
 		CreatedByAgent: f.CreatedByAgent,
+		NodeID:         f.NodeID,
 		CreatedAt:      f.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:      f.UpdatedAt.Format(time.RFC3339),
 	}

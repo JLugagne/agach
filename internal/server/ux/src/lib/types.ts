@@ -581,6 +581,7 @@ export interface UserResponse {
   email: string;
   display_name: string;
   role: 'admin' | 'member';
+  sso_provider: string;
   team_ids: string[];
   blocked_at: string | null;
   created_at: string;
@@ -595,6 +596,22 @@ export interface AdminNodeResponse {
   status: 'active' | 'revoked';
   last_seen_at: string | null;
   revoked_at: string | null;
+  created_at: string;
+}
+
+// Project access
+export interface ProjectUserAccessResponse {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: 'admin' | 'member';
+  created_at: string;
+}
+
+export interface ProjectTeamAccessResponse {
+  id: string;
+  project_id: string;
+  team_id: string;
   created_at: string;
 }
 

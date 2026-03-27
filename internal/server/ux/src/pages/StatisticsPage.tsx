@@ -1,43 +1,41 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { getToolUsage, getBoard, getProjectSummary, getTimeline, getColdStartStats, getModelTokenStats, getModelPricing, getFeatureStats } from '../lib/api';
-import type { ToolUsageStatResponse, ProjectSummaryResponse, TaskWithDetailsResponse, TimelineEntryResponse, ModelTokenStatResponse, ModelPricingResponse, FeatureStatsResponse } from '../lib/types';
+import { getBoard, getProjectSummary, getTimeline, getModelTokenStats, getModelPricing, getFeatureStats, listFeatures } from '../lib/api';
+import type { ProjectSummaryResponse, TaskWithDetailsResponse, TimelineEntryResponse, ModelTokenStatResponse, ModelPricingResponse, FeatureStatsResponse, FeatureWithSummaryResponse } from '../lib/types';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { formatDuration } from '../lib/utils';
-
-interface RoleColdStartStat {
-  assigned_role: string;
-  count: number;
-  min_input_tokens: number;
-  max_input_tokens: number;
-  avg_input_tokens: number;
-  min_output_tokens: number;
-  max_output_tokens: number;
-  avg_output_tokens: number;
-  min_cache_read_tokens: number;
-  max_cache_read_tokens: number;
-  avg_cache_read_tokens: number;
-}
 
 const TIME_RANGE_OPTIONS = [7, 14, 30] as const;
 type TimeRange = (typeof TIME_RANGE_OPTIONS)[number];
 
+interface FeatureTaskBreakdown {
+  id: string;
+  name: string;
+  status: string;
+  total: number;
+  done: number;
+  inProgress: number;
+  blocked: number;
+  todo: number;
+  backlog: number;
+  cost: number;
+}
+
 export default function StatisticsPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [loading, setLoading] = useState(true);
-  const [toolUsage, setToolUsage] = useState<ToolUsageStatResponse[]>([]);
   const [summary, setSummary] = useState<ProjectSummaryResponse | null>(null);
-  const [tokenTotals, setTokenTotals] = useState({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
   const [tasksByRole, setTasksByRole] = useState<Record<string, number>>({});
   const [tasksByPriority, setTasksByPriority] = useState<Record<string, number>>({});
   const [timeRange, setTimeRange] = useState<TimeRange>(14);
   const [timeline, setTimeline] = useState<TimelineEntryResponse[]>([]);
   const [timelineError, setTimelineError] = useState(false);
-  const [coldStartStats, setColdStartStats] = useState<RoleColdStartStat[]>([]);
   const [modelTokenStats, setModelTokenStats] = useState<ModelTokenStatResponse[]>([]);
   const [modelPricing, setModelPricing] = useState<ModelPricingResponse[]>([]);
   const [featureStats, setFeatureStats] = useState<FeatureStatsResponse | null>(null);
+  const [features, setFeatures] = useState<FeatureWithSummaryResponse[]>([]);
+  const [allTasks, setAllTasks] = useState<TaskWithDetailsResponse[]>([]);
   const [timingStats, setTimingStats] = useState<{
     avgDuration: number;
     totalSaved: number;
@@ -51,29 +49,25 @@ export default function StatisticsPage() {
     if (!projectId) return;
     setLoading(true);
     try {
-      const [usage, summaryData, board, coldStart, modelStats, pricing, featStats] = await Promise.all([
-        getToolUsage(projectId).catch(() => [] as ToolUsageStatResponse[]),
+      const [summaryData, board, modelStats, pricing, featStats, featureList] = await Promise.all([
         getProjectSummary(projectId).catch(() => null),
         getBoard(projectId).catch(() => null),
-        getColdStartStats(projectId).catch(() => [] as RoleColdStartStat[]),
         getModelTokenStats(projectId).catch(() => [] as ModelTokenStatResponse[]),
         getModelPricing().catch(() => [] as ModelPricingResponse[]),
         getFeatureStats(projectId).catch(() => null),
+        listFeatures(projectId).catch(() => [] as FeatureWithSummaryResponse[]),
       ]);
-      setToolUsage(usage ?? []);
       setSummary(summaryData);
-      setColdStartStats((coldStart ?? []) as RoleColdStartStat[]);
       setModelTokenStats((modelStats ?? []) as ModelTokenStatResponse[]);
       setModelPricing((pricing ?? []) as ModelPricingResponse[]);
       setFeatureStats(featStats as FeatureStatsResponse | null);
+      setFeatures((featureList ?? []) as FeatureWithSummaryResponse[]);
 
-      // Aggregate token usage and role/priority stats from all tasks
       if (board?.columns) {
-        let input = 0, output = 0, cacheRead = 0, cacheWrite = 0;
         const roles: Record<string, number> = {};
         const priorities: Record<string, number> = {};
+        const tasks: TaskWithDetailsResponse[] = [];
 
-        // Timing aggregation
         let totalDuration = 0;
         let totalHumanEstimate = 0;
         let durationCount = 0;
@@ -82,18 +76,13 @@ export default function StatisticsPage() {
 
         for (const col of board.columns) {
           for (const task of (col.tasks ?? []) as TaskWithDetailsResponse[]) {
-            input += task.input_tokens || 0;
-            output += task.output_tokens || 0;
-            cacheRead += task.cache_read_tokens || 0;
-            cacheWrite += task.cache_write_tokens || 0;
+            tasks.push(task);
             if (task.assigned_role) {
               roles[task.assigned_role] = (roles[task.assigned_role] || 0) + 1;
             }
             if (task.priority) {
               priorities[task.priority] = (priorities[task.priority] || 0) + 1;
             }
-
-            // Only count tasks with duration data
             if ((task.duration_seconds ?? 0) > 0) {
               const dur = task.duration_seconds;
               totalDuration += dur;
@@ -110,7 +99,7 @@ export default function StatisticsPage() {
             }
           }
         }
-        setTokenTotals({ input, output, cacheRead, cacheWrite });
+        setAllTasks(tasks);
         setTasksByRole(roles);
         setTasksByPriority(priorities);
 
@@ -156,7 +145,7 @@ export default function StatisticsPage() {
     useCallback(
       (event) => {
         const type = event.type || '';
-        if (type.startsWith('task_') || type.startsWith('tool_')) {
+        if (type.startsWith('task_') || type.startsWith('feature_')) {
           fetchData();
           fetchTimeline();
         }
@@ -177,10 +166,8 @@ export default function StatisticsPage() {
   // Calculate costs per model
   const modelCosts = useMemo(() => {
     return modelTokenStats.map((stat) => {
-      // Try exact match, then prefix match for model pricing
       let pricing = pricingMap[stat.model];
       if (!pricing) {
-        // Try matching by prefix (e.g., "claude-sonnet-4-6-20250620" might be stored differently)
         for (const [modelId, p] of Object.entries(pricingMap)) {
           if (stat.model.startsWith(modelId) || modelId.startsWith(stat.model)) {
             pricing = p;
@@ -208,6 +195,67 @@ export default function StatisticsPage() {
   }, [modelTokenStats, pricingMap]);
 
   const totalEstimatedCost = useMemo(() => modelCosts.reduce((sum, m) => sum + m.totalCost, 0), [modelCosts]);
+  const totalTaskCount = useMemo(() => modelCosts.reduce((sum, m) => sum + m.task_count, 0), [modelCosts]);
+
+  // Compute per-task cost from tasks that have token data
+  const costPerTask = useMemo(() => {
+    if (totalTaskCount === 0) return 0;
+    return totalEstimatedCost / totalTaskCount;
+  }, [totalEstimatedCost, totalTaskCount]);
+
+  // Tasks per feature breakdown
+  const featureBreakdown = useMemo<FeatureTaskBreakdown[]>(() => {
+    if (features.length === 0) return [];
+
+    // Build a lookup of feature costs from tasks
+    const featureCosts: Record<string, number> = {};
+    for (const task of allTasks) {
+      if (!task.feature_id) continue;
+      // Calculate task cost
+      let taskCost = 0;
+      const totalTokens = (task.input_tokens || 0) + (task.output_tokens || 0) + (task.cache_read_tokens || 0) + (task.cache_write_tokens || 0);
+      if (totalTokens > 0 && task.model) {
+        let pricing = pricingMap[task.model];
+        if (!pricing) {
+          for (const [modelId, p] of Object.entries(pricingMap)) {
+            if (task.model.startsWith(modelId) || modelId.startsWith(task.model)) {
+              pricing = p;
+              break;
+            }
+          }
+        }
+        if (pricing) {
+          taskCost = ((task.input_tokens || 0) / 1_000_000) * pricing.input_price_per_1m
+            + ((task.output_tokens || 0) / 1_000_000) * pricing.output_price_per_1m
+            + ((task.cache_read_tokens || 0) / 1_000_000) * pricing.cache_read_price_per_1m
+            + ((task.cache_write_tokens || 0) / 1_000_000) * pricing.cache_write_price_per_1m;
+        }
+      }
+      featureCosts[task.feature_id] = (featureCosts[task.feature_id] || 0) + taskCost;
+    }
+
+    return features.map((f) => {
+      const s = f.task_summary;
+      return {
+        id: f.id,
+        name: f.name,
+        status: f.status,
+        total: s.backlog_count + s.todo_count + s.in_progress_count + s.done_count + s.blocked_count,
+        done: s.done_count,
+        inProgress: s.in_progress_count,
+        blocked: s.blocked_count,
+        todo: s.todo_count,
+        backlog: s.backlog_count,
+        cost: featureCosts[f.id] || 0,
+      };
+    }).sort((a, b) => b.total - a.total);
+  }, [features, allTasks, pricingMap]);
+
+  const costPerFeature = useMemo(() => {
+    const doneFeatures = features.filter((f) => f.status === 'done').length;
+    if (doneFeatures === 0) return 0;
+    return totalEstimatedCost / doneFeatures;
+  }, [features, totalEstimatedCost]);
 
   if (loading) {
     return (
@@ -217,8 +265,6 @@ export default function StatisticsPage() {
     );
   }
 
-  const totalTokens = tokenTotals.input + tokenTotals.output + tokenTotals.cacheRead + tokenTotals.cacheWrite;
-  const totalCalls = toolUsage.reduce((sum, t) => sum + t.execution_count, 0);
   const totalTasks = summary ? summary.todo_count + summary.in_progress_count + summary.done_count + summary.blocked_count : 0;
 
   const priorityColors: Record<string, string> = {
@@ -228,6 +274,14 @@ export default function StatisticsPage() {
     low: '#8E8E93',
   };
 
+  const featureStatusColors: Record<string, string> = {
+    draft: 'var(--text-muted)',
+    ready: 'var(--primary)',
+    in_progress: '#007AFF',
+    done: 'var(--status-done)',
+    blocked: '#FF3B30',
+  };
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-4xl mx-auto p-8">
@@ -235,12 +289,20 @@ export default function StatisticsPage() {
           Statistics
         </h1>
 
-        {/* Summary cards */}
+        {/* Cost summary cards */}
         <div className="grid grid-cols-4 gap-4 mb-8">
+          <StatCard label="Total Cost" value={totalEstimatedCost > 0 ? `$${totalEstimatedCost.toFixed(2)}` : '$0'} />
+          <StatCard label="Cost / Task" value={costPerTask > 0 ? `$${costPerTask.toFixed(2)}` : '-'} />
+          <StatCard label="Cost / Feature (done)" value={costPerFeature > 0 ? `$${costPerFeature.toFixed(2)}` : '-'} />
           <StatCard label="Total Tasks" value={totalTasks} />
+        </div>
+
+        {/* Task summary cards */}
+        <div className="grid grid-cols-4 gap-4 mb-8">
           <StatCard label="Done" value={summary?.done_count ?? 0} />
           <StatCard label="In Progress" value={summary?.in_progress_count ?? 0} />
           <StatCard label="Blocked" value={summary?.blocked_count ?? 0} />
+          <StatCard label="Backlog" value={summary?.backlog_count ?? 0} />
         </div>
 
         {/* Feature Stats */}
@@ -257,9 +319,43 @@ export default function StatisticsPage() {
           </Section>
         )}
 
-        {/* Token usage per model */}
+        {/* Tasks per Feature */}
+        {featureBreakdown.length > 0 && (
+          <Section title="Tasks per Feature">
+            <div className="space-y-3">
+              {featureBreakdown.map((f) => {
+                const pctDone = f.total > 0 ? (f.done / f.total) * 100 : 0;
+                const pctInProgress = f.total > 0 ? (f.inProgress / f.total) * 100 : 0;
+                const pctBlocked = f.total > 0 ? (f.blocked / f.total) * 100 : 0;
+                const pctTodo = f.total > 0 ? ((f.todo + f.backlog) / f.total) * 100 : 0;
+                return (
+                  <div key={f.id} className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: featureStatusColors[f.status] || 'var(--text-muted)' }} />
+                        <span className="text-sm text-[var(--text-primary)] font-medium truncate max-w-[300px]" title={f.name}>{f.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs font-mono text-[var(--text-muted)]">
+                        <span>{f.done}/{f.total} tasks</span>
+                        {f.cost > 0 && <span>${f.cost.toFixed(2)}</span>}
+                      </div>
+                    </div>
+                    <div className="h-2 bg-[var(--bg-tertiary)] rounded-full overflow-hidden flex">
+                      {pctDone > 0 && <div className="h-full" style={{ width: `${pctDone}%`, backgroundColor: 'var(--status-done)' }} />}
+                      {pctInProgress > 0 && <div className="h-full" style={{ width: `${pctInProgress}%`, backgroundColor: '#007AFF' }} />}
+                      {pctBlocked > 0 && <div className="h-full" style={{ width: `${pctBlocked}%`, backgroundColor: '#FF3B30' }} />}
+                      {pctTodo > 0 && <div className="h-full" style={{ width: `${pctTodo}%`, backgroundColor: 'transparent' }} />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+        )}
+
+        {/* Cost Breakdown by Model */}
         {modelTokenStats.length > 0 && (
-          <Section title="Token Usage by Model">
+          <Section title="Cost Breakdown by Model">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -270,7 +366,7 @@ export default function StatisticsPage() {
                     <th className="text-right py-2 px-2">Output</th>
                     <th className="text-right py-2 px-2">Cache R</th>
                     <th className="text-right py-2 px-2">Cache W</th>
-                    <th className="text-right py-2 px-2">Est. Cost</th>
+                    <th className="text-right py-2 px-2">Cost</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -293,7 +389,7 @@ export default function StatisticsPage() {
                 {totalEstimatedCost > 0 && (
                   <tfoot>
                     <tr className="border-t-2 border-[var(--border-primary)]">
-                      <td colSpan={6} className="py-2 pr-4 text-xs text-[var(--text-muted)] text-right font-mono uppercase">Total Est. Cost</td>
+                      <td colSpan={6} className="py-2 pr-4 text-xs text-[var(--text-muted)] text-right font-mono uppercase">Total</td>
                       <td className="py-2 px-2 text-right font-mono font-semibold text-[var(--text-primary)]">
                         ${totalEstimatedCost.toFixed(2)}
                       </td>
@@ -304,54 +400,6 @@ export default function StatisticsPage() {
             </div>
           </Section>
         )}
-
-        {/* Token usage totals */}
-        <Section title="Token Usage (Total)">
-          {totalTokens === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No token usage recorded yet.</p>
-          ) : (
-            <div className="grid grid-cols-4 gap-4">
-              <StatCard label="Input" value={formatNumber(tokenTotals.input)} />
-              <StatCard label="Output" value={formatNumber(tokenTotals.output)} />
-              <StatCard label="Cache Read" value={formatNumber(tokenTotals.cacheRead)} />
-              <StatCard label="Cache Write" value={formatNumber(tokenTotals.cacheWrite)} />
-            </div>
-          )}
-        </Section>
-
-        {/* MCP Tool Usage */}
-        <Section title="MCP Tool Calls">
-          {toolUsage.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No tool usage recorded yet.</p>
-          ) : (
-            <>
-              <p className="text-sm text-[var(--text-muted)] mb-3">{totalCalls} total calls across {toolUsage.length} tools</p>
-              <div className="space-y-2">
-                {toolUsage
-                  .sort((a, b) => b.execution_count - a.execution_count)
-                  .map((t) => {
-                    const pct = totalCalls > 0 ? (t.execution_count / totalCalls) * 100 : 0;
-                    return (
-                      <div key={t.tool_name} className="flex items-center gap-3">
-                        <span className="text-xs text-[var(--text-secondary)] w-36 truncate font-mono" title={t.tool_name}>
-                          {t.tool_name}
-                        </span>
-                        <div className="flex-1 h-5 bg-[var(--bg-tertiary)] rounded overflow-hidden">
-                          <div
-                            className="h-full bg-[var(--primary)] rounded transition-all"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-[var(--text-muted)] w-12 text-right font-mono">
-                          {t.execution_count}
-                        </span>
-                      </div>
-                    );
-                  })}
-              </div>
-            </>
-          )}
-        </Section>
 
         {/* Tasks by Priority */}
         {Object.keys(tasksByPriority).length > 0 && (
@@ -425,42 +473,49 @@ export default function StatisticsPage() {
           </Section>
         )}
 
-        {/* Cold Start Cost per Agent Role */}
-        {coldStartStats.length > 0 && (
-          <Section title="Cold Start Cost per Agent Role">
-            <p className="text-xs text-[var(--text-muted)] mb-3">
-              Cold start cost is the token usage of the first exchange when an agent starts fresh. Higher cache read tokens indicate better context reuse.
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-[var(--text-muted)] uppercase tracking-wider" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                    <th className="text-left py-2 pr-4">Role</th>
-                    <th className="text-right py-2 px-2">Runs</th>
-                    <th className="text-right py-2 px-2">Min Input</th>
-                    <th className="text-right py-2 px-2">Avg Input</th>
-                    <th className="text-right py-2 px-2">Max Input</th>
-                    <th className="text-right py-2 px-2">Avg Cache Read</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {coldStartStats.map((stat) => (
-                    <tr key={stat.assigned_role} className="border-t border-[var(--border-primary)]">
-                      <td className="py-2 pr-4 text-[var(--text-secondary)]">{stat.assigned_role}</td>
-                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{stat.count.toLocaleString()}</td>
-                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{stat.min_input_tokens.toLocaleString()}</td>
-                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{Math.round(stat.avg_input_tokens).toLocaleString()}</td>
-                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{stat.max_input_tokens.toLocaleString()}</td>
-                      <td className="py-2 px-2 text-right font-mono text-[var(--text-muted)]">{Math.round(stat.avg_cache_read_tokens).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Feature Burndown Charts */}
+        {featureBreakdown.filter((f) => f.status !== 'done' && f.total > 0).length > 0 && (
+          <Section title="Feature Burndown">
+            <p className="text-xs text-[var(--text-muted)] mb-4">Progress towards completion for active features</p>
+            <div className="space-y-4">
+              {featureBreakdown
+                .filter((f) => f.status !== 'done' && f.total > 0)
+                .map((f) => {
+                  const remaining = f.total - f.done;
+                  const pct = f.total > 0 ? (f.done / f.total) * 100 : 0;
+                  return (
+                    <div key={f.id} className="bg-[var(--bg-tertiary)] rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-[var(--text-primary)] font-medium">{f.name}</span>
+                        <span className="text-xs font-mono text-[var(--text-muted)]">{remaining} remaining</span>
+                      </div>
+                      <div className="h-6 bg-[var(--bg-secondary)] rounded-full overflow-hidden relative">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${pct}%`,
+                            backgroundColor: pct === 100 ? 'var(--status-done)' : 'var(--primary)',
+                            minWidth: pct > 0 ? '8px' : undefined,
+                          }}
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-mono text-[var(--text-muted)]">
+                          {pct.toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="flex gap-4 mt-2 text-[10px] font-mono text-[var(--text-muted)]">
+                        <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-1" style={{ backgroundColor: 'var(--status-done)' }} />{f.done} done</span>
+                        <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-1" style={{ backgroundColor: '#007AFF' }} />{f.inProgress} in progress</span>
+                        {f.blocked > 0 && <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-1" style={{ backgroundColor: '#FF3B30' }} />{f.blocked} blocked</span>}
+                        <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-1" style={{ backgroundColor: 'var(--text-muted)' }} />{f.todo + f.backlog} todo</span>
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           </Section>
         )}
 
-        {/* Time range selector + charts */}
+        {/* Time range selector + activity charts */}
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-[var(--text-muted)] uppercase tracking-wider" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
             Activity
@@ -487,9 +542,7 @@ export default function StatisticsPage() {
           <p className="text-sm text-[var(--text-muted)] mb-8">No activity data yet.</p>
         ) : (
           <>
-            {/* Velocity chart */}
             <VelocityChart data={timeline} />
-            {/* Burndown chart */}
             <BurndownChart data={timeline} totalTasks={totalTasks} />
           </>
         )}
@@ -619,7 +672,6 @@ function formatDateLabel(dateStr: string): string {
 }
 
 function formatModelName(model: string): string {
-  // Shorten common prefixes for display
   return model
     .replace('claude-', '')
     .replace('-20250514', '')

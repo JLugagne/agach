@@ -58,7 +58,7 @@ func TestApp_MoveTask_Success(t *testing.T) {
 		return nil
 	}
 
-	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnInProgress)
+	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnInProgress, "")
 
 	require.NoError(t, err)
 	assert.Equal(t, inProgressColID, updatedTask.ColumnID)
@@ -75,7 +75,7 @@ func TestApp_MoveTask_TaskNotFound_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnDone)
+	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnDone, "")
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -128,7 +128,7 @@ func TestApp_MoveTask_FromInProgressToTodo_AppendsResolution(t *testing.T) {
 		return nil
 	}
 
-	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnTodo)
+	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnTodo, "")
 
 	require.NoError(t, err)
 	assert.Contains(t, updatedTask.Resolution, "Moved back to Todo by human")
@@ -183,7 +183,7 @@ func TestApp_MoveTask_FromInProgressToTodo_PreservesExistingResolution(t *testin
 		return nil
 	}
 
-	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnTodo)
+	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnTodo, "")
 
 	require.NoError(t, err)
 	assert.True(t, strings.HasPrefix(updatedTask.Resolution, existingResolution))
@@ -230,7 +230,7 @@ func TestApp_MoveTask_ToBlocked_SetsBlockedFlag(t *testing.T) {
 		return nil
 	}
 
-	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnBlocked)
+	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnBlocked, "")
 
 	require.NoError(t, err)
 	assert.True(t, updatedTask.IsBlocked)
@@ -286,7 +286,7 @@ func TestApp_MoveTask_FromBlocked_ClearsBlockedFlags(t *testing.T) {
 		return nil
 	}
 
-	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnTodo)
+	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnTodo, "")
 
 	require.NoError(t, err)
 	assert.False(t, updatedTask.IsBlocked)
@@ -332,7 +332,7 @@ func TestApp_MoveTask_ToInProgress_WithUnresolvedDeps_Fails(t *testing.T) {
 		return true, nil
 	}
 
-	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnInProgress)
+	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnInProgress, "")
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -384,7 +384,7 @@ func TestApp_MoveTask_ToInProgress_WithResolvedDeps_Succeeds(t *testing.T) {
 		return nil
 	}
 
-	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnInProgress)
+	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnInProgress, "")
 
 	require.NoError(t, err)
 	assert.Equal(t, inProgressColID, updatedTask.ColumnID)
@@ -440,7 +440,7 @@ func TestApp_MoveTask_ToTodo_WithUnresolvedDeps_Succeeds(t *testing.T) {
 
 	// Moving to todo should succeed even without setting HasUnresolvedDependenciesFunc,
 	// proving the dependency check is only performed when targeting in_progress.
-	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnTodo)
+	err := a.MoveTask(ctx, projectID, taskID, domain.ColumnTodo, "")
 
 	require.NoError(t, err)
 	assert.Equal(t, todoColID, updatedTask.ColumnID)
@@ -493,7 +493,7 @@ func TestApp_StartTask_Success(t *testing.T) {
 		return nil
 	}
 
-	err := a.StartTask(ctx, projectID, taskID)
+	err := a.StartTask(ctx, projectID, taskID, "")
 
 	require.NoError(t, err)
 	assert.Equal(t, inProgressColID, updatedTask.ColumnID)
@@ -534,7 +534,7 @@ func TestApp_CompleteTask_Success(t *testing.T) {
 		return nil
 	}
 
-	err := a.CompleteTask(ctx, projectID, taskID, "Task completed successfully with all requirements met", []string{"main.go", "handler.go"}, "agent1", nil)
+	err := a.CompleteTask(ctx, projectID, taskID, "Task completed successfully with all requirements met", []string{"main.go", "handler.go"}, "agent1", nil, "")
 
 	require.NoError(t, err)
 	assert.Equal(t, doneColID, updatedTask.ColumnID)
@@ -555,7 +555,7 @@ func TestApp_CompleteTask_TaskNotFound_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	err := a.CompleteTask(ctx, projectID, taskID, "Completion summary", nil, "agent1", nil)
+	err := a.CompleteTask(ctx, projectID, taskID, "Completion summary", nil, "agent1", nil, "")
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -581,7 +581,7 @@ func TestApp_CompleteTask_DoneColumnNotFound_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	err := a.CompleteTask(ctx, projectID, taskID, "Completion summary", nil, "agent1", nil)
+	err := a.CompleteTask(ctx, projectID, taskID, "Completion summary", nil, "agent1", nil, "")
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -628,7 +628,7 @@ func TestApp_BlockTask_Success(t *testing.T) {
 		return nil
 	}
 
-	err := a.BlockTask(ctx, projectID, taskID, "Waiting for external API to be ready", "agent1")
+	err := a.BlockTask(ctx, projectID, taskID, "Waiting for external API to be ready", "agent1", "")
 
 	require.NoError(t, err)
 	assert.Equal(t, blockedColID, updatedTask.ColumnID)
@@ -649,7 +649,7 @@ func TestApp_BlockTask_TaskNotFound_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	err := a.BlockTask(ctx, projectID, taskID, "Some reason", "agent1")
+	err := a.BlockTask(ctx, projectID, taskID, "Some reason", "agent1", "")
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -707,7 +707,7 @@ func TestApp_UnblockTask_Success(t *testing.T) {
 		return nil
 	}
 
-	err := a.UnblockTask(ctx, projectID, taskID)
+	err := a.UnblockTask(ctx, projectID, taskID, "")
 
 	require.NoError(t, err)
 	assert.Equal(t, todoColID, updatedTask.ColumnID)
@@ -736,7 +736,7 @@ func TestApp_UnblockTask_TaskNotInBlocked_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	err := a.UnblockTask(ctx, projectID, taskID)
+	err := a.UnblockTask(ctx, projectID, taskID, "")
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -754,7 +754,7 @@ func TestApp_UnblockTask_TaskNotFound_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	err := a.UnblockTask(ctx, projectID, taskID)
+	err := a.UnblockTask(ctx, projectID, taskID, "")
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -800,7 +800,7 @@ func TestApp_RequestWontDo_Success(t *testing.T) {
 		return nil
 	}
 
-	err := a.RequestWontDo(ctx, projectID, taskID, "This task is no longer relevant to the project scope", "agent1")
+	err := a.RequestWontDo(ctx, projectID, taskID, "This task is no longer relevant to the project scope", "agent1", "")
 
 	require.NoError(t, err)
 	assert.Equal(t, blockedColID, updatedTask.ColumnID)
@@ -822,7 +822,7 @@ func TestApp_RequestWontDo_TaskNotFound_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	err := a.RequestWontDo(ctx, projectID, taskID, "Some reason", "agent1")
+	err := a.RequestWontDo(ctx, projectID, taskID, "Some reason", "agent1", "")
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))

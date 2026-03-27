@@ -25,6 +25,7 @@ import AdminSettingsPage from './pages/AdminSettingsPage';
 import NodeSettingsPage from './pages/NodeSettingsPage';
 import FeatureChatPage from './pages/FeatureChatPage';
 import SpecializedAgentDetailPage from './pages/SpecializedAgentDetailPage';
+import InvitePage from './pages/InvitePage';
 
 
 function ProtectedRoute() {
@@ -54,6 +55,7 @@ function App() {
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
+            <Route path="/invite" element={<InvitePage />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<ProtectedLayout />}>
                 <Route path="/" element={<HomePage />} />

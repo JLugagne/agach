@@ -4,12 +4,13 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/service"
-	"github.com/JLugagne/agach-mcp/internal/pkg/apierror"
+	"github.com/JLugagne/agach-mcp/pkg/apierror"
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/gorilla/mux"
 	"golang.org/x/time/rate"
@@ -31,12 +32,13 @@ type AuthCommandsHandler struct {
 }
 
 // NewAuthCommandsHandler creates a new auth commands handler.
-func NewAuthCommandsHandler(cmds service.AuthCommands, qrs service.AuthQueries, ctrl *controller.Controller) *AuthCommandsHandler {
+// ratePerSecond and burst configure the auth rate limiter; zero values use defaults.
+func NewAuthCommandsHandler(cmds service.AuthCommands, qrs service.AuthQueries, ctrl *controller.Controller, ratePerSecond float64, burst int) *AuthCommandsHandler {
 	return &AuthCommandsHandler{
 		commands:    cmds,
 		queries:     qrs,
 		controller:  ctrl,
-		authLimiter: newAuthIPLimiter(),
+		authLimiter: newAuthIPLimiter(ratePerSecond, burst),
 	}
 }
 
@@ -59,6 +61,7 @@ func (h *AuthCommandsHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/auth/me", h.GetMe).Methods("GET")
 	router.HandleFunc("/api/auth/me", h.UpdateProfile).Methods("PATCH")
 	router.HandleFunc("/api/auth/me/password", h.ChangePassword).Methods("POST")
+	router.Handle("/api/auth/complete-invite", bodySizeLimit(h.authLimiter.middleware(http.HandlerFunc(h.CompleteInvite)))).Methods("POST")
 }
 
 type registerRequest struct {
@@ -80,6 +83,12 @@ type updateProfileRequest struct {
 type changePasswordRequest struct {
 	CurrentPassword string `json:"current_password" validate:"required"`
 	NewPassword     string `json:"new_password" validate:"required,min=8"`
+}
+
+type completeInviteRequest struct {
+	Token       string `json:"token" validate:"required"`
+	DisplayName string `json:"display_name" validate:"required"`
+	Password    string `json:"password" validate:"required,min=8"`
 }
 
 // Register handles POST /api/auth/register.
@@ -233,7 +242,8 @@ func (h *AuthCommandsHandler) ChangePassword(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := h.commands.ChangePassword(r.Context(), actor, req.CurrentPassword, req.NewPassword); err != nil {
+	rawToken := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if err := h.commands.ChangePassword(r.Context(), actor, req.CurrentPassword, req.NewPassword, rawToken); err != nil {
 		if errors.Is(err, domain.ErrInvalidCredentials) {
 			status := http.StatusUnauthorized
 			h.controller.SendFail(w, r, &status, &apierror.Error{Code: "INVALID_CREDENTIALS", Message: err.Error()})
@@ -244,6 +254,34 @@ func (h *AuthCommandsHandler) ChangePassword(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// CompleteInvite handles POST /api/auth/complete-invite.
+func (h *AuthCommandsHandler) CompleteInvite(w http.ResponseWriter, r *http.Request) {
+	var req completeInviteRequest
+	if err := h.controller.DecodeAndValidate(r, &req, &apierror.Error{Code: "INVALID_REQUEST", Message: "invalid request body"}); err != nil {
+		h.controller.SendFail(w, r, nil, err)
+		return
+	}
+
+	user, err := h.commands.CompleteInvite(r.Context(), req.Token, req.DisplayName, req.Password)
+	if err != nil {
+		h.handleAuthError(w, r, err)
+		return
+	}
+
+	// Auto-login after completing invite
+	accessToken, refreshToken, err := h.commands.Login(r.Context(), user.Email, req.Password, false)
+	if err != nil {
+		h.handleAuthError(w, r, err)
+		return
+	}
+
+	h.setRefreshCookie(w, r, refreshToken, false)
+	h.controller.SendSuccess(w, r, map[string]interface{}{
+		"user":         toPublicUser(user),
+		"access_token": accessToken,
+	})
 }
 
 func (h *AuthCommandsHandler) handleAuthError(w http.ResponseWriter, r *http.Request, err error) {
@@ -258,6 +296,14 @@ func (h *AuthCommandsHandler) handleAuthError(w http.ResponseWriter, r *http.Req
 		h.controller.SendFail(w, r, &status, &apierror.Error{Code: "SSO_USER_NO_PASSWORD", Message: err.Error()})
 	case errors.Is(err, domain.ErrUnauthorized):
 		h.controller.SendFail(w, r, &status, &apierror.Error{Code: "UNAUTHORIZED", Message: err.Error()})
+	case domain.IsDomainError(err):
+		s := http.StatusBadRequest
+		var de *domain.Error
+		if errors.As(err, &de) {
+			h.controller.SendFail(w, r, &s, &apierror.Error{Code: de.Code, Message: de.Message})
+		} else {
+			h.controller.SendError(w, r, err)
+		}
 	default:
 		h.controller.SendError(w, r, err)
 	}
@@ -304,8 +350,10 @@ func toPublicUser(u domain.User) publicUser {
 // authIPLimiter is a per-IP rate limiter for auth endpoints.
 // 5 requests per 15 minutes per IP.
 type authIPLimiter struct {
-	mu       sync.Mutex
-	limiters map[string]*authLimiterEntry
+	mu            sync.Mutex
+	limiters      map[string]*authLimiterEntry
+	ratePerSecond float64
+	burst         int
 }
 
 type authLimiterEntry struct {
@@ -313,9 +361,18 @@ type authLimiterEntry struct {
 	lastSeen time.Time
 }
 
-func newAuthIPLimiter() *authIPLimiter {
+func newAuthIPLimiter(ratePerSecond float64, burst int) *authIPLimiter {
+	// Defaults: 5 requests per second, burst of 10
+	if ratePerSecond <= 0 {
+		ratePerSecond = 5
+	}
+	if burst <= 0 {
+		burst = 10
+	}
 	return &authIPLimiter{
-		limiters: make(map[string]*authLimiterEntry),
+		limiters:      make(map[string]*authLimiterEntry),
+		ratePerSecond: ratePerSecond,
+		burst:         burst,
 	}
 }
 
@@ -325,7 +382,7 @@ func (l *authIPLimiter) getLimiter(ip string) *rate.Limiter {
 
 	entry, ok := l.limiters[ip]
 	if !ok {
-		lim := rate.NewLimiter(rate.Every(15*time.Minute/5), 5)
+		lim := rate.NewLimiter(rate.Limit(l.ratePerSecond), l.burst)
 		l.limiters[ip] = &authLimiterEntry{limiter: lim, lastSeen: time.Now()}
 		return lim
 	}

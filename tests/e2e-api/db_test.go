@@ -43,3 +43,12 @@ func queryString(t *testing.T, pool *pgxpool.Pool, query string, args ...any) st
 	require.NoError(t, err)
 	return v
 }
+
+// queryNullableString returns a single nullable string column value.
+func queryNullableString(t *testing.T, pool *pgxpool.Pool, query string, args ...any) *string {
+	t.Helper()
+	var v *string
+	err := pool.QueryRow(context.Background(), query, args...).Scan(&v)
+	require.NoError(t, err)
+	return v
+}

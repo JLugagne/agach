@@ -26,6 +26,10 @@ func newDependencyService(dependencies dependencies.DependencyRepository, tasks 
 }
 
 func (s *DependencyService) AddDependency(ctx context.Context, projectID domain.ProjectID, taskID, dependsOnTaskID domain.TaskID) error {
+	if taskID == dependsOnTaskID {
+		return domain.ErrCannotDependOnSelf
+	}
+
 	logger := s.logger.WithContext(ctx).WithFields(map[string]interface{}{
 		"projectID":       projectID,
 		"taskID":          taskID,

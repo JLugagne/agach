@@ -22,8 +22,8 @@ type FeatureRepository interface {
 	// Update updates a feature's name and description
 	Update(ctx context.Context, feature domain.Feature) error
 
-	// UpdateStatus updates only the status of a feature
-	UpdateStatus(ctx context.Context, id domain.FeatureID, status domain.FeatureStatus) error
+	// UpdateStatus updates only the status (and optionally node_id) of a feature
+	UpdateStatus(ctx context.Context, id domain.FeatureID, status domain.FeatureStatus, nodeID string) error
 
 	// Delete deletes a feature. Tasks referencing this feature will have feature_id set to NULL.
 	Delete(ctx context.Context, id domain.FeatureID) error

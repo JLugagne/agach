@@ -257,6 +257,7 @@ type Feature struct {
 	Status         FeatureStatus `json:"status"`
 	CreatedByRole  string        `json:"created_by_role"`
 	CreatedByAgent string        `json:"created_by_agent"`
+	NodeID         string        `json:"node_id,omitempty"`
 	CreatedAt      time.Time     `json:"created_at"`
 	UpdatedAt      time.Time     `json:"updated_at"`
 }
@@ -391,6 +392,7 @@ type Task struct {
 	DurationSeconds      int        `json:"duration_seconds"`
 	HumanEstimateSeconds int        `json:"human_estimate_seconds"`
 	SessionID            string     `json:"session_id"` // Claude Code session ID for resuming
+	NodeID               string     `json:"node_id,omitempty"`
 }
 
 // Comment represents a comment on a task
@@ -525,6 +527,23 @@ type ModelPricing struct {
 	CacheReadPricePer1M  float64 `json:"cache_read_price_per_1m"`
 	CacheWritePricePer1M float64 `json:"cache_write_price_per_1m"`
 	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+// ProjectUserAccess represents a user's access grant to a project.
+type ProjectUserAccess struct {
+	ID        string    `json:"id"`
+	ProjectID ProjectID `json:"project_id"`
+	UserID    string    `json:"user_id"`
+	Role      string    `json:"role"` // "admin" or "member"
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// ProjectTeamAccess represents a team's access grant to a project.
+type ProjectTeamAccess struct {
+	ID        string    `json:"id"`
+	ProjectID ProjectID `json:"project_id"`
+	TeamID    string    `json:"team_id"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // FeatureStats holds summary stats about features in a project

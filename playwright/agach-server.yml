@@ -1,0 +1,2 @@
+auth_rate_limit_per_second: 100
+auth_rate_limit_burst: 100

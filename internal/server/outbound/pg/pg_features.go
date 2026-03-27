@@ -16,11 +16,12 @@ func (r *featureRepository) Create(ctx context.Context, feature domain.Feature) 
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO features (id, project_id, name, description, user_changelog, tech_changelog, status, created_by_role, created_by_agent, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		INSERT INTO features (id, project_id, name, description, user_changelog, tech_changelog, status, created_by_role, created_by_agent, node_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
 		string(feature.ID), string(feature.ProjectID), feature.Name, feature.Description,
 		feature.UserChangelog, feature.TechChangelog,
 		string(feature.Status), feature.CreatedByRole, feature.CreatedByAgent,
+		nullableString(feature.NodeID),
 		feature.CreatedAt, feature.UpdatedAt,
 	)
 	if err != nil {
@@ -33,19 +34,23 @@ func (r *featureRepository) FindByID(ctx context.Context, id domain.FeatureID) (
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
 	row := r.pool.QueryRow(ctx, `
-		SELECT id, project_id, name, description, user_changelog, tech_changelog, status, created_by_role, created_by_agent, created_at, updated_at
+		SELECT id, project_id, name, description, user_changelog, tech_changelog, status, created_by_role, created_by_agent, node_id, created_at, updated_at
 		FROM features WHERE id = $1`, string(id))
 	var f domain.Feature
+	var nodeID *string
 	err := row.Scan(
 		(*string)(&f.ID), (*string)(&f.ProjectID), &f.Name, &f.Description,
 		&f.UserChangelog, &f.TechChangelog,
-		(*string)(&f.Status), &f.CreatedByRole, &f.CreatedByAgent, &f.CreatedAt, &f.UpdatedAt,
+		(*string)(&f.Status), &f.CreatedByRole, &f.CreatedByAgent, &nodeID, &f.CreatedAt, &f.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrFeatureNotFound
 		}
 		return nil, fmt.Errorf("find feature by id: %w", err)
+	}
+	if nodeID != nil {
+		f.NodeID = *nodeID
 	}
 	return &f, nil
 }
@@ -55,7 +60,7 @@ func (r *featureRepository) List(ctx context.Context, projectID domain.ProjectID
 	defer cancel()
 	args := []any{string(projectID)}
 	query := `
-		SELECT f.id, f.project_id, f.name, f.description, f.user_changelog, f.tech_changelog, f.status, f.created_by_role, f.created_by_agent, f.created_at, f.updated_at,
+		SELECT f.id, f.project_id, f.name, f.description, f.user_changelog, f.tech_changelog, f.status, f.created_by_role, f.created_by_agent, f.node_id, f.created_at, f.updated_at,
 			COALESCE(SUM(CASE WHEN c.slug = 'backlog'     THEN 1 ELSE 0 END), 0) AS backlog_count,
 			COALESCE(SUM(CASE WHEN c.slug = 'todo'        THEN 1 ELSE 0 END), 0) AS todo_count,
 			COALESCE(SUM(CASE WHEN c.slug = 'in_progress' THEN 1 ELSE 0 END), 0) AS in_progress_count,
@@ -85,10 +90,11 @@ func (r *featureRepository) List(ctx context.Context, projectID domain.ProjectID
 	var result []domain.FeatureWithTaskSummary
 	for rows.Next() {
 		var fw domain.FeatureWithTaskSummary
+		var nodeID *string
 		err := rows.Scan(
 			(*string)(&fw.ID), (*string)(&fw.ProjectID), &fw.Name, &fw.Description,
 			&fw.UserChangelog, &fw.TechChangelog,
-			(*string)(&fw.Status), &fw.CreatedByRole, &fw.CreatedByAgent, &fw.CreatedAt, &fw.UpdatedAt,
+			(*string)(&fw.Status), &fw.CreatedByRole, &fw.CreatedByAgent, &nodeID, &fw.CreatedAt, &fw.UpdatedAt,
 			&fw.TaskSummary.BacklogCount,
 			&fw.TaskSummary.TodoCount,
 			&fw.TaskSummary.InProgressCount,
@@ -97,6 +103,9 @@ func (r *featureRepository) List(ctx context.Context, projectID domain.ProjectID
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan feature row: %w", err)
+		}
+		if nodeID != nil {
+			fw.NodeID = *nodeID
 		}
 		result = append(result, fw)
 	}
@@ -123,13 +132,13 @@ func (r *featureRepository) Update(ctx context.Context, feature domain.Feature) 
 	return nil
 }
 
-func (r *featureRepository) UpdateStatus(ctx context.Context, id domain.FeatureID, status domain.FeatureStatus) error {
+func (r *featureRepository) UpdateStatus(ctx context.Context, id domain.FeatureID, status domain.FeatureStatus, nodeID string) error {
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE features SET status=$1, updated_at=NOW()
+		UPDATE features SET status=$1, node_id=COALESCE($3, node_id), updated_at=NOW()
 		WHERE id=$2`,
-		string(status), string(id),
+		string(status), string(id), nullableString(nodeID),
 	)
 	if err != nil {
 		return fmt.Errorf("update feature status: %w", err)

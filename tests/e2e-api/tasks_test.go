@@ -89,6 +89,7 @@ type taskResp struct {
 	InputTokens       int        `json:"input_tokens"`
 	OutputTokens      int        `json:"output_tokens"`
 	SessionID         string     `json:"session_id"`
+	NodeID            string     `json:"node_id"`
 	StartedAt         *time.Time `json:"started_at"`
 	DurationSeconds   int        `json:"duration_seconds"`
 	CreatedAt         time.Time  `json:"created_at"`

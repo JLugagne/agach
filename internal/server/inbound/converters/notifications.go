@@ -19,12 +19,22 @@ func ToPublicNotification(n domain.Notification) pkgserver.NotificationResponse 
 		s := n.ProjectID.String()
 		projectID = &s
 	}
+	scope := ""
+	if domain.ValidNotificationScopes[n.Scope] {
+		scope = string(n.Scope)
+	}
+
+	severity := string(domain.SeverityInfo)
+	if domain.ValidNotificationSeverities[n.Severity] {
+		severity = string(n.Severity)
+	}
+
 	return pkgserver.NotificationResponse{
 		ID:        n.ID.String(),
 		ProjectID: projectID,
-		Scope:     string(n.Scope),
+		Scope:     scope,
 		AgentSlug: n.AgentSlug,
-		Severity:  string(n.Severity),
+		Severity:  severity,
 		Title:     n.Title,
 		Text:      n.Text,
 		LinkURL:   n.LinkURL,

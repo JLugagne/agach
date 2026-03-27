@@ -254,7 +254,7 @@ func (h *TaskCommandsHandler) MoveTask(w http.ResponseWriter, r *http.Request) {
 
 	targetColumn := domain.ColumnSlug(req.TargetColumn)
 
-	err := h.commands.MoveTask(r.Context(), projectID, taskID, targetColumn)
+	err := h.commands.MoveTask(r.Context(), projectID, taskID, targetColumn, req.NodeID)
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)
@@ -321,6 +321,7 @@ func (h *TaskCommandsHandler) CompleteTask(w http.ResponseWriter, r *http.Reques
 		req.FilesModified,
 		req.CompletedByAgent,
 		tokenUsage,
+		req.NodeID,
 	)
 	if err != nil {
 		if domain.IsDomainError(err) {
@@ -374,7 +375,7 @@ func (h *TaskCommandsHandler) BlockTask(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	err := h.commands.BlockTask(r.Context(), projectID, taskID, req.BlockedReason, req.BlockedByAgent)
+	err := h.commands.BlockTask(r.Context(), projectID, taskID, req.BlockedReason, req.BlockedByAgent, req.NodeID)
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)
@@ -402,7 +403,7 @@ func (h *TaskCommandsHandler) UnblockTask(w http.ResponseWriter, r *http.Request
 	projectID := domain.ProjectID(mux.Vars(r)["id"])
 	taskID := domain.TaskID(mux.Vars(r)["taskId"])
 
-	err := h.commands.UnblockTask(r.Context(), projectID, taskID)
+	err := h.commands.UnblockTask(r.Context(), projectID, taskID, "")
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)
@@ -434,7 +435,7 @@ func (h *TaskCommandsHandler) WontDo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Human directly marks won't do - we approve immediately
-	err := h.commands.RequestWontDo(r.Context(), projectID, taskID, req.WontDoReason, req.WontDoRequestedBy)
+	err := h.commands.RequestWontDo(r.Context(), projectID, taskID, req.WontDoReason, req.WontDoRequestedBy, req.NodeID)
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)

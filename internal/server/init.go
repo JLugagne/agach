@@ -63,6 +63,7 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 		Dockerfiles:    repos.Dockerfiles,
 		Notifications: repos.Notifications,
 		Specialized:   repos.SpecializedAgents,
+		ProjectAccess: repos.ProjectAccess,
 		Chats:          app.NewChatService(repos.Chats),
 		Logger:         logger,
 	})
@@ -105,7 +106,7 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	// Register routes
 	chatService := appInstance.ChatService()
 	commands.NewRouter(router, appInstance, ctrl, hub, sseHub, cfg.DataDir, chatService)
-	queries.NewRouter(router, appInstance, ctrl, sseHub, cfg.DataDir, chatService)
+	queries.NewRouter(router, appInstance, ctrl, sseHub, cfg.DataDir, chatService, cfg.AuthQueries)
 
 	// Register resource download routes
 	if cfg.ResourceManifest != nil {

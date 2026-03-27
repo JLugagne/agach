@@ -91,7 +91,7 @@ func newTeamsTestHandler(cmds *mockTeamCommands, qrs *mockTeamQueries, authQrs *
 	logger := logrus.New()
 	logger.SetLevel(logrus.PanicLevel)
 	ctrl := controller.NewController(logger)
-	h := commands.NewTeamsHandler(cmds, qrs, authQrs, ctrl)
+	h := commands.NewTeamsHandler(cmds, qrs, authQrs, nil, ctrl)
 	r := mux.NewRouter()
 	h.RegisterRoutes(r)
 	return r

@@ -16,6 +16,7 @@ interface AuthContextValue {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (partial: Partial<AuthUser>) => void;
+  setSession: (user: AuthUser, accessToken: string) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -65,6 +66,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setSession = useCallback((u: AuthUser, accessToken: string) => {
+    setToken(accessToken);
+    localStorage.setItem('agach_user', JSON.stringify(u));
+    setUser(u);
+    wsClient.reset();
+    wsClient.connect();
+  }, []);
+
   const logout = useCallback(async () => {
     wsClient.disconnect();
     await apiLogout();
@@ -73,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout, updateUser, setSession }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Loader2, Plus, Trash2, Users, User, Server, Shield, ShieldOff, ChevronLeft, Search } from 'lucide-react';
+import { Loader2, Plus, Trash2, Users, User, Server, Shield, ShieldOff, ChevronLeft, Search, Copy, Check, Mail, ChevronDown } from 'lucide-react';
 import {
   listTeams, createTeam, deleteTeam,
   listUsers, setUserTeam, removeUserFromTeam, setUserRole,
   blockUser, unblockUser,
   adminListNodes, adminRevokeNode,
+  inviteUser,
 } from '../lib/api';
 import DeleteConfirmModal from '../components/ui/DeleteConfirmModal';
 import type { TeamResponse, UserResponse, AdminNodeResponse } from '../lib/types';
@@ -544,6 +545,11 @@ function AdminTeamsTab() {
 function AdminUsersTab() {
   const [users, setUsers] = useState<UserResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -558,9 +564,10 @@ function AdminUsersTab() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleToggleRole = async (user: UserResponse) => {
+  const handleSetRole = async (user: UserResponse, role: 'admin' | 'member') => {
+    if (user.role === role) return;
     try {
-      await setUserRole(user.id, user.role === 'admin' ? 'member' : 'admin');
+      await setUserRole(user.id, role);
       fetchData();
     } catch {
       // ignore
@@ -580,6 +587,35 @@ function AdminUsersTab() {
     }
   };
 
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviting(true);
+    try {
+      const data = await inviteUser(inviteEmail.trim());
+      const url = `${window.location.origin}/invite?token=${data.invite_token}`;
+      setInviteLink(url);
+      fetchData();
+    } catch {
+      // ignore
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!inviteLink) return;
+    await navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const closeInviteModal = () => {
+    setShowInvite(false);
+    setInviteEmail('');
+    setInviteLink(null);
+    setCopied(false);
+  };
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center py-24">
@@ -593,9 +629,20 @@ function AdminUsersTab() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-8 py-6 sm:py-12">
-      <h1 className="text-[28px] font-semibold text-[var(--text-primary)] mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>
-        Users
-      </h1>
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-[28px] font-semibold text-[var(--text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+          Users
+        </h1>
+        <button
+          onClick={() => setShowInvite(true)}
+          data-qa="invite-user-btn"
+          className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-[13px] font-medium bg-[var(--primary)] text-[var(--primary-text)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
+          style={{ fontFamily: 'Inter, sans-serif' }}
+        >
+          <Mail size={14} />
+          Invite User
+        </button>
+      </div>
       <p className="text-sm text-[var(--text-muted)] mb-8" style={{ fontFamily: 'Inter, sans-serif' }}>
         {activeUsers.length} active · {blockedUsers.length} blocked
       </p>
@@ -614,12 +661,12 @@ function AdminUsersTab() {
               <h2 className="text-xs font-semibold tracking-[2px] text-[var(--text-muted)] mb-3 uppercase font-mono">
                 Active ({activeUsers.length})
               </h2>
-              <div className="border border-[var(--border-primary)] rounded-lg overflow-hidden divide-y divide-[var(--border-primary)]">
+              <div className="border border-[var(--border-primary)] rounded-lg divide-y divide-[var(--border-primary)]">
                 {activeUsers.map((u) => (
                   <UserManagementRow
                     key={u.id}
                     user={u}
-                    onToggleRole={() => handleToggleRole(u)}
+                    onSetRole={(role) => handleSetRole(u, role)}
                     onToggleBlock={() => handleToggleBlock(u)}
                   />
                 ))}
@@ -632,12 +679,12 @@ function AdminUsersTab() {
               <h2 className="text-xs font-semibold tracking-[2px] text-[var(--text-muted)] mb-3 uppercase font-mono">
                 Blocked ({blockedUsers.length})
               </h2>
-              <div className="border border-[var(--border-primary)] rounded-lg overflow-hidden divide-y divide-[var(--border-primary)] opacity-70">
+              <div className="border border-[var(--border-primary)] rounded-lg divide-y divide-[var(--border-primary)] opacity-70">
                 {blockedUsers.map((u) => (
                   <UserManagementRow
                     key={u.id}
                     user={u}
-                    onToggleRole={() => handleToggleRole(u)}
+                    onSetRole={(role) => handleSetRole(u, role)}
                     onToggleBlock={() => handleToggleBlock(u)}
                   />
                 ))}
@@ -646,16 +693,113 @@ function AdminUsersTab() {
           )}
         </>
       )}
+
+      {/* Invite User Modal */}
+      {showInvite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={closeInviteModal} />
+          <div className="relative bg-[var(--bg-primary)] border border-[var(--border-primary)] rounded-lg w-full max-w-md p-6">
+            <h2 className="text-lg text-[var(--text-primary)] mb-4" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
+              Invite User
+            </h2>
+
+            {!inviteLink ? (
+              <>
+                <p className="text-sm text-[var(--text-muted)] mb-4">
+                  Enter the email address. You'll get a link to share with the user to complete their registration.
+                </p>
+                <div className="mb-6">
+                  <label className="block text-xs font-mono text-[var(--text-dim)] mb-1.5">Email</label>
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="user@example.com"
+                    data-qa="invite-email-input"
+                    className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)]/50"
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && inviteEmail.trim() && handleInvite()}
+                  />
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={closeInviteModal}
+                    className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleInvite}
+                    disabled={!inviteEmail.trim() || inviting}
+                    data-qa="confirm-invite-btn"
+                    className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-text)] text-sm font-medium rounded-md hover:bg-[var(--primary-hover)]/80 disabled:opacity-50 transition-colors"
+                  >
+                    {inviting ? 'Creating...' : 'Create Invite'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-[var(--text-muted)] mb-4">
+                  Share this link with <span className="text-[var(--text-primary)] font-medium">{inviteEmail}</span>. It expires in 24 hours.
+                </p>
+                <div className="flex gap-2 mb-6">
+                  <input
+                    type="text"
+                    readOnly
+                    value={inviteLink}
+                    data-qa="invite-link-input"
+                    className="flex-1 bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-xs text-[var(--text-muted)] font-mono focus:outline-none select-all"
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                  />
+                  <button
+                    onClick={handleCopyLink}
+                    data-qa="copy-invite-link-btn"
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                      copied
+                        ? 'bg-emerald-500/15 text-emerald-400'
+                        : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    {copied ? <Check size={13} /> : <Copy size={13} />}
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={closeInviteModal}
+                    className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-text)] text-sm font-medium rounded-md hover:bg-[var(--primary-hover)]/80 transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function UserManagementRow({ user, onToggleRole, onToggleBlock }: {
+const AVAILABLE_ROLES: Array<'admin' | 'member'> = ['admin', 'member'];
+
+function UserManagementRow({ user, onSetRole, onToggleBlock }: {
   user: UserResponse;
-  onToggleRole: () => void;
+  onSetRole: (role: 'admin' | 'member') => void;
   onToggleBlock: () => void;
 }) {
   const isBlocked = !!user.blocked_at;
+  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const roleRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (roleRef.current && !roleRef.current.contains(e.target as Node)) setRoleMenuOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   return (
     <div className="flex items-center justify-between px-4 py-3">
@@ -664,17 +808,42 @@ function UserManagementRow({ user, onToggleRole, onToggleBlock }: {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm text-[var(--text-primary)] truncate">{user.display_name || user.email}</span>
-            <button
-              onClick={onToggleRole}
-              data-qa="toggle-user-role-btn"
-              className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono cursor-pointer transition-colors ${
-                user.role === 'admin'
-                  ? 'bg-[var(--primary)]/15 text-[var(--primary)]'
-                  : 'bg-[var(--bg-tertiary)] text-[var(--text-dim)] hover:text-[var(--text-muted)]'
-              }`}
-            >
-              {user.role}
-            </button>
+            <div ref={roleRef} className="relative">
+              <button
+                onClick={() => setRoleMenuOpen(!roleMenuOpen)}
+                data-qa="toggle-user-role-btn"
+                className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-mono cursor-pointer transition-colors ${
+                  user.role === 'admin'
+                    ? 'bg-[var(--primary)]/15 text-[var(--primary)]'
+                    : 'bg-[var(--bg-tertiary)] text-[var(--text-dim)] hover:text-[var(--text-muted)]'
+                }`}
+              >
+                {user.role}
+                <ChevronDown size={10} />
+              </button>
+              {roleMenuOpen && (
+                <div className="absolute z-50 left-0 mt-1 min-w-[120px] rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)] shadow-lg py-1">
+                  {AVAILABLE_ROLES.map((role) => (
+                    <button
+                      key={role}
+                      onMouseDown={() => { onSetRole(role); setRoleMenuOpen(false); }}
+                      data-qa={`set-role-${role}-btn`}
+                      className="flex items-center justify-between w-full px-3 py-1.5 text-xs text-left transition-colors cursor-pointer hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)]"
+                    >
+                      <span className="font-mono">{role}</span>
+                      {user.role === role && <Check size={12} className="text-[var(--primary)] shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+              user.sso_provider
+                ? 'bg-blue-500/15 text-blue-400'
+                : 'bg-[var(--bg-tertiary)] text-[var(--text-dim)]'
+            }`}>
+              {user.sso_provider || 'internal'}
+            </span>
             {isBlocked && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 font-mono">
                 blocked

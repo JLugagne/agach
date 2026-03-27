@@ -275,6 +275,9 @@ func (s *TaskService) UpdateTask(ctx context.Context, projectID domain.ProjectID
 	}
 
 	if title != nil {
+		if *title == "" {
+			return domain.ErrTaskTitleRequired
+		}
 		task.Title = *title
 	}
 	if description != nil {
@@ -394,7 +397,7 @@ func (s *TaskService) DeleteTask(ctx context.Context, projectID domain.ProjectID
 	return nil
 }
 
-func (s *TaskService) MoveTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnSlug domain.ColumnSlug) error {
+func (s *TaskService) MoveTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnSlug domain.ColumnSlug, nodeID string) error {
 	logger := s.logger.WithContext(ctx).WithFields(map[string]interface{}{
 		"projectID":        projectID,
 		"taskID":           taskID,
@@ -485,6 +488,9 @@ func (s *TaskService) MoveTask(ctx context.Context, projectID domain.ProjectID, 
 	task.ColumnID = targetColumn.ID
 	task.Position = len(targetTasks)
 	task.UpdatedAt = time.Now()
+	if nodeID != "" {
+		task.NodeID = nodeID
+	}
 
 	if err := s.tasks.Update(ctx, projectID, *task); err != nil {
 		logger.WithError(err).Error("failed to move task")
@@ -495,11 +501,15 @@ func (s *TaskService) MoveTask(ctx context.Context, projectID domain.ProjectID, 
 	return nil
 }
 
-func (s *TaskService) StartTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error {
-	return s.MoveTask(ctx, projectID, taskID, domain.ColumnInProgress)
+func (s *TaskService) StartTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, nodeID string) error {
+	return s.MoveTask(ctx, projectID, taskID, domain.ColumnInProgress, nodeID)
 }
 
 func (s *TaskService) ReorderTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error {
+	if newPosition < 0 {
+		return domain.ErrInvalidTaskData
+	}
+
 	logger := s.logger.WithContext(ctx).WithFields(map[string]interface{}{
 		"projectID":   projectID,
 		"taskID":      taskID,
@@ -524,7 +534,17 @@ func (s *TaskService) ReorderTask(ctx context.Context, projectID domain.ProjectI
 	return nil
 }
 
-func (s *TaskService) CompleteTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage) error {
+func (s *TaskService) CompleteTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage, nodeID string) error {
+	if completionSummary == "" {
+		return domain.ErrCompletionSummaryRequired
+	}
+
+	if tokenUsage != nil {
+		if tokenUsage.InputTokens < 0 || tokenUsage.OutputTokens < 0 || tokenUsage.CacheReadTokens < 0 || tokenUsage.CacheWriteTokens < 0 {
+			return domain.ErrInvalidTaskData
+		}
+	}
+
 	logger := s.logger.WithContext(ctx).WithFields(map[string]interface{}{
 		"projectID": projectID,
 		"taskID":    taskID,
@@ -576,14 +596,17 @@ func (s *TaskService) CompleteTask(ctx context.Context, projectID domain.Project
 	task.CompletedByAgent = completedByAgent
 	task.CompletedAt = &now
 	task.UpdatedAt = now
+	if nodeID != "" {
+		task.NodeID = nodeID
+	}
 	if task.StartedAt != nil {
 		task.DurationSeconds = int(task.CompletedAt.Sub(*task.StartedAt).Seconds())
 	}
 	if tokenUsage != nil {
-		task.InputTokens += tokenUsage.InputTokens
-		task.OutputTokens += tokenUsage.OutputTokens
-		task.CacheReadTokens += tokenUsage.CacheReadTokens
-		task.CacheWriteTokens += tokenUsage.CacheWriteTokens
+		task.InputTokens = addClamped(task.InputTokens, tokenUsage.InputTokens)
+		task.OutputTokens = addClamped(task.OutputTokens, tokenUsage.OutputTokens)
+		task.CacheReadTokens = addClamped(task.CacheReadTokens, tokenUsage.CacheReadTokens)
+		task.CacheWriteTokens = addClamped(task.CacheWriteTokens, tokenUsage.CacheWriteTokens)
 		if tokenUsage.Model != "" {
 			task.Model = tokenUsage.Model
 		}
@@ -598,7 +621,7 @@ func (s *TaskService) CompleteTask(ctx context.Context, projectID domain.Project
 	return nil
 }
 
-func (s *TaskService) BlockTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, blockedReason, blockedByAgent string) error {
+func (s *TaskService) BlockTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, blockedReason, blockedByAgent, nodeID string) error {
 	logger := s.logger.WithContext(ctx).WithFields(map[string]interface{}{
 		"projectID": projectID,
 		"taskID":    taskID,
@@ -644,6 +667,9 @@ func (s *TaskService) BlockTask(ctx context.Context, projectID domain.ProjectID,
 	task.BlockedByAgent = blockedByAgent
 	task.BlockedAt = &now
 	task.UpdatedAt = now
+	if nodeID != "" {
+		task.NodeID = nodeID
+	}
 
 	if err := s.tasks.Update(ctx, projectID, *task); err != nil {
 		logger.WithError(err).Error("failed to block task")
@@ -666,7 +692,7 @@ func (s *TaskService) BlockTask(ctx context.Context, projectID domain.ProjectID,
 	return nil
 }
 
-func (s *TaskService) UnblockTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error {
+func (s *TaskService) UnblockTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, nodeID string) error {
 	logger := s.logger.WithContext(ctx).WithFields(map[string]interface{}{
 		"projectID": projectID,
 		"taskID":    taskID,
@@ -694,10 +720,10 @@ func (s *TaskService) UnblockTask(ctx context.Context, projectID domain.ProjectI
 		return domain.ErrTaskNotInBlocked
 	}
 
-	return s.MoveTask(ctx, projectID, taskID, domain.ColumnTodo)
+	return s.MoveTask(ctx, projectID, taskID, domain.ColumnTodo, nodeID)
 }
 
-func (s *TaskService) RequestWontDo(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, wontDoReason, wontDoRequestedBy string) error {
+func (s *TaskService) RequestWontDo(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, wontDoReason, wontDoRequestedBy, nodeID string) error {
 	logger := s.logger.WithContext(ctx).WithFields(map[string]interface{}{
 		"projectID": projectID,
 		"taskID":    taskID,
@@ -744,6 +770,9 @@ func (s *TaskService) RequestWontDo(ctx context.Context, projectID domain.Projec
 	task.WontDoRequestedBy = wontDoRequestedBy
 	task.WontDoRequestedAt = &now
 	task.UpdatedAt = now
+	if nodeID != "" {
+		task.NodeID = nodeID
+	}
 
 	if err := s.tasks.Update(ctx, projectID, *task); err != nil {
 		logger.WithError(err).Error("failed to request won't-do")
@@ -809,6 +838,7 @@ func (s *TaskService) ApproveWontDo(ctx context.Context, projectID domain.Projec
 	task.BlockedByAgent = ""
 	task.CompletedAt = &now
 	task.UpdatedAt = now
+	task.CompletionSummary = "Won't do (approved): " + task.WontDoReason
 
 	if err := s.tasks.Update(ctx, projectID, *task); err != nil {
 		logger.WithError(err).Error("failed to approve won't-do")

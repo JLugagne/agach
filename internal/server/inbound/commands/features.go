@@ -3,29 +3,51 @@ package commands
 import (
 	"net/http"
 
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/converters"
-	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
-	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/gorilla/mux"
 )
 
 // FeatureCommandsHandler handles feature write operations
 type FeatureCommandsHandler struct {
 	commands   service.Commands
+	queries    service.Queries
 	controller *controller.Controller
 	hub        *websocket.Hub
 }
 
-// NewFeatureCommandsHandler creates a new feature commands handler
-func NewFeatureCommandsHandler(commands service.Commands, ctrl *controller.Controller, hub *websocket.Hub) *FeatureCommandsHandler {
-	return &FeatureCommandsHandler{
+// NewFeatureCommandsHandler creates a new feature commands handler.
+// An optional queries parameter enables project-ownership verification on mutations.
+func NewFeatureCommandsHandler(commands service.Commands, ctrl *controller.Controller, hub *websocket.Hub, queries ...service.Queries) *FeatureCommandsHandler {
+	h := &FeatureCommandsHandler{
 		commands:   commands,
 		controller: ctrl,
 		hub:        hub,
 	}
+	if len(queries) > 0 {
+		h.queries = queries[0]
+	}
+	return h
+}
+
+func (h *FeatureCommandsHandler) verifyFeatureOwnership(w http.ResponseWriter, r *http.Request, projectID domain.ProjectID, featureID domain.FeatureID) bool {
+	if h.queries == nil {
+		return true
+	}
+	feature, err := h.queries.GetFeature(r.Context(), featureID)
+	if err != nil {
+		h.controller.SendFail(w, r, nil, domain.ErrFeatureNotFound)
+		return false
+	}
+	if feature.ProjectID != projectID {
+		h.controller.SendFail(w, r, nil, domain.ErrFeatureNotInProject)
+		return false
+	}
+	return true
 }
 
 // RegisterRoutes registers feature command routes
@@ -69,7 +91,12 @@ func (h *FeatureCommandsHandler) CreateFeature(w http.ResponseWriter, r *http.Re
 
 // UpdateFeature updates a feature
 func (h *FeatureCommandsHandler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
+	projectID := domain.ProjectID(mux.Vars(r)["id"])
 	featureID := domain.FeatureID(mux.Vars(r)["featureId"])
+
+	if !h.verifyFeatureOwnership(w, r, projectID, featureID) {
+		return
+	}
 
 	var req pkgserver.UpdateFeatureRequest
 	if err := h.controller.DecodeAndValidate(r, &req, pkgserver.ErrInvalidFeatureRequest); err != nil {
@@ -101,7 +128,12 @@ func (h *FeatureCommandsHandler) UpdateFeature(w http.ResponseWriter, r *http.Re
 
 // UpdateFeatureStatus updates a feature's status
 func (h *FeatureCommandsHandler) UpdateFeatureStatus(w http.ResponseWriter, r *http.Request) {
+	projectID := domain.ProjectID(mux.Vars(r)["id"])
 	featureID := domain.FeatureID(mux.Vars(r)["featureId"])
+
+	if !h.verifyFeatureOwnership(w, r, projectID, featureID) {
+		return
+	}
 
 	var req pkgserver.UpdateFeatureStatusRequest
 	if err := h.controller.DecodeAndValidate(r, &req, pkgserver.ErrInvalidFeatureRequest); err != nil {
@@ -111,7 +143,7 @@ func (h *FeatureCommandsHandler) UpdateFeatureStatus(w http.ResponseWriter, r *h
 
 	status := domain.FeatureStatus(req.Status)
 
-	if err := h.commands.UpdateFeatureStatus(r.Context(), featureID, status); err != nil {
+	if err := h.commands.UpdateFeatureStatus(r.Context(), featureID, status, req.NodeID); err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)
 		} else {
@@ -126,7 +158,12 @@ func (h *FeatureCommandsHandler) UpdateFeatureStatus(w http.ResponseWriter, r *h
 
 // UpdateFeatureChangelogs updates feature changelogs
 func (h *FeatureCommandsHandler) UpdateFeatureChangelogs(w http.ResponseWriter, r *http.Request) {
+	projectID := domain.ProjectID(mux.Vars(r)["id"])
 	featureID := domain.FeatureID(mux.Vars(r)["featureId"])
+
+	if !h.verifyFeatureOwnership(w, r, projectID, featureID) {
+		return
+	}
 
 	var req pkgserver.UpdateFeatureChangelogsRequest
 	if err := h.controller.DecodeAndValidate(r, &req, pkgserver.ErrInvalidFeatureRequest); err != nil {
@@ -153,7 +190,12 @@ func (h *FeatureCommandsHandler) UpdateFeatureChangelogs(w http.ResponseWriter, 
 
 // DeleteFeature deletes a feature
 func (h *FeatureCommandsHandler) DeleteFeature(w http.ResponseWriter, r *http.Request) {
+	projectID := domain.ProjectID(mux.Vars(r)["id"])
 	featureID := domain.FeatureID(mux.Vars(r)["featureId"])
+
+	if !h.verifyFeatureOwnership(w, r, projectID, featureID) {
+		return
+	}
 
 	if err := h.commands.DeleteFeature(r.Context(), featureID); err != nil {
 		if domain.IsDomainError(err) {

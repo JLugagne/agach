@@ -35,13 +35,13 @@ type TaskCommands interface {
 	UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.FeatureID, clearFeature bool) error
 	UpdateTaskFiles(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error
 	DeleteTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
-	MoveTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnSlug domain.ColumnSlug) error
+	MoveTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnSlug domain.ColumnSlug, nodeID string) error
 	ReorderTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error
-	StartTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
-	CompleteTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage) error
-	BlockTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, blockedReason, blockedByAgent string) error
-	UnblockTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
-	RequestWontDo(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, wontDoReason, wontDoRequestedBy string) error
+	StartTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, nodeID string) error
+	CompleteTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage, nodeID string) error
+	BlockTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, blockedReason, blockedByAgent, nodeID string) error
+	UnblockTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, nodeID string) error
+	RequestWontDo(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, wontDoReason, wontDoRequestedBy, nodeID string) error
 	ApproveWontDo(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
 	RejectWontDo(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, reason string) error
 	UpdateTaskSessionID(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, sessionID string) error
@@ -82,7 +82,7 @@ type SkillCommands interface {
 type FeatureCommands interface {
 	CreateFeature(ctx context.Context, projectID domain.ProjectID, name, description, createdByRole, createdByAgent string) (domain.Feature, error)
 	UpdateFeature(ctx context.Context, featureID domain.FeatureID, name, description string) error
-	UpdateFeatureStatus(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus) error
+	UpdateFeatureStatus(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus, nodeID string) error
 	DeleteFeature(ctx context.Context, featureID domain.FeatureID) error
 	UpdateFeatureChangelogs(ctx context.Context, featureID domain.FeatureID, userChangelog, techChangelog *string) error
 }
@@ -108,6 +108,14 @@ type SpecializedAgentCommands interface {
 	DeleteSpecializedAgent(ctx context.Context, id domain.SpecializedAgentID) error
 }
 
+type ProjectAccessCommands interface {
+	GrantUserAccess(ctx context.Context, projectID domain.ProjectID, userID, role string) error
+	RevokeUserAccess(ctx context.Context, projectID domain.ProjectID, userID string) error
+	UpdateUserAccessRole(ctx context.Context, projectID domain.ProjectID, userID, role string) error
+	GrantTeamAccess(ctx context.Context, projectID domain.ProjectID, teamID string) error
+	RevokeTeamAccess(ctx context.Context, projectID domain.ProjectID, teamID string) error
+}
+
 // Commands defines write operations for the Kanban system.
 type Commands interface {
 	ProjectCommands
@@ -120,6 +128,7 @@ type Commands interface {
 	DockerfileCommands
 	NotificationCommands
 	SpecializedAgentCommands
+	ProjectAccessCommands
 	MarkTaskSeen(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
 	MoveTaskToProject(ctx context.Context, sourceProjectID domain.ProjectID, taskID domain.TaskID, targetProjectID domain.ProjectID) error
 	IncrementToolUsage(ctx context.Context, projectID domain.ProjectID, toolName string) error

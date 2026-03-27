@@ -22,6 +22,9 @@ type Result struct {
 	MainProjectID    domain.ProjectID
 	FeatureProjectID domain.ProjectID
 
+	// Features
+	FeatureID domain.FeatureID
+
 	// Roles
 	BackendRoleID  domain.AgentID
 	FrontendRoleID domain.AgentID
@@ -59,6 +62,7 @@ func Run(ctx context.Context, pool *pgxpool.Pool, logger *logrus.Logger) (*Resul
 	svc := app.NewApp(app.Config{
 		Projects:     repos.Projects,
 		Agents:        repos.Agents,
+		Features:     repos.Features,
 		Tasks:        repos.Tasks,
 		Columns:      repos.Columns,
 		Comments:     repos.Comments,
@@ -84,8 +88,9 @@ func wipe(ctx context.Context, pool *pgxpool.Pool) error {
 		"comments",
 		"tool_usage",
 		"agent_skills",
-		// Tasks reference columns, projects, and features (projects)
+		// Tasks reference columns, projects, and features
 		"tasks",
+		"features",
 		"columns",
 		// Join tables referencing projects + roles
 		"project_roles",
@@ -238,6 +243,19 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 		return nil, fmt.Errorf("assign dockerfile to project: %w", err)
 	}
 
+	// ---------------------------------------------------------------- Features
+	qaFeature, err := svc.CreateFeature(ctx,
+		mainProject.ID,
+		"QA Test Feature",
+		"Seeded feature for Playwright tests",
+		"qa", "qa-seed",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create qa feature: %w", err)
+	}
+	res.FeatureID = qaFeature.ID
+	logger.WithField("id", qaFeature.ID).Info("qa-seed: created qa feature")
+
 	// ----------------------------------------------------------------- Tasks
 	todoTask, err := svc.CreateTask(ctx,
 		mainProject.ID,
@@ -269,7 +287,7 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 		return nil, fmt.Errorf("create in-progress task: %w", err)
 	}
 	res.InProgressTaskID = inProgressTask.ID
-	if err := svc.StartTask(ctx, mainProject.ID, inProgressTask.ID); err != nil {
+	if err := svc.StartTask(ctx, mainProject.ID, inProgressTask.ID, ""); err != nil {
 		return nil, fmt.Errorf("start in-progress task: %w", err)
 	}
 	logger.WithField("id", inProgressTask.ID).Info("qa-seed: created in-progress task")
@@ -289,11 +307,11 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 	}
 	res.BlockedTaskID = blockedTask.ID
 	// Move to in_progress first so BlockTask can act on it
-	if err := svc.StartTask(ctx, mainProject.ID, blockedTask.ID); err != nil {
+	if err := svc.StartTask(ctx, mainProject.ID, blockedTask.ID, ""); err != nil {
 		return nil, fmt.Errorf("start blocked task: %w", err)
 	}
 	if err := svc.BlockTask(ctx, mainProject.ID, blockedTask.ID,
-		"Waiting for third-party API credentials", "qa-seed"); err != nil {
+		"Waiting for third-party API credentials", "qa-seed", ""); err != nil {
 		return nil, fmt.Errorf("block task: %w", err)
 	}
 	logger.WithField("id", blockedTask.ID).Info("qa-seed: created blocked task")
@@ -312,13 +330,13 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 		return nil, fmt.Errorf("create done task: %w", err)
 	}
 	res.DoneTaskID = doneTask.ID
-	if err := svc.StartTask(ctx, mainProject.ID, doneTask.ID); err != nil {
+	if err := svc.StartTask(ctx, mainProject.ID, doneTask.ID, ""); err != nil {
 		return nil, fmt.Errorf("start done task: %w", err)
 	}
 	if err := svc.CompleteTask(ctx, mainProject.ID, doneTask.ID,
 		"Implemented homepage redesign per spec.",
 		[]string{"internal/server/ux/src/pages/HomePage.tsx"},
-		"qa-seed", nil,
+		"qa-seed", nil, "",
 	); err != nil {
 		return nil, fmt.Errorf("complete done task: %w", err)
 	}
@@ -338,11 +356,11 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 		return nil, fmt.Errorf("create wont-do task: %w", err)
 	}
 	res.WontDoTaskID = wontDoTask.ID
-	if err := svc.StartTask(ctx, mainProject.ID, wontDoTask.ID); err != nil {
+	if err := svc.StartTask(ctx, mainProject.ID, wontDoTask.ID, ""); err != nil {
 		return nil, fmt.Errorf("start wont-do task: %w", err)
 	}
 	if err := svc.RequestWontDo(ctx, mainProject.ID, wontDoTask.ID,
-		"Out of scope for current sprint", "qa-seed"); err != nil {
+		"Out of scope for current sprint", "qa-seed", ""); err != nil {
 		return nil, fmt.Errorf("request wont-do: %w", err)
 	}
 	if err := svc.ApproveWontDo(ctx, mainProject.ID, wontDoTask.ID); err != nil {
@@ -376,7 +394,7 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 		domain.PriorityMedium,
 		"frontend", "qa-seed", "frontend",
 		[]string{}, []string{"qa", "feature"}, "M",
-		false, func() *domain.FeatureID { fid := domain.FeatureID(featureProject.ID); return &fid }(),
+		false, nil,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create feature task: %w", err)

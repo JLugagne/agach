@@ -1,15 +1,27 @@
 package queries
 
 import (
+	"context"
+
+	identitydomain "github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
 	"github.com/gorilla/mux"
 )
 
+// TeamIDResolver resolves a user's team IDs for project access filtering.
+type TeamIDResolver interface {
+	GetUserTeamIDs(ctx context.Context, userID identitydomain.UserID) ([]identitydomain.TeamID, error)
+}
+
 // NewRouter wires all query handlers onto the given router.
-func NewRouter(router *mux.Router, app service.Queries, ctrl *controller.Controller, sseHub *sse.Hub, dataDir string, chatService service.ChatService) {
-	NewProjectQueriesHandler(app, ctrl).RegisterRoutes(router)
+func NewRouter(router *mux.Router, app service.Queries, ctrl *controller.Controller, sseHub *sse.Hub, dataDir string, chatService service.ChatService, teamResolver ...TeamIDResolver) {
+	var resolver TeamIDResolver
+	if len(teamResolver) > 0 {
+		resolver = teamResolver[0]
+	}
+	NewProjectQueriesHandler(app, ctrl, resolver).RegisterRoutes(router)
 	NewAgentQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewTaskQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewCommentQueriesHandler(app, ctrl).RegisterRoutes(router)

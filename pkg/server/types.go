@@ -3,7 +3,7 @@ package server
 import (
 	"time"
 
-	"github.com/JLugagne/agach-mcp/internal/pkg/apierror"
+	"github.com/JLugagne/agach-mcp/pkg/apierror"
 )
 
 // CreateProjectRequest represents a request to create a project
@@ -211,12 +211,13 @@ type UpdateTaskRequest struct {
 type MoveTaskRequest struct {
 	TargetColumn string `json:"target_column" validate:"required,oneof=backlog todo in_progress done blocked"`
 	Reason       string `json:"reason" validate:"max=1000"`
+	NodeID       string `json:"node_id" validate:"omitempty,max=100"`
 }
 
 // CompleteTaskRequest represents a request to complete a task
 type CompleteTaskRequest struct {
 	CompletionSummary    string   `json:"completion_summary" validate:"required,min=100,max=10000"`
-	FilesModified        []string `json:"files_modified" validate:"dive,max=500"`
+	FilesModified        []string `json:"files_modified" validate:"max=1000,dive,max=500"`
 	CompletedByAgent     string   `json:"completed_by_agent" validate:"required,max=100"`
 	InputTokens          int      `json:"input_tokens,omitempty"`
 	OutputTokens         int      `json:"output_tokens,omitempty"`
@@ -224,18 +225,21 @@ type CompleteTaskRequest struct {
 	CacheWriteTokens     int      `json:"cache_write_tokens,omitempty"`
 	Model                string   `json:"model,omitempty"`
 	HumanEstimateSeconds int      `json:"human_estimate_seconds,omitempty"`
+	NodeID               string   `json:"node_id" validate:"omitempty,max=100"`
 }
 
 // BlockTaskRequest represents a request to block a task
 type BlockTaskRequest struct {
 	BlockedReason  string `json:"blocked_reason" validate:"required,min=50,max=5000"`
 	BlockedByAgent string `json:"blocked_by_agent" validate:"required,max=100"`
+	NodeID         string `json:"node_id" validate:"omitempty,max=100"`
 }
 
 // RequestWontDoRequest represents a request to mark a task as won't do
 type RequestWontDoRequest struct {
 	WontDoReason      string `json:"wont_do_reason" validate:"required,min=50,max=5000"`
 	WontDoRequestedBy string `json:"wont_do_requested_by" validate:"required,max=100"`
+	NodeID            string `json:"node_id" validate:"omitempty,max=100"`
 }
 
 // RejectWontDoRequest represents a request to reject won't do
@@ -289,6 +293,7 @@ type TaskResponse struct {
 	CacheWriteTokens  int        `json:"cache_write_tokens"`
 	Model             string     `json:"model"`
 	SessionID         string     `json:"session_id"`
+	NodeID            string     `json:"node_id,omitempty"`
 	SeenAt               *time.Time `json:"seen_at"`
 	StartedAt            *time.Time `json:"started_at"`
 	DurationSeconds      int        `json:"duration_seconds"`
@@ -513,6 +518,7 @@ type UpdateFeatureRequest struct {
 
 type UpdateFeatureStatusRequest struct {
 	Status string `json:"status" validate:"required,oneof=draft ready in_progress done blocked"`
+	NodeID string `json:"node_id" validate:"omitempty,max=100"`
 }
 
 type FeatureResponse struct {
@@ -525,6 +531,7 @@ type FeatureResponse struct {
 	Status         string `json:"status"`
 	CreatedByRole  string `json:"created_by_role"`
 	CreatedByAgent string `json:"created_by_agent"`
+	NodeID         string `json:"node_id,omitempty"`
 	CreatedAt      string `json:"created_at"`
 	UpdatedAt      string `json:"updated_at"`
 }
@@ -587,6 +594,36 @@ type ChatSessionResponse struct {
 	UpdatedAt        time.Time  `json:"updated_at"`
 }
 
+// Project access types
+
+type GrantUserAccessRequest struct {
+	UserID string `json:"user_id" validate:"required"`
+	Role   string `json:"role" validate:"required,oneof=admin member"`
+}
+
+type UpdateUserAccessRoleRequest struct {
+	Role string `json:"role" validate:"required,oneof=admin member"`
+}
+
+type GrantTeamAccessRequest struct {
+	TeamID string `json:"team_id" validate:"required"`
+}
+
+type ProjectUserAccessResponse struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+	UserID    string `json:"user_id"`
+	Role      string `json:"role"`
+	CreatedAt string `json:"created_at"`
+}
+
+type ProjectTeamAccessResponse struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+	TeamID    string `json:"team_id"`
+	CreatedAt string `json:"created_at"`
+}
+
 // Validation errors
 var (
 	ErrInvalidProjectRequest = &apierror.Error{
@@ -644,5 +681,9 @@ var (
 	ErrInvalidSpecializedAgentRequest = &apierror.Error{
 		Code:    "INVALID_SPECIALIZED_AGENT_REQUEST",
 		Message: "invalid specialized agent request data",
+	}
+	ErrInvalidProjectAccessRequest = &apierror.Error{
+		Code:    "INVALID_PROJECT_ACCESS_REQUEST",
+		Message: "invalid project access request data",
 	}
 )

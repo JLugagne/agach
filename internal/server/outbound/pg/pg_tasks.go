@@ -21,7 +21,7 @@ const taskSelectCols = `
 	t.wont_do_requested, t.wont_do_reason, t.wont_do_requested_by, t.wont_do_requested_at,
 	t.completion_summary, t.completed_by_agent, t.completed_at,
 	t.files_modified, t.resolution, t.context_files, t.tags, t.estimated_effort,
-	t.seen_at, t.session_id,
+	t.seen_at, t.session_id, t.node_id,
 	t.input_tokens, t.output_tokens, t.cache_read_tokens, t.cache_write_tokens, t.model,
 	t.cold_start_input_tokens, t.cold_start_output_tokens, t.cold_start_cache_read_tokens, t.cold_start_cache_write_tokens,
 	t.started_at, t.duration_seconds, t.human_estimate_seconds,
@@ -32,7 +32,7 @@ func scanTaskInto(s scanner) (domain.Task, error) {
 	var t domain.Task
 	var filesModifiedJSON, contextFilesJSON, tagsJSON []byte
 	var isBlocked, wontDoRequested int
-	var featureIDStr *string
+	var featureIDStr, nodeIDStr *string
 	err := s.Scan(
 		(*string)(&t.ID), (*string)(&t.ColumnID), &featureIDStr, &t.Title, &t.Summary, &t.Description,
 		(*string)(&t.Priority), &t.PriorityScore, &t.Position,
@@ -41,7 +41,7 @@ func scanTaskInto(s scanner) (domain.Task, error) {
 		&wontDoRequested, &t.WontDoReason, &t.WontDoRequestedBy, &t.WontDoRequestedAt,
 		&t.CompletionSummary, &t.CompletedByAgent, &t.CompletedAt,
 		&filesModifiedJSON, &t.Resolution, &contextFilesJSON, &tagsJSON, &t.EstimatedEffort,
-		&t.SeenAt, &t.SessionID,
+		&t.SeenAt, &t.SessionID, &nodeIDStr,
 		&t.InputTokens, &t.OutputTokens, &t.CacheReadTokens, &t.CacheWriteTokens, &t.Model,
 		&t.ColdStartInputTokens, &t.ColdStartOutputTokens, &t.ColdStartCacheReadTokens, &t.ColdStartCacheWriteTokens,
 		&t.StartedAt, &t.DurationSeconds, &t.HumanEstimateSeconds,
@@ -53,6 +53,9 @@ func scanTaskInto(s scanner) (domain.Task, error) {
 	if featureIDStr != nil {
 		fid := domain.FeatureID(*featureIDStr)
 		t.FeatureID = &fid
+	}
+	if nodeIDStr != nil {
+		t.NodeID = *nodeIDStr
 	}
 	t.IsBlocked = isBlocked == 1
 	t.WontDoRequested = wontDoRequested == 1
@@ -115,7 +118,7 @@ func (r *taskRepository) Create(ctx context.Context, projectID domain.ProjectID,
 			wont_do_requested, wont_do_reason, wont_do_requested_by, wont_do_requested_at,
 			completion_summary, completed_by_agent, completed_at,
 			files_modified, resolution, context_files, tags, estimated_effort,
-			seen_at, session_id,
+			seen_at, session_id, node_id,
 			input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, model,
 			cold_start_input_tokens, cold_start_output_tokens, cold_start_cache_read_tokens, cold_start_cache_write_tokens,
 			started_at, duration_seconds, human_estimate_seconds,
@@ -128,11 +131,11 @@ func (r *taskRepository) Create(ctx context.Context, projectID domain.ProjectID,
 			$18,$19,$20,$21,
 			$22,$23,$24,
 			$25,$26,$27,$28,$29,
-			$30,$31,
-			$32,$33,$34,$35,$36,
-			$37,$38,$39,$40,
-			$41,$42,$43,
-			$44,$45
+			$30,$31,$32,
+			$33,$34,$35,$36,$37,
+			$38,$39,$40,$41,
+			$42,$43,$44,
+			$45,$46
 		)`,
 		string(task.ID), string(projectID), string(task.ColumnID), featureIDOrNil(task.FeatureID),
 		task.Title, task.Summary, task.Description,
@@ -142,7 +145,7 @@ func (r *taskRepository) Create(ctx context.Context, projectID domain.ProjectID,
 		boolToInt(task.WontDoRequested), task.WontDoReason, task.WontDoRequestedBy, task.WontDoRequestedAt,
 		task.CompletionSummary, task.CompletedByAgent, task.CompletedAt,
 		filesJSON, task.Resolution, contextJSON, tagsJSON, task.EstimatedEffort,
-		task.SeenAt, task.SessionID,
+		task.SeenAt, task.SessionID, nullableString(task.NodeID),
 		task.InputTokens, task.OutputTokens, task.CacheReadTokens, task.CacheWriteTokens, task.Model,
 		task.ColdStartInputTokens, task.ColdStartOutputTokens, task.ColdStartCacheReadTokens, task.ColdStartCacheWriteTokens,
 		task.StartedAt, task.DurationSeconds, task.HumanEstimateSeconds,
@@ -247,7 +250,7 @@ func (r *taskRepository) List(ctx context.Context, projectID domain.ProjectID, f
 		var isBlocked, wontDoRequested int
 		var hasUnresolvedDeps bool
 		var commentCount int
-		var featureIDStr *string
+		var featureIDStr, nodeIDStr *string
 
 		err := rows.Scan(
 			(*string)(&t.ID), (*string)(&t.ColumnID), &featureIDStr, &t.Title, &t.Summary, &t.Description,
@@ -257,7 +260,7 @@ func (r *taskRepository) List(ctx context.Context, projectID domain.ProjectID, f
 			&wontDoRequested, &t.WontDoReason, &t.WontDoRequestedBy, &t.WontDoRequestedAt,
 			&t.CompletionSummary, &t.CompletedByAgent, &t.CompletedAt,
 			&filesModifiedJSON, &t.Resolution, &contextFilesJSON, &tagsJSON, &t.EstimatedEffort,
-			&t.SeenAt, &t.SessionID,
+			&t.SeenAt, &t.SessionID, &nodeIDStr,
 			&t.InputTokens, &t.OutputTokens, &t.CacheReadTokens, &t.CacheWriteTokens, &t.Model,
 			&t.ColdStartInputTokens, &t.ColdStartOutputTokens, &t.ColdStartCacheReadTokens, &t.ColdStartCacheWriteTokens,
 			&t.StartedAt, &t.DurationSeconds, &t.HumanEstimateSeconds,
@@ -270,6 +273,9 @@ func (r *taskRepository) List(ctx context.Context, projectID domain.ProjectID, f
 		if featureIDStr != nil {
 			fid := domain.FeatureID(*featureIDStr)
 			t.FeatureID = &fid
+		}
+		if nodeIDStr != nil {
+			t.NodeID = *nodeIDStr
 		}
 		t.IsBlocked = isBlocked == 1
 		t.WontDoRequested = wontDoRequested == 1
@@ -304,12 +310,12 @@ func (r *taskRepository) Update(ctx context.Context, projectID domain.ProjectID,
 			wont_do_requested=$16, wont_do_reason=$17, wont_do_requested_by=$18, wont_do_requested_at=$19,
 			completion_summary=$20, completed_by_agent=$21, completed_at=$22,
 			files_modified=$23, resolution=$24, context_files=$25, tags=$26, estimated_effort=$27,
-			seen_at=$28, session_id=$29,
-			input_tokens=$30, output_tokens=$31, cache_read_tokens=$32, cache_write_tokens=$33, model=$34,
-			cold_start_input_tokens=$35, cold_start_output_tokens=$36, cold_start_cache_read_tokens=$37, cold_start_cache_write_tokens=$38,
-			started_at=$39, duration_seconds=$40, human_estimate_seconds=$41,
-			updated_at=$42
-		WHERE project_id=$43 AND id=$44`,
+			seen_at=$28, session_id=$29, node_id=$30,
+			input_tokens=$31, output_tokens=$32, cache_read_tokens=$33, cache_write_tokens=$34, model=$35,
+			cold_start_input_tokens=$36, cold_start_output_tokens=$37, cold_start_cache_read_tokens=$38, cold_start_cache_write_tokens=$39,
+			started_at=$40, duration_seconds=$41, human_estimate_seconds=$42,
+			updated_at=$43
+		WHERE project_id=$44 AND id=$45`,
 		string(task.ColumnID), featureIDOrNil(task.FeatureID), task.Title, task.Summary, task.Description,
 		string(task.Priority), task.PriorityScore, task.Position,
 		task.CreatedByRole, task.CreatedByAgent, task.AssignedRole,
@@ -317,7 +323,7 @@ func (r *taskRepository) Update(ctx context.Context, projectID domain.ProjectID,
 		boolToInt(task.WontDoRequested), task.WontDoReason, task.WontDoRequestedBy, task.WontDoRequestedAt,
 		task.CompletionSummary, task.CompletedByAgent, task.CompletedAt,
 		filesJSON, task.Resolution, contextJSON, tagsJSON, task.EstimatedEffort,
-		task.SeenAt, task.SessionID,
+		task.SeenAt, task.SessionID, nullableString(task.NodeID),
 		task.InputTokens, task.OutputTokens, task.CacheReadTokens, task.CacheWriteTokens, task.Model,
 		task.ColdStartInputTokens, task.ColdStartOutputTokens, task.ColdStartCacheReadTokens, task.ColdStartCacheWriteTokens,
 		task.StartedAt, task.DurationSeconds, task.HumanEstimateSeconds,

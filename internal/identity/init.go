@@ -20,23 +20,27 @@ import (
 
 // Config holds the configuration for the identity system.
 type Config struct {
-	Logger       *logrus.Logger
-	JWTSecret    []byte
-	SSO          identitydomain.SsoConfig
-	DaemonJWTTTL time.Duration
+	Logger                 *logrus.Logger
+	JWTSecret              []byte
+	SSO                    identitydomain.SsoConfig
+	DaemonJWTTTL           time.Duration
+	AuthRateLimitPerSecond float64
+	AuthRateLimitBurst     int
 }
 
 // System holds the initialized identity services.
 type System struct {
-	AuthCommands       service.AuthCommands
-	AuthQueries        service.AuthQueries
-	TeamCommands       service.TeamCommands
-	TeamQueries        service.TeamQueries
-	NodeCommands       service.NodeCommands
-	NodeQueries        service.NodeQueries
-	OnboardingCommands service.OnboardingCommands
-	SSOConfig          identitydomain.SsoConfig
-	JWTSecret          []byte
+	AuthCommands           service.AuthCommands
+	AuthQueries            service.AuthQueries
+	TeamCommands           service.TeamCommands
+	TeamQueries            service.TeamQueries
+	NodeCommands           service.NodeCommands
+	NodeQueries            service.NodeQueries
+	OnboardingCommands     service.OnboardingCommands
+	SSOConfig              identitydomain.SsoConfig
+	JWTSecret              []byte
+	AuthRateLimitPerSecond float64
+	AuthRateLimitBurst     int
 }
 
 // Init initializes the identity system: runs migrations, wires repositories and services.
@@ -80,15 +84,17 @@ func Init(ctx context.Context, cfg Config, pool *pgxpool.Pool) (*System, error) 
 	}
 
 	return &System{
-		AuthCommands:       authCmds,
-		AuthQueries:        authQrys,
-		TeamCommands:       teamCmds,
-		TeamQueries:        teamQrys,
-		NodeCommands:       nodeCmds,
-		NodeQueries:        nodeQrys,
-		OnboardingCommands: onboardingSvc,
-		SSOConfig:          cfg.SSO,
-		JWTSecret:          cfg.JWTSecret,
+		AuthCommands:           authCmds,
+		AuthQueries:            authQrys,
+		TeamCommands:           teamCmds,
+		TeamQueries:            teamQrys,
+		NodeCommands:           nodeCmds,
+		NodeQueries:            nodeQrys,
+		OnboardingCommands:     onboardingSvc,
+		SSOConfig:              cfg.SSO,
+		JWTSecret:              cfg.JWTSecret,
+		AuthRateLimitPerSecond: cfg.AuthRateLimitPerSecond,
+		AuthRateLimitBurst:     cfg.AuthRateLimitBurst,
 	}, nil
 }
 
@@ -136,15 +142,35 @@ func seedDefaultAdmin(ctx context.Context, repos *pg.Repositories, logger *logru
 	}
 
 	logger.WithField("email", email).Warn("Default admin user created — change this password!")
+
+	// Seed a member user for e2e tests that need a non-admin target.
+	memberHash, err := bcrypt.GenerateFromPassword([]byte("member"), 14)
+	if err != nil {
+		return err
+	}
+	member := identitydomain.User{
+		ID:           identitydomain.NewUserID(),
+		Email:        "member@agach.local",
+		DisplayName:  "Member",
+		PasswordHash: string(memberHash),
+		Role:         identitydomain.RoleMember,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := repos.Users.Create(ctx, member); err != nil {
+		return err
+	}
+	logger.WithField("email", member.Email).Info("Default member user created")
+
 	return nil
 }
 
 // RegisterRoutes registers all identity HTTP routes on the given router.
 func (s *System) RegisterRoutes(router *mux.Router, ctrl *controller.Controller) {
-	authH := identitycmds.NewAuthCommandsHandler(s.AuthCommands, s.AuthQueries, ctrl)
+	authH := identitycmds.NewAuthCommandsHandler(s.AuthCommands, s.AuthQueries, ctrl, s.AuthRateLimitPerSecond, s.AuthRateLimitBurst)
 	authH.RegisterRoutes(router)
 
-	teamsH := identitycmds.NewTeamsHandler(s.TeamCommands, s.TeamQueries, s.AuthQueries, ctrl)
+	teamsH := identitycmds.NewTeamsHandler(s.TeamCommands, s.TeamQueries, s.AuthQueries, s.AuthCommands, ctrl)
 	teamsH.RegisterRoutes(router)
 
 	if len(s.SSOConfig.Providers) > 0 {

@@ -268,12 +268,12 @@ func TestTeams_SetUserRole(t *testing.T) {
 	ensureServer(t)
 	token := adminToken(t)
 
-	// Get admin user ID.
-	admin := findAdminUser(t, token)
+	// Find the seeded member user (admin cannot change their own role).
+	member := findMemberUser(t, token)
 
-	// Set role to member.
-	resp := doAuth(t, "PUT", fmt.Sprintf("/api/identity/users/%s/role", admin.ID), token, map[string]any{
-		"role": "member",
+	// Promote member to admin.
+	resp := doAuth(t, "PUT", fmt.Sprintf("/api/identity/users/%s/role", member.ID), token, map[string]any{
+		"role": "admin",
 	})
 	requireStatus(t, resp, http.StatusNoContent)
 	resp.Body.Close()
@@ -281,15 +281,15 @@ func TestTeams_SetUserRole(t *testing.T) {
 	// Verify role changed.
 	users := listUsers(t, token)
 	for _, u := range users {
-		if u.ID == admin.ID {
-			require.Equal(t, "member", u.Role)
+		if u.ID == member.ID {
+			require.Equal(t, "admin", u.Role)
 			break
 		}
 	}
 
-	// Restore to admin.
-	resp = doAuth(t, "PUT", fmt.Sprintf("/api/identity/users/%s/role", admin.ID), token, map[string]any{
-		"role": "admin",
+	// Restore to member.
+	resp = doAuth(t, "PUT", fmt.Sprintf("/api/identity/users/%s/role", member.ID), token, map[string]any{
+		"role": "member",
 	})
 	requireStatus(t, resp, http.StatusNoContent)
 	resp.Body.Close()
@@ -297,11 +297,23 @@ func TestTeams_SetUserRole(t *testing.T) {
 	// Verify restored.
 	usersAfter := listUsers(t, token)
 	for _, u := range usersAfter {
-		if u.ID == admin.ID {
-			require.Equal(t, "admin", u.Role)
+		if u.ID == member.ID {
+			require.Equal(t, "member", u.Role)
 			break
 		}
 	}
+}
+
+func findMemberUser(t *testing.T, token string) userResponse {
+	t.Helper()
+	users := listUsers(t, token)
+	for _, u := range users {
+		if u.Role == "member" {
+			return u
+		}
+	}
+	t.Fatal("no member user found")
+	return userResponse{}
 }
 
 func TestTeams_DB_Verification(t *testing.T) {

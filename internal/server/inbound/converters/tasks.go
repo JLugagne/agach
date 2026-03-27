@@ -80,6 +80,7 @@ func ToPublicTask(task domain.Task) pkgserver.TaskResponse {
 		CacheWriteTokens:  clampInt(task.CacheWriteTokens),
 		Model:                task.Model,
 		SessionID:            task.SessionID,
+		NodeID:               task.NodeID,
 		SeenAt:               task.SeenAt,
 		StartedAt:            task.StartedAt,
 		DurationSeconds:      clampInt(task.DurationSeconds),

@@ -54,6 +54,10 @@ func (s *FeatureService) CreateFeature(ctx context.Context, projectID domain.Pro
 }
 
 func (s *FeatureService) UpdateFeature(ctx context.Context, featureID domain.FeatureID, name, description string) error {
+	if name == "" {
+		return domain.ErrFeatureNameRequired
+	}
+
 	feature, err := s.features.FindByID(ctx, featureID)
 	if err != nil {
 		return errors.Join(domain.ErrFeatureNotFound, err)
@@ -69,7 +73,17 @@ func (s *FeatureService) UpdateFeature(ctx context.Context, featureID domain.Fea
 	return s.features.Update(ctx, *feature)
 }
 
-func (s *FeatureService) UpdateFeatureStatus(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus) error {
+// validFeatureTransitions defines allowed transitions between feature statuses.
+// Any transition not listed here is forbidden.
+var validFeatureTransitions = map[domain.FeatureStatus]map[domain.FeatureStatus]bool{
+	domain.FeatureStatusDraft:      {domain.FeatureStatusReady: true, domain.FeatureStatusBlocked: true},
+	domain.FeatureStatusReady:      {domain.FeatureStatusDraft: true, domain.FeatureStatusInProgress: true, domain.FeatureStatusBlocked: true},
+	domain.FeatureStatusInProgress: {domain.FeatureStatusReady: true, domain.FeatureStatusDone: true, domain.FeatureStatusBlocked: true},
+	domain.FeatureStatusDone:       {},
+	domain.FeatureStatusBlocked:    {domain.FeatureStatusDraft: true, domain.FeatureStatusReady: true, domain.FeatureStatusInProgress: true},
+}
+
+func (s *FeatureService) UpdateFeatureStatus(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus, nodeID string) error {
 	if !domain.ValidFeatureStatuses[status] {
 		return domain.ErrInvalidFeatureStatus
 	}
@@ -82,7 +96,12 @@ func (s *FeatureService) UpdateFeatureStatus(ctx context.Context, featureID doma
 		return domain.ErrFeatureNotFound
 	}
 
-	return s.features.UpdateStatus(ctx, featureID, status)
+	allowed := validFeatureTransitions[feature.Status]
+	if !allowed[status] {
+		return domain.ErrInvalidFeatureStatus
+	}
+
+	return s.features.UpdateStatus(ctx, featureID, status, nodeID)
 }
 
 func (s *FeatureService) DeleteFeature(ctx context.Context, featureID domain.FeatureID) error {

@@ -33,15 +33,22 @@ func (h *NotificationQueriesHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/projects/{id}/notifications/unread-count", h.GetProjectUnreadCount).Methods("GET")
 }
 
+const maxNotificationLimit = 1000
+
 func parseNotificationQueryParams(r *http.Request) (scope *domain.NotificationScope, agentSlug string, unreadOnly bool, limit, offset int) {
 	if s := r.URL.Query().Get("scope"); s != "" {
 		sc := domain.NotificationScope(s)
-		scope = &sc
+		if domain.ValidNotificationScopes[sc] {
+			scope = &sc
+		}
 	}
 	agentSlug = r.URL.Query().Get("agent_slug")
 	unreadOnly = r.URL.Query().Get("unread") == "true"
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			if v > maxNotificationLimit {
+				v = maxNotificationLimit
+			}
 			limit = v
 		}
 	}

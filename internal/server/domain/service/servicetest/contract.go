@@ -33,13 +33,13 @@ type MockCommands struct {
 	UpdateTaskFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.FeatureID, clearFeature bool) error
 	UpdateTaskFilesFunc      func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error
 	DeleteTaskFunc           func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
-	MoveTaskFunc             func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnSlug domain.ColumnSlug) error
+	MoveTaskFunc             func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnSlug domain.ColumnSlug, nodeID string) error
 	ReorderTaskFunc          func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error
-	StartTaskFunc            func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
-	CompleteTaskFunc         func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage) error
-	BlockTaskFunc            func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, blockedReason, blockedByAgent string) error
-	UnblockTaskFunc          func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
-	RequestWontDoFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, wontDoReason, wontDoRequestedBy string) error
+	StartTaskFunc            func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, nodeID string) error
+	CompleteTaskFunc         func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage, nodeID string) error
+	BlockTaskFunc            func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, blockedReason, blockedByAgent, nodeID string) error
+	UnblockTaskFunc          func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, nodeID string) error
+	RequestWontDoFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, wontDoReason, wontDoRequestedBy, nodeID string) error
 	ApproveWontDoFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error
 	RejectWontDoFunc         func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, reason string) error
 	CreateCommentFunc        func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, authorRole, authorName string, authorType domain.AuthorType, content string) (domain.Comment, error)
@@ -67,7 +67,7 @@ type MockCommands struct {
 	ClearProjectDockerfileFunc      func(ctx context.Context, projectID domain.ProjectID) error
 	CreateFeatureFunc               func(ctx context.Context, projectID domain.ProjectID, name, description, createdByRole, createdByAgent string) (domain.Feature, error)
 	UpdateFeatureFunc               func(ctx context.Context, featureID domain.FeatureID, name, description string) error
-	UpdateFeatureStatusFunc         func(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus) error
+	UpdateFeatureStatusFunc         func(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus, nodeID string) error
 	DeleteFeatureFunc               func(ctx context.Context, featureID domain.FeatureID) error
 	UpdateFeatureChangelogsFunc     func(ctx context.Context, featureID domain.FeatureID, userChangelog, techChangelog *string) error
 	CreateNotificationFunc       func(ctx context.Context, projectID *domain.ProjectID, scope domain.NotificationScope, agentSlug string, severity domain.NotificationSeverity, title, text, linkURL, linkText, linkStyle string) (domain.Notification, error)
@@ -77,6 +77,11 @@ type MockCommands struct {
 	CreateSpecializedAgentFunc  func(ctx context.Context, parentSlug, slug, name string, skillSlugs []string, sortOrder int) (domain.SpecializedAgent, error)
 	UpdateSpecializedAgentFunc  func(ctx context.Context, id domain.SpecializedAgentID, name string, skillSlugs []string, sortOrder int) error
 	DeleteSpecializedAgentFunc  func(ctx context.Context, id domain.SpecializedAgentID) error
+	GrantUserAccessFunc         func(ctx context.Context, projectID domain.ProjectID, userID, role string) error
+	RevokeUserAccessFunc        func(ctx context.Context, projectID domain.ProjectID, userID string) error
+	UpdateUserAccessRoleFunc    func(ctx context.Context, projectID domain.ProjectID, userID, role string) error
+	GrantTeamAccessFunc         func(ctx context.Context, projectID domain.ProjectID, teamID string) error
+	RevokeTeamAccessFunc        func(ctx context.Context, projectID domain.ProjectID, teamID string) error
 }
 
 func (m *MockCommands) CreateProject(ctx context.Context, name, description, gitURL, createdByRole, createdByAgent string, parentID *domain.ProjectID) (domain.Project, error) {
@@ -177,11 +182,11 @@ func (m *MockCommands) DeleteTask(ctx context.Context, projectID domain.ProjectI
 	return m.DeleteTaskFunc(ctx, projectID, taskID)
 }
 
-func (m *MockCommands) MoveTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnSlug domain.ColumnSlug) error {
+func (m *MockCommands) MoveTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnSlug domain.ColumnSlug, nodeID string) error {
 	if m.MoveTaskFunc == nil {
 		panic("called not defined MoveTaskFunc")
 	}
-	return m.MoveTaskFunc(ctx, projectID, taskID, targetColumnSlug)
+	return m.MoveTaskFunc(ctx, projectID, taskID, targetColumnSlug, nodeID)
 }
 
 func (m *MockCommands) ReorderTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, newPosition int) error {
@@ -191,39 +196,39 @@ func (m *MockCommands) ReorderTask(ctx context.Context, projectID domain.Project
 	return m.ReorderTaskFunc(ctx, projectID, taskID, newPosition)
 }
 
-func (m *MockCommands) StartTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error {
+func (m *MockCommands) StartTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, nodeID string) error {
 	if m.StartTaskFunc == nil {
 		panic("called not defined StartTaskFunc")
 	}
-	return m.StartTaskFunc(ctx, projectID, taskID)
+	return m.StartTaskFunc(ctx, projectID, taskID, nodeID)
 }
 
-func (m *MockCommands) CompleteTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage) error {
+func (m *MockCommands) CompleteTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage, nodeID string) error {
 	if m.CompleteTaskFunc == nil {
 		panic("called not defined CompleteTaskFunc")
 	}
-	return m.CompleteTaskFunc(ctx, projectID, taskID, completionSummary, filesModified, completedByAgent, tokenUsage)
+	return m.CompleteTaskFunc(ctx, projectID, taskID, completionSummary, filesModified, completedByAgent, tokenUsage, nodeID)
 }
 
-func (m *MockCommands) BlockTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, blockedReason, blockedByAgent string) error {
+func (m *MockCommands) BlockTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, blockedReason, blockedByAgent, nodeID string) error {
 	if m.BlockTaskFunc == nil {
 		panic("called not defined BlockTaskFunc")
 	}
-	return m.BlockTaskFunc(ctx, projectID, taskID, blockedReason, blockedByAgent)
+	return m.BlockTaskFunc(ctx, projectID, taskID, blockedReason, blockedByAgent, nodeID)
 }
 
-func (m *MockCommands) UnblockTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error {
+func (m *MockCommands) UnblockTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, nodeID string) error {
 	if m.UnblockTaskFunc == nil {
 		panic("called not defined UnblockTaskFunc")
 	}
-	return m.UnblockTaskFunc(ctx, projectID, taskID)
+	return m.UnblockTaskFunc(ctx, projectID, taskID, nodeID)
 }
 
-func (m *MockCommands) RequestWontDo(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, wontDoReason, wontDoRequestedBy string) error {
+func (m *MockCommands) RequestWontDo(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, wontDoReason, wontDoRequestedBy, nodeID string) error {
 	if m.RequestWontDoFunc == nil {
 		panic("called not defined RequestWontDoFunc")
 	}
-	return m.RequestWontDoFunc(ctx, projectID, taskID, wontDoReason, wontDoRequestedBy)
+	return m.RequestWontDoFunc(ctx, projectID, taskID, wontDoReason, wontDoRequestedBy, nodeID)
 }
 
 func (m *MockCommands) ApproveWontDo(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) error {
@@ -415,11 +420,11 @@ func (m *MockCommands) UpdateFeature(ctx context.Context, featureID domain.Featu
 	return m.UpdateFeatureFunc(ctx, featureID, name, description)
 }
 
-func (m *MockCommands) UpdateFeatureStatus(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus) error {
+func (m *MockCommands) UpdateFeatureStatus(ctx context.Context, featureID domain.FeatureID, status domain.FeatureStatus, nodeID string) error {
 	if m.UpdateFeatureStatusFunc == nil {
 		panic("called not defined UpdateFeatureStatusFunc")
 	}
-	return m.UpdateFeatureStatusFunc(ctx, featureID, status)
+	return m.UpdateFeatureStatusFunc(ctx, featureID, status, nodeID)
 }
 
 func (m *MockCommands) DeleteFeature(ctx context.Context, featureID domain.FeatureID) error {
@@ -485,6 +490,41 @@ func (m *MockCommands) DeleteSpecializedAgent(ctx context.Context, id domain.Spe
 	return m.DeleteSpecializedAgentFunc(ctx, id)
 }
 
+func (m *MockCommands) GrantUserAccess(ctx context.Context, projectID domain.ProjectID, userID, role string) error {
+	if m.GrantUserAccessFunc == nil {
+		return nil
+	}
+	return m.GrantUserAccessFunc(ctx, projectID, userID, role)
+}
+
+func (m *MockCommands) RevokeUserAccess(ctx context.Context, projectID domain.ProjectID, userID string) error {
+	if m.RevokeUserAccessFunc == nil {
+		return nil
+	}
+	return m.RevokeUserAccessFunc(ctx, projectID, userID)
+}
+
+func (m *MockCommands) UpdateUserAccessRole(ctx context.Context, projectID domain.ProjectID, userID, role string) error {
+	if m.UpdateUserAccessRoleFunc == nil {
+		return nil
+	}
+	return m.UpdateUserAccessRoleFunc(ctx, projectID, userID, role)
+}
+
+func (m *MockCommands) GrantTeamAccess(ctx context.Context, projectID domain.ProjectID, teamID string) error {
+	if m.GrantTeamAccessFunc == nil {
+		return nil
+	}
+	return m.GrantTeamAccessFunc(ctx, projectID, teamID)
+}
+
+func (m *MockCommands) RevokeTeamAccess(ctx context.Context, projectID domain.ProjectID, teamID string) error {
+	if m.RevokeTeamAccessFunc == nil {
+		return nil
+	}
+	return m.RevokeTeamAccessFunc(ctx, projectID, teamID)
+}
+
 // MockQueries is a function-based mock implementation of the service.Queries interface.
 type MockQueries struct {
 	GetProjectFunc                  func(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error)
@@ -538,6 +578,10 @@ type MockQueries struct {
 	GetSpecializedAgentFunc         func(ctx context.Context, slug string) (*domain.SpecializedAgent, error)
 	ListSpecializedAgentSkillsFunc  func(ctx context.Context, slug string) ([]domain.Skill, error)
 	CountSpecializedByParentFunc    func(ctx context.Context, parentSlug string) (int, error)
+	ListProjectUserAccessFunc       func(ctx context.Context, projectID domain.ProjectID) ([]domain.ProjectUserAccess, error)
+	ListProjectTeamAccessFunc       func(ctx context.Context, projectID domain.ProjectID) ([]domain.ProjectTeamAccess, error)
+	HasProjectAccessFunc            func(ctx context.Context, projectID domain.ProjectID, userID string, teamIDs []string) (bool, error)
+	ListAccessibleProjectIDsFunc    func(ctx context.Context, userID string, teamIDs []string) ([]domain.ProjectID, error)
 }
 
 func (m *MockQueries) GetProject(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error) {
@@ -895,4 +939,32 @@ func (m *MockQueries) CountSpecializedByParent(ctx context.Context, parentSlug s
 		return 0, nil
 	}
 	return m.CountSpecializedByParentFunc(ctx, parentSlug)
+}
+
+func (m *MockQueries) ListProjectUserAccess(ctx context.Context, projectID domain.ProjectID) ([]domain.ProjectUserAccess, error) {
+	if m.ListProjectUserAccessFunc == nil {
+		return []domain.ProjectUserAccess{}, nil
+	}
+	return m.ListProjectUserAccessFunc(ctx, projectID)
+}
+
+func (m *MockQueries) ListProjectTeamAccess(ctx context.Context, projectID domain.ProjectID) ([]domain.ProjectTeamAccess, error) {
+	if m.ListProjectTeamAccessFunc == nil {
+		return []domain.ProjectTeamAccess{}, nil
+	}
+	return m.ListProjectTeamAccessFunc(ctx, projectID)
+}
+
+func (m *MockQueries) HasProjectAccess(ctx context.Context, projectID domain.ProjectID, userID string, teamIDs []string) (bool, error) {
+	if m.HasProjectAccessFunc == nil {
+		return true, nil
+	}
+	return m.HasProjectAccessFunc(ctx, projectID, userID, teamIDs)
+}
+
+func (m *MockQueries) ListAccessibleProjectIDs(ctx context.Context, userID string, teamIDs []string) ([]domain.ProjectID, error) {
+	if m.ListAccessibleProjectIDsFunc == nil {
+		return []domain.ProjectID{}, nil
+	}
+	return m.ListAccessibleProjectIDsFunc(ctx, userID, teamIDs)
 }

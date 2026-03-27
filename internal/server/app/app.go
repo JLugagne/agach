@@ -7,6 +7,7 @@ import (
 	dockerfilesrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/dockerfiles"
 	featuresrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/features"
 	notificationsrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/notifications"
+	projectaccessrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/projectaccess"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/projects"
 	agentsrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/agents"
 	skillsrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/skills"
@@ -31,6 +32,7 @@ type App struct {
 	*ColumnService
 	*DependencyService
 	*SpecializedAgentService
+	*ProjectAccessService
 	chats *ChatService
 }
 
@@ -48,6 +50,7 @@ type Config struct {
 	Dockerfiles   dockerfilesrepo.DockerfileRepository
 	Notifications notificationsrepo.NotificationRepository
 	Specialized   specializedrepo.SpecializedAgentRepository
+	ProjectAccess projectaccessrepo.ProjectAccessRepository
 	Chats         *ChatService
 	Logger        *logrus.Logger
 }
@@ -71,6 +74,7 @@ func NewApp(cfg Config) *App {
 		ColumnService:           newColumnService(cfg.Columns, cfg.Projects, cfg.Logger),
 		DependencyService:       newDependencyService(cfg.Dependencies, cfg.Tasks, cfg.Logger),
 		SpecializedAgentService: newSpecializedAgentService(cfg.Agents, cfg.Skills, cfg.Specialized, cfg.Logger),
+		ProjectAccessService:   newProjectAccessService(cfg.ProjectAccess, cfg.Logger),
 		chats:                   cfg.Chats,
 	}
 }

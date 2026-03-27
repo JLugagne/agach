@@ -42,8 +42,9 @@ func (h *FeatureQueriesHandler) ListFeatures(w http.ResponseWriter, r *http.Requ
 		statuses := strings.Split(statusParam, ",")
 		for _, s := range statuses {
 			s = strings.TrimSpace(s)
-			if s != "" {
-				statusFilter = append(statusFilter, domain.FeatureStatus(s))
+			fs := domain.FeatureStatus(s)
+			if s != "" && domain.ValidFeatureStatuses[fs] {
+				statusFilter = append(statusFilter, fs)
 			}
 		}
 	}
@@ -64,6 +65,7 @@ func (h *FeatureQueriesHandler) ListFeatures(w http.ResponseWriter, r *http.Requ
 
 // GetFeature gets a single feature
 func (h *FeatureQueriesHandler) GetFeature(w http.ResponseWriter, r *http.Request) {
+	projectID := domain.ProjectID(mux.Vars(r)["id"])
 	featureID := domain.FeatureID(mux.Vars(r)["featureId"])
 
 	feature, err := h.queries.GetFeature(r.Context(), featureID)
@@ -73,6 +75,11 @@ func (h *FeatureQueriesHandler) GetFeature(w http.ResponseWriter, r *http.Reques
 		} else {
 			h.controller.SendError(w, r, err)
 		}
+		return
+	}
+
+	if feature.ProjectID != projectID {
+		h.controller.SendFail(w, r, nil, domain.ErrFeatureNotFound)
 		return
 	}
 

@@ -178,9 +178,6 @@ func (s *SSOService) validateIDToken(idToken string, disc *oidcDiscovery, cfg *d
 			}
 			return nil, fmt.Errorf("no matching EC JWK found for kid %q", kid)
 		}
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); ok {
-			return s.secret, nil
-		}
 		return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 	})
 	if err != nil || !parsed.Valid {

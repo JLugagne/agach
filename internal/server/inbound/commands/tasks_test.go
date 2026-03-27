@@ -210,7 +210,7 @@ func TestMoveTask_Success(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	mock := &servicetest.MockCommands{
-		MoveTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, targetColumn domain.ColumnSlug) error {
+		MoveTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, targetColumn domain.ColumnSlug, _ string) error {
 			assert.Equal(t, projectID, pid)
 			assert.Equal(t, taskID, tid)
 			assert.Equal(t, domain.ColumnDone, targetColumn)
@@ -245,7 +245,7 @@ func TestMoveTask_DomainError(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	mock := &servicetest.MockCommands{
-		MoveTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, targetColumn domain.ColumnSlug) error {
+		MoveTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, targetColumn domain.ColumnSlug, _ string) error {
 			return domain.ErrTaskNotFound
 		},
 	}
@@ -277,7 +277,7 @@ func TestCompleteTask_Success(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	mock := &servicetest.MockCommands{
-		CompleteTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage) error {
+		CompleteTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage, _ string) error {
 			assert.Equal(t, projectID, pid)
 			assert.Equal(t, taskID, tid)
 			assert.Equal(t, "agent-007", completedByAgent)
@@ -314,7 +314,7 @@ func TestCompleteTask_DomainError(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	mock := &servicetest.MockCommands{
-		CompleteTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage) error {
+		CompleteTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage, _ string) error {
 			return domain.ErrUnresolvedDependencies
 		},
 	}
@@ -347,7 +347,7 @@ func TestUnblockTask_Success(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	mock := &servicetest.MockCommands{
-		UnblockTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) error {
+		UnblockTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, _ string) error {
 			assert.Equal(t, projectID, pid)
 			assert.Equal(t, taskID, tid)
 			return nil
@@ -379,7 +379,7 @@ func TestUnblockTask_DomainError(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	mock := &servicetest.MockCommands{
-		UnblockTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID) error {
+		UnblockTaskFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, _ string) error {
 			return domain.ErrTaskNotBlocked
 		},
 	}
@@ -536,7 +536,7 @@ func TestWontDo_Success(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	mock := &servicetest.MockCommands{
-		RequestWontDoFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, reason, requestedBy string) error {
+		RequestWontDoFunc: func(ctx context.Context, pid domain.ProjectID, tid domain.TaskID, reason, requestedBy, _ string) error {
 			assert.Equal(t, projectID, pid)
 			assert.Equal(t, taskID, tid)
 			return nil

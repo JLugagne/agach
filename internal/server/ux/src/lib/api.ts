@@ -18,6 +18,7 @@ import type {
   ChatSessionResponse,
   TaskSummaryResponse,
   TeamResponse, UserResponse, AdminNodeResponse,
+  ProjectUserAccessResponse, ProjectTeamAccessResponse,
 } from './types';
 import { refreshAccessToken, setToken } from './auth';
 
@@ -305,6 +306,12 @@ export const unblockUser = (userId: string) =>
 export const adminListNodes = () => request<{ nodes: AdminNodeResponse[] }>('GET', '/api/admin/nodes');
 export const adminRevokeNode = (nodeId: string) => request<void>('DELETE', `/api/admin/nodes/${nodeId}`);
 
+// Invite
+export const inviteUser = (email: string) =>
+  request<{ invite_token: string }>('POST', '/api/identity/users/invite', { email });
+export const completeInvite = (data: { token: string; display_name: string; password: string }) =>
+  request<{ user: { id: string; email: string; display_name: string; role: string }; access_token: string }>('POST', '/api/auth/complete-invite', data);
+
 // Chat sessions
 export const listChatSessions = (projectId: string, featureId: string) =>
   request<ChatSessionResponse[]>('GET', `/api/projects/${projectId}/features/${featureId}/chats`);
@@ -325,3 +332,19 @@ export const endChatSession = (projectId: string, featureId: string, sessionId: 
 // Feature task summaries
 export const getFeatureTaskSummaries = (projectId: string, featureId: string) =>
   request<TaskSummaryResponse[]>('GET', `/api/projects/${projectId}/features/${featureId}/task-summaries`);
+
+// Project access
+export const listProjectUserAccess = (projectId: string) =>
+  request<ProjectUserAccessResponse[]>('GET', `/api/projects/${projectId}/access/users`);
+export const grantUserAccess = (projectId: string, userId: string, role: 'admin' | 'member') =>
+  request<void>('POST', `/api/projects/${projectId}/access/users`, { user_id: userId, role });
+export const updateUserAccessRole = (projectId: string, userId: string, role: 'admin' | 'member') =>
+  request<void>('PATCH', `/api/projects/${projectId}/access/users/${userId}`, { role });
+export const revokeUserAccess = (projectId: string, userId: string) =>
+  request<void>('DELETE', `/api/projects/${projectId}/access/users/${userId}`);
+export const listProjectTeamAccess = (projectId: string) =>
+  request<ProjectTeamAccessResponse[]>('GET', `/api/projects/${projectId}/access/teams`);
+export const grantTeamAccess = (projectId: string, teamId: string) =>
+  request<void>('POST', `/api/projects/${projectId}/access/teams`, { team_id: teamId });
+export const revokeTeamAccess = (projectId: string, teamId: string) =>
+  request<void>('DELETE', `/api/projects/${projectId}/access/teams/${teamId}`);

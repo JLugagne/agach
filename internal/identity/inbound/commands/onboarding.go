@@ -7,7 +7,7 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/service"
-	"github.com/JLugagne/agach-mcp/internal/pkg/apierror"
+	"github.com/JLugagne/agach-mcp/pkg/apierror"
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/gorilla/mux"
 )
@@ -17,6 +17,7 @@ type OnboardingHandler struct {
 	authCommands service.AuthCommands
 	authQueries  service.AuthQueries
 	controller   *controller.Controller
+	limiter      *authIPLimiter
 }
 
 func NewOnboardingHandler(
@@ -30,16 +31,17 @@ func NewOnboardingHandler(
 		authCommands: authCommands,
 		authQueries:  authQueries,
 		controller:   ctrl,
+		limiter:      newAuthIPLimiter(0, 0),
 	}
 }
 
 func (h *OnboardingHandler) RegisterRoutes(router *mux.Router) {
 	// Authenticated: generate code
 	router.HandleFunc("/api/onboarding/codes", h.GenerateCode).Methods("POST")
-	// Unauthenticated: daemon completes onboarding
-	router.HandleFunc("/api/onboarding/complete", h.CompleteOnboarding).Methods("POST")
-	// Unauthenticated: daemon refreshes access token
-	router.HandleFunc("/api/daemon/refresh", h.RefreshDaemonToken).Methods("POST")
+	// Unauthenticated: daemon completes onboarding (rate-limited to prevent brute-force of 6-digit codes)
+	router.Handle("/api/onboarding/complete", h.limiter.middleware(http.HandlerFunc(h.CompleteOnboarding))).Methods("POST")
+	// Unauthenticated: daemon refreshes access token (rate-limited)
+	router.Handle("/api/daemon/refresh", h.limiter.middleware(http.HandlerFunc(h.RefreshDaemonToken))).Methods("POST")
 }
 
 type generateCodeRequest struct {

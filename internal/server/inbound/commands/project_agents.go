@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -86,7 +85,7 @@ func (h *ProjectAgentCommandsHandler) RemoveAgent(w http.ResponseWriter, r *http
 
 	var req pkgserver.RemoveAgentFromProjectRequest
 	if r.ContentLength > 0 {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := h.controller.DecodeAndValidate(r, &req, pkgserver.ErrInvalidAgentAssignmentRequest); err != nil {
 			h.controller.SendFail(w, r, nil, pkgserver.ErrInvalidAgentAssignmentRequest)
 			return
 		}

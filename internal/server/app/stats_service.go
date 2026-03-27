@@ -71,7 +71,13 @@ func (s *StatsService) GetToolUsageForProject(ctx context.Context, projectID dom
 func (s *StatsService) GetTimeline(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error) {
 	logger := s.logger.WithContext(ctx).WithField("projectID", projectID).WithField("days", days)
 
-	entries, err := s.tasks.GetTimeline(ctx, projectID, days)
+	rootID, err := s.resolveRootProjectID(ctx, projectID)
+	if err != nil {
+		logger.WithError(err).Error("failed to resolve root project ID")
+		return nil, err
+	}
+
+	entries, err := s.tasks.GetTimeline(ctx, rootID, days)
 	if err != nil {
 		logger.WithError(err).Error("failed to get timeline")
 		return nil, err

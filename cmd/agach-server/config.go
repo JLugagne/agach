@@ -10,8 +10,10 @@ import (
 )
 
 type serverConfig struct {
-	SSO          identitydomain.SsoConfig `yaml:"sso"`
-	DaemonJWTTTL time.Duration            `yaml:"daemon_jwt_ttl"`
+	SSO                    identitydomain.SsoConfig `yaml:"sso"`
+	DaemonJWTTTL           time.Duration            `yaml:"daemon_jwt_ttl"`
+	AuthRateLimitPerSecond float64                  `yaml:"auth_rate_limit_per_second"`
+	AuthRateLimitBurst     int                      `yaml:"auth_rate_limit_burst"`
 }
 
 func writeDefaultConfig(path string) error {

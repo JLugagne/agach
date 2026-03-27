@@ -125,7 +125,7 @@ func TestUpdateFeatureStatus(t *testing.T) {
 		featureID := domain.NewFeatureID()
 
 		mockCommands := &servicetest.MockCommands{
-			UpdateFeatureStatusFunc: func(ctx context.Context, fid domain.FeatureID, status domain.FeatureStatus) error {
+			UpdateFeatureStatusFunc: func(ctx context.Context, fid domain.FeatureID, status domain.FeatureStatus, _ string) error {
 				if fid == featureID && status == domain.FeatureStatusReady {
 					return nil
 				}

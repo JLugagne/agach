@@ -18,6 +18,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/dockerfiles"
 	featuresrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/features"
 	notificationsrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/notifications"
+	projectaccessrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/projectaccess"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/projects"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/skills"
 	specializedrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/specialized"
@@ -45,6 +46,7 @@ type Repositories struct {
 	Notifications      notificationsrepo.NotificationRepository
 	Chats              chatsrepo.ChatSessionRepository
 	SpecializedAgents  specializedrepo.SpecializedAgentRepository
+	ProjectAccess      projectaccessrepo.ProjectAccessRepository
 }
 
 // NewRepositories creates all repository implementations backed by a pgxpool.Pool and runs migrations.
@@ -81,6 +83,7 @@ func NewRepositories(pool *pgxpool.Pool) (*Repositories, error) {
 		Notifications:     &notificationRepository{base},
 		Chats:             &chatSessionRepository{base},
 		SpecializedAgents: &specializedAgentRepository{base},
+		ProjectAccess:     &projectAccessRepository{base},
 	}, nil
 }
 

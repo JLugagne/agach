@@ -29,7 +29,7 @@ func newTestHandler(cmds *mockAuthCommands, qrs *mockAuthQueries) (*commands.Aut
 	logger := logrus.New()
 	logger.SetLevel(logrus.PanicLevel)
 	ctrl := controller.NewController(logger)
-	h := commands.NewAuthCommandsHandler(cmds, qrs, ctrl)
+	h := commands.NewAuthCommandsHandler(cmds, qrs, ctrl, 0, 0)
 	r := mux.NewRouter()
 	h.RegisterRoutes(r)
 	return h, r
@@ -337,9 +337,9 @@ func TestAuthHandler_RateLimiting_ExcessiveRequests_ReturnsTooManyRequests(t *te
 
 	body, _ := json.Marshal(map[string]string{"email": "x@x.com", "password": "p"})
 
-	// Send 6 requests from the same IP (limit is 5 per 15 minutes)
+	// Send 11 requests from the same IP (default burst is 10)
 	var lastCode int
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 11; i++ {
 		req := httptest.NewRequest("POST", "/api/auth/login", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.RemoteAddr = "10.0.0.1:1234"
@@ -409,7 +409,7 @@ func TestAuthHandler_RateLimiting_XRealIP(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{"email": "x@x.com", "password": "pass"})
 
 	var lastCode int
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 11; i++ {
 		req := httptest.NewRequest("POST", "/api/auth/login", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Real-IP", "192.168.1.100")
@@ -436,7 +436,7 @@ func TestAuthHandler_RateLimiting_XForwardedFor_MultipleIPs(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{"email": "x@x.com", "password": "pass"})
 
 	var lastCode int
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 11; i++ {
 		req := httptest.NewRequest("POST", "/api/auth/login", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Forwarded-For", "10.1.1.1, 10.2.2.2")

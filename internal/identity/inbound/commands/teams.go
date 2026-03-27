@@ -6,22 +6,23 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/internal/identity/domain/service"
-	"github.com/JLugagne/agach-mcp/internal/pkg/apierror"
+	"github.com/JLugagne/agach-mcp/pkg/apierror"
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/gorilla/mux"
 )
 
 // TeamsHandler handles team and membership HTTP endpoints.
 type TeamsHandler struct {
-	commands   service.TeamCommands
-	queries    service.TeamQueries
-	authQueries service.AuthQueries
-	ctrl       *controller.Controller
+	commands     service.TeamCommands
+	queries      service.TeamQueries
+	authQueries  service.AuthQueries
+	authCommands service.AuthCommands
+	ctrl         *controller.Controller
 }
 
 // NewTeamsHandler creates a teams handler.
-func NewTeamsHandler(cmds service.TeamCommands, qrs service.TeamQueries, authQrs service.AuthQueries, ctrl *controller.Controller) *TeamsHandler {
-	return &TeamsHandler{commands: cmds, queries: qrs, authQueries: authQrs, ctrl: ctrl}
+func NewTeamsHandler(cmds service.TeamCommands, qrs service.TeamQueries, authQrs service.AuthQueries, authCmds service.AuthCommands, ctrl *controller.Controller) *TeamsHandler {
+	return &TeamsHandler{commands: cmds, queries: qrs, authQueries: authQrs, authCommands: authCmds, ctrl: ctrl}
 }
 
 // RegisterRoutes registers team routes on the router.
@@ -35,6 +36,7 @@ func (h *TeamsHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/identity/users/{id}/role", h.SetUserRole).Methods("PUT")
 	router.HandleFunc("/api/identity/users/{id}/block", h.BlockUser).Methods("PUT")
 	router.HandleFunc("/api/identity/users/{id}/block", h.UnblockUser).Methods("DELETE")
+	router.HandleFunc("/api/identity/users/invite", h.InviteUser).Methods("POST")
 }
 
 type createTeamRequest struct {
@@ -49,6 +51,44 @@ type setUserTeamRequest struct {
 
 type setUserRoleRequest struct {
 	Role string `json:"role" validate:"required,oneof=admin member"`
+}
+
+type inviteUserRequest struct {
+	Email string `json:"email" validate:"required,email"`
+}
+
+// InviteUser handles POST /api/identity/users/invite.
+func (h *TeamsHandler) InviteUser(w http.ResponseWriter, r *http.Request) {
+	actor, ok := ActorFromRequest(w, r, h.ctrl, h.authQueries)
+	if !ok {
+		return
+	}
+
+	var req inviteUserRequest
+	if err := h.ctrl.DecodeAndValidate(r, &req, &apierror.Error{Code: "INVALID_REQUEST", Message: "invalid request body"}); err != nil {
+		h.ctrl.SendFail(w, r, nil, err)
+		return
+	}
+
+	inviteToken, err := h.authCommands.InviteUser(r.Context(), actor, req.Email)
+	if err != nil {
+		if errors.Is(err, domain.ErrForbidden) {
+			status := http.StatusForbidden
+			h.ctrl.SendFail(w, r, &status, &apierror.Error{Code: "FORBIDDEN", Message: "access denied"})
+			return
+		}
+		if errors.Is(err, domain.ErrEmailAlreadyExists) {
+			status := http.StatusConflict
+			h.ctrl.SendFail(w, r, &status, &apierror.Error{Code: "EMAIL_ALREADY_EXISTS", Message: err.Error()})
+			return
+		}
+		h.ctrl.SendError(w, r, err)
+		return
+	}
+
+	h.ctrl.SendSuccess(w, r, map[string]string{
+		"invite_token": inviteToken,
+	})
 }
 
 // ListTeams handles GET /api/identity/teams.
@@ -334,6 +374,7 @@ func userToPublicMap(u domain.User, callerRole domain.MemberRole) map[string]int
 	}
 	if callerRole == domain.RoleAdmin {
 		m["email"] = u.Email
+		m["sso_provider"] = u.SSOProvider
 	}
 	if u.BlockedAt != nil {
 		m["blocked_at"] = u.BlockedAt

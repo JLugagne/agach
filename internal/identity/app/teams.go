@@ -98,6 +98,9 @@ func (s *teamService) SetUserRole(ctx context.Context, actor domain.Actor, userI
 	if !actor.IsAdmin() {
 		return domain.ErrForbidden
 	}
+	if actor.UserID == userID {
+		return &domain.Error{Code: "SELF_ROLE_CHANGE", Message: "admin cannot change their own role"}
+	}
 	u, err := s.users.FindByID(ctx, userID)
 	if err != nil {
 		return err

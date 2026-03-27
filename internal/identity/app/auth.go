@@ -27,9 +27,16 @@ const (
 	jwtClaimTokenType       = "token_type"
 	tokenTypeAccess         = "access"
 	tokenTypeRefresh        = "refresh"
+	tokenTypeInvite         = "invite"
+	inviteTokenTTL          = 24 * time.Hour
 )
 
-var tokenBlocklist sync.Map
+var (
+	tokenBlocklist    sync.Map
+	usedRefreshTokens sync.Map
+)
+
+const maxDisplayNameLen = 200
 
 type authService struct {
 	users  users.UserRepository
@@ -88,6 +95,13 @@ func (s *authService) Register(ctx context.Context, email, password, displayName
 		}
 	}
 
+	if len(displayName) > maxDisplayNameLen {
+		return domain.User{}, &domain.Error{
+			Code:    "DISPLAY_NAME_TOO_LONG",
+			Message: fmt.Sprintf("display name must be at most %d characters", maxDisplayNameLen),
+		}
+	}
+
 	_, err := s.users.FindByEmail(ctx, email)
 	if err == nil {
 		return domain.User{}, domain.ErrEmailAlreadyExists
@@ -134,6 +148,10 @@ func (s *authService) Login(ctx context.Context, email, password string, remembe
 		return "", "", err
 	}
 
+	if user.IsBlocked() {
+		return "", "", domain.ErrUserBlocked
+	}
+
 	if user.PasswordHash == "" {
 		return "", "", domain.ErrSSOUserNoPassword
 	}
@@ -166,6 +184,10 @@ func (s *authService) LoginSSO(ctx context.Context, provider, code, redirectURI 
 }
 
 func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (newAccessToken string, err error) {
+	if _, used := usedRefreshTokens.Load(refreshToken); used {
+		return "", domain.ErrUnauthorized
+	}
+
 	claims, err := s.parseToken(refreshToken)
 	if err != nil {
 		return "", domain.ErrUnauthorized
@@ -194,6 +216,7 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (ne
 		return "", err
 	}
 
+	usedRefreshTokens.Store(refreshToken, true)
 	return s.issueToken(user, tokenTypeAccess, accessTokenTTL)
 }
 
@@ -237,6 +260,10 @@ func (s *authService) ValidateJWT(ctx context.Context, token string) (domain.Act
 		return domain.Actor{}, err
 	}
 
+	if user.IsBlocked() {
+		return domain.Actor{}, domain.ErrUnauthorized
+	}
+
 	return domain.Actor{
 		UserID: user.ID,
 		Email:  user.Email,
@@ -246,6 +273,10 @@ func (s *authService) ValidateJWT(ctx context.Context, token string) (domain.Act
 
 func (s *authService) GetCurrentUser(ctx context.Context, actor domain.Actor) (domain.User, error) {
 	return s.users.FindByID(ctx, actor.UserID)
+}
+
+func (s *authService) GetUserTeamIDs(ctx context.Context, userID domain.UserID) ([]domain.TeamID, error) {
+	return s.users.ListTeamIDs(ctx, userID)
 }
 
 func (s *authService) UpdateProfile(ctx context.Context, actor domain.Actor, displayName string) (domain.User, error) {
@@ -263,7 +294,7 @@ func (s *authService) UpdateProfile(ctx context.Context, actor domain.Actor, dis
 	return user, nil
 }
 
-func (s *authService) ChangePassword(ctx context.Context, actor domain.Actor, currentPassword, newPassword string) error {
+func (s *authService) ChangePassword(ctx context.Context, actor domain.Actor, currentPassword, newPassword, callerToken string) error {
 	if len(newPassword) < minPasswordLen {
 		return &domain.Error{
 			Code:    "PASSWORD_TOO_SHORT",
@@ -292,10 +323,113 @@ func (s *authService) ChangePassword(ctx context.Context, actor domain.Actor, cu
 		return fmt.Errorf("hash password: %w", err)
 	}
 
+	now := time.Now()
+	user.PasswordHash = string(hash)
+	user.UpdatedAt = now
+
+	if err := s.users.Update(ctx, user); err != nil {
+		return err
+	}
+
+	if callerToken != "" {
+		tokenBlocklist.Store(callerToken, true)
+	}
+
+	return nil
+}
+
+func (s *authService) InviteUser(ctx context.Context, actor domain.Actor, email string) (string, error) {
+	if !actor.IsAdmin() {
+		return "", domain.ErrForbidden
+	}
+
+	if _, err := mail.ParseAddress(email); err != nil || !strings.Contains(email, "@") {
+		return "", &domain.Error{Code: "INVALID_EMAIL", Message: "invalid email address"}
+	}
+
+	// Check if user already exists
+	_, err := s.users.FindByEmail(ctx, email)
+	if err == nil {
+		return "", domain.ErrEmailAlreadyExists
+	}
+	if !errors.Is(err, domain.ErrUserNotFound) {
+		return "", err
+	}
+
+	now := time.Now()
+	user := domain.User{
+		ID:        domain.NewUserID(),
+		Email:     email,
+		Role:      domain.RoleMember,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	if err := s.users.Create(ctx, user); err != nil {
+		return "", err
+	}
+
+	// Issue invite token
+	token, err := issueToken(user, tokenTypeInvite, inviteTokenTTL, s.secret)
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
+}
+
+func (s *authService) CompleteInvite(ctx context.Context, token, displayName, password string) (domain.User, error) {
+	claims, err := s.parseToken(token)
+	if err != nil {
+		return domain.User{}, domain.ErrUnauthorized
+	}
+
+	tokenType, _ := claims[jwtClaimTokenType].(string)
+	if tokenType != tokenTypeInvite {
+		return domain.User{}, domain.ErrUnauthorized
+	}
+
+	sub, err := claims.GetSubject()
+	if err != nil {
+		return domain.User{}, domain.ErrUnauthorized
+	}
+
+	userID, err := domain.ParseUserID(sub)
+	if err != nil {
+		return domain.User{}, domain.ErrUnauthorized
+	}
+
+	user, err := s.users.FindByID(ctx, userID)
+	if err != nil {
+		return domain.User{}, domain.ErrUnauthorized
+	}
+
+	// User must not already have a password (invite not yet completed)
+	if user.PasswordHash != "" {
+		return domain.User{}, &domain.Error{Code: "INVITE_ALREADY_COMPLETED", Message: "this invite has already been used"}
+	}
+
+	if len(password) < minPasswordLen {
+		return domain.User{}, &domain.Error{
+			Code:    "PASSWORD_TOO_SHORT",
+			Message: fmt.Sprintf("password must be at least %d characters", minPasswordLen),
+		}
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
+	if err != nil {
+		return domain.User{}, fmt.Errorf("hash password: %w", err)
+	}
+
+	user.DisplayName = strings.TrimSpace(displayName)
 	user.PasswordHash = string(hash)
 	user.UpdatedAt = time.Now()
 
-	return s.users.Update(ctx, user)
+	if err := s.users.Update(ctx, user); err != nil {
+		return domain.User{}, err
+	}
+
+	return user, nil
 }
 
 func (s *authService) ValidateDaemonJWT(ctx context.Context, token string) (domain.DaemonActor, error) {

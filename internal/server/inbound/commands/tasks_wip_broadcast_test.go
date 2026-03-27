@@ -109,7 +109,7 @@ func TestMoveTask_ToBacklog_EmitsWIPSlotAvailable(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	mock := &servicetest.MockCommands{
-		MoveTaskFunc: func(_ context.Context, pid domain.ProjectID, tid domain.TaskID, targetColumn domain.ColumnSlug) error {
+		MoveTaskFunc: func(_ context.Context, pid domain.ProjectID, tid domain.TaskID, targetColumn domain.ColumnSlug, _ string) error {
 			assert.Equal(t, projectID, pid)
 			assert.Equal(t, taskID, tid)
 			assert.Equal(t, domain.ColumnBacklog, targetColumn)
@@ -150,7 +150,7 @@ func TestCompleteTask_EmitsWIPSlotAvailable(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	mock := &servicetest.MockCommands{
-		CompleteTaskFunc: func(_ context.Context, pid domain.ProjectID, tid domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage) error {
+		CompleteTaskFunc: func(_ context.Context, pid domain.ProjectID, tid domain.TaskID, completionSummary string, filesModified []string, completedByAgent string, tokenUsage *domain.TokenUsage, _ string) error {
 			assert.Equal(t, projectID, pid)
 			assert.Equal(t, taskID, tid)
 			return nil
@@ -193,7 +193,7 @@ func TestMoveTask_ToInProgress_DoesNotEmitWIPSlotAvailable(t *testing.T) {
 	taskID := domain.NewTaskID()
 
 	mock := &servicetest.MockCommands{
-		MoveTaskFunc: func(_ context.Context, pid domain.ProjectID, tid domain.TaskID, targetColumn domain.ColumnSlug) error {
+		MoveTaskFunc: func(_ context.Context, pid domain.ProjectID, tid domain.TaskID, targetColumn domain.ColumnSlug, _ string) error {
 			assert.Equal(t, domain.ColumnInProgress, targetColumn)
 			return nil
 		},

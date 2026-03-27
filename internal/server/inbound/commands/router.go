@@ -28,8 +28,9 @@ func NewRouter(router *mux.Router, app App, ctrl *controller.Controller, hub *we
 	NewSkillCommandsHandler(app, app, ctrl, hub).RegisterRoutes(router)
 	NewSpecializedAgentCommandsHandler(app, app, ctrl, hub).RegisterRoutes(router)
 	NewDockerfileCommandsHandler(app, ctrl).RegisterRoutes(router)
-	NewFeatureCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
+	NewFeatureCommandsHandler(app, ctrl, hub, app).RegisterRoutes(router)
 	NewNotificationCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
+	NewProjectAccessHandler(app, app, ctrl, hub).RegisterRoutes(router)
 
 	if len(chatSvc) > 0 && chatSvc[0] != nil {
 		NewChatsHandler(chatSvc[0], app, ctrl, hub, dataDir).RegisterRoutes(router)

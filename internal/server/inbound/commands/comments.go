@@ -80,7 +80,7 @@ func (h *CommentCommandsHandler) CreateComment(w http.ResponseWriter, r *http.Re
 	// If MarkAsWontDo is true and task is in todo, move to wont_do
 	if req.MarkAsWontDo {
 		// Request won't do with comment content as reason, then approve
-		err = h.commands.RequestWontDo(r.Context(), projectID, taskID, req.Content, req.AuthorName)
+		err = h.commands.RequestWontDo(r.Context(), projectID, taskID, req.Content, req.AuthorName, "")
 		if err != nil {
 			if domain.IsDomainError(err) {
 				h.controller.SendFail(w, r, nil, err)

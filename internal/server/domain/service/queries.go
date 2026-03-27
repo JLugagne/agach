@@ -94,6 +94,13 @@ type SpecializedAgentQueries interface {
 	CountSpecializedByParent(ctx context.Context, parentSlug string) (int, error)
 }
 
+type ProjectAccessQueries interface {
+	ListProjectUserAccess(ctx context.Context, projectID domain.ProjectID) ([]domain.ProjectUserAccess, error)
+	ListProjectTeamAccess(ctx context.Context, projectID domain.ProjectID) ([]domain.ProjectTeamAccess, error)
+	HasProjectAccess(ctx context.Context, projectID domain.ProjectID, userID string, teamIDs []string) (bool, error)
+	ListAccessibleProjectIDs(ctx context.Context, userID string, teamIDs []string) ([]domain.ProjectID, error)
+}
+
 type Queries interface {
 	ProjectQueries
 	TaskQueries
@@ -107,4 +114,5 @@ type Queries interface {
 	NotificationQueries
 	StatsQueries
 	SpecializedAgentQueries
+	ProjectAccessQueries
 }

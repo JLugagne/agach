@@ -14,7 +14,7 @@ type MockFeature struct {
 	FindByIDFunc         func(ctx context.Context, id domain.FeatureID) (*domain.Feature, error)
 	ListFunc             func(ctx context.Context, projectID domain.ProjectID, statusFilter []domain.FeatureStatus) ([]domain.FeatureWithTaskSummary, error)
 	UpdateFunc           func(ctx context.Context, feature domain.Feature) error
-	UpdateStatusFunc     func(ctx context.Context, id domain.FeatureID, status domain.FeatureStatus) error
+	UpdateStatusFunc     func(ctx context.Context, id domain.FeatureID, status domain.FeatureStatus, nodeID string) error
 	DeleteFunc           func(ctx context.Context, id domain.FeatureID) error
 	GetStatsFunc         func(ctx context.Context, projectID domain.ProjectID) (*domain.FeatureStats, error)
 	UpdateChangelogsFunc func(ctx context.Context, id domain.FeatureID, userChangelog, techChangelog *string) error
@@ -49,11 +49,11 @@ func (m *MockFeature) Update(ctx context.Context, feature domain.Feature) error 
 	return m.UpdateFunc(ctx, feature)
 }
 
-func (m *MockFeature) UpdateStatus(ctx context.Context, id domain.FeatureID, status domain.FeatureStatus) error {
+func (m *MockFeature) UpdateStatus(ctx context.Context, id domain.FeatureID, status domain.FeatureStatus, nodeID string) error {
 	if m.UpdateStatusFunc == nil {
 		panic("called not defined UpdateStatusFunc")
 	}
-	return m.UpdateStatusFunc(ctx, id, status)
+	return m.UpdateStatusFunc(ctx, id, status, nodeID)
 }
 
 func (m *MockFeature) Delete(ctx context.Context, id domain.FeatureID) error {
