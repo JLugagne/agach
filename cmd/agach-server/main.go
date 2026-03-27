@@ -210,12 +210,7 @@ type authValidatorAdapter struct {
 }
 
 func (a *authValidatorAdapter) ValidateJWT(ctx context.Context, token string) (any, error) {
-	actor, err := a.q.ValidateJWT(ctx, token)
-	if err == nil {
-		return actor, nil
-	}
-	// Fall back to daemon JWT so daemons can call REST APIs
-	return a.q.ValidateDaemonJWT(ctx, token)
+	return a.q.ValidateJWT(ctx, token)
 }
 
 func getEnv(key, defaultValue string) string {
