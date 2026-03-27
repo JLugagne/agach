@@ -579,7 +579,7 @@ func (r *taskRepository) GetTimeline(ctx context.Context, projectID domain.Proje
 			GROUP BY completed_at::date
 		) co ON co.d = date_series::date
 		ORDER BY date_series ASC`,
-		string(projectID), days,
+		string(projectID), fmt.Sprintf("%d", days),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("get timeline: %w", err)

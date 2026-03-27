@@ -2,6 +2,10 @@ package pg_test
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,10 +24,12 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
-func newTestPool(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	ctx := context.Background()
+// Shared container for all tests in this package — started once in TestMain.
+var sharedConnStr string
+var dbCounter atomic.Int64
 
+func TestMain(m *testing.M) {
+	ctx := context.Background()
 	container, err := tcpostgres.Run(ctx,
 		"postgres:17",
 		tcpostgres.WithDatabase("server_test"),
@@ -31,17 +37,56 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 		tcpostgres.WithPassword("test"),
 		tcpostgres.BasicWaitStrategies(),
 	)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = container.Terminate(ctx) })
-
+	if err != nil {
+		log.Fatalf("failed to start postgres container: %v", err)
+	}
 	connStr, err := container.ConnectionString(ctx, "sslmode=disable")
+	if err != nil {
+		_ = container.Terminate(ctx)
+		log.Fatalf("failed to get connection string: %v", err)
+	}
+	sharedConnStr = connStr
+
+	code := m.Run()
+	_ = container.Terminate(ctx)
+	os.Exit(code)
+}
+
+// newTestPool creates a fresh database within the shared container for test isolation.
+func newTestPool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	ctx := context.Background()
+
+	// Connect to the default database to create a per-test database.
+	adminPool, err := pgxpool.New(ctx, sharedConnStr)
 	require.NoError(t, err)
 
-	pool, err := pgxpool.New(ctx, connStr)
+	dbName := fmt.Sprintf("test_%d", dbCounter.Add(1))
+	_, err = adminPool.Exec(ctx, "CREATE DATABASE "+dbName)
+	require.NoError(t, err)
+	adminPool.Close()
+
+	// Build connection string for the new database.
+	// Replace the database name in the connection string.
+	testConnStr := replaceDBName(sharedConnStr, dbName)
+
+	pool, err := pgxpool.New(ctx, testConnStr)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 
 	return pool
+}
+
+// replaceDBName swaps the database name in a postgres connection string.
+func replaceDBName(connStr, newDB string) string {
+	// connStr looks like: postgres://test:test@host:port/server_test?sslmode=disable
+	// Replace /server_test with /newDB
+	cfg, err := pgxpool.ParseConfig(connStr)
+	if err != nil {
+		return connStr
+	}
+	cfg.ConnConfig.Database = newDB
+	return cfg.ConnConfig.ConnString()
 }
 
 type testRepos struct {
