@@ -46,7 +46,7 @@ func TestApp_CreateRole_EmptySlug_ReturnsError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
-	assert.ErrorIs(t, err, domain.ErrRoleSlugRequired)
+	assert.ErrorIs(t, err, domain.ErrAgentSlugRequired)
 }
 
 func TestApp_CreateRole_EmptyName_ReturnsError(t *testing.T) {
@@ -57,7 +57,7 @@ func TestApp_CreateRole_EmptyName_ReturnsError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
-	assert.ErrorIs(t, err, domain.ErrRoleNameRequired)
+	assert.ErrorIs(t, err, domain.ErrAgentNameRequired)
 }
 
 func TestApp_UpdateRole_Success(t *testing.T) {
@@ -109,7 +109,7 @@ func TestApp_UpdateRole_NotFound_ReturnsError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 func TestApp_DeleteRole_Success(t *testing.T) {
@@ -153,7 +153,7 @@ func TestApp_DeleteRole_NotFound_ReturnsError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 // Role Query Tests
@@ -196,7 +196,7 @@ func TestApp_GetRole_NotFound_ReturnsError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 func TestApp_GetRoleBySlug_Success(t *testing.T) {
@@ -234,7 +234,7 @@ func TestApp_GetRoleBySlug_NotFound_ReturnsError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 func TestApp_ListRoles_Success(t *testing.T) {
@@ -290,7 +290,7 @@ func TestApp_CreateProjectRole_EmptySlug_ReturnsError(t *testing.T) {
 	_, err := a.CreateProjectAgent(ctx, domain.NewProjectID(), "", "Developer", "", "", "", "", "", "", "", nil, 0)
 
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, domain.ErrRoleSlugRequired)
+	assert.ErrorIs(t, err, domain.ErrAgentSlugRequired)
 }
 
 func TestApp_CreateProjectRole_EmptyName_ReturnsError(t *testing.T) {
@@ -300,7 +300,7 @@ func TestApp_CreateProjectRole_EmptyName_ReturnsError(t *testing.T) {
 	_, err := a.CreateProjectAgent(ctx, domain.NewProjectID(), "dev", "", "", "", "", "", "", "", "", nil, 0)
 
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, domain.ErrRoleNameRequired)
+	assert.ErrorIs(t, err, domain.ErrAgentNameRequired)
 }
 
 func TestApp_CreateProjectRole_AlreadyExists_ReturnsError(t *testing.T) {
@@ -317,7 +317,7 @@ func TestApp_CreateProjectRole_AlreadyExists_ReturnsError(t *testing.T) {
 	_, err := a.CreateProjectAgent(ctx, projectID, "dev", "Developer", "", "", "", "", "", "", "", nil, 0)
 
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, domain.ErrRoleAlreadyExists)
+	assert.ErrorIs(t, err, domain.ErrAgentAlreadyExists)
 }
 
 func TestApp_UpdateProjectRole_Success(t *testing.T) {
@@ -358,7 +358,7 @@ func TestApp_UpdateProjectRole_NotFound_ReturnsError(t *testing.T) {
 	err := a.UpdateProjectAgent(ctx, domain.NewProjectID(), domain.NewRoleID(), "New Name", "", "", "", "", "", "", "", nil, 0)
 
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 func TestApp_DeleteProjectRole_Success(t *testing.T) {
@@ -395,7 +395,7 @@ func TestApp_DeleteProjectRole_NotFound_ReturnsError(t *testing.T) {
 	err := a.DeleteProjectAgent(ctx, domain.NewProjectID(), domain.NewRoleID())
 
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 func TestApp_ListProjectRoles_Success(t *testing.T) {
@@ -451,5 +451,5 @@ func TestApp_GetProjectRoleBySlug_NotFound_ReturnsError(t *testing.T) {
 	_, err := a.GetProjectAgentBySlug(ctx, domain.NewProjectID(), "nonexistent")
 
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }

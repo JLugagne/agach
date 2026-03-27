@@ -86,7 +86,7 @@ func TestCloneRole_SourceNotFound(t *testing.T) {
 	a := newAgentMgmtApp(nil, mockRoles, nil, nil)
 
 	_, err := a.CloneAgent(ctx, "missing", "new-slug", "")
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 func TestCloneRole_NewSlugTaken(t *testing.T) {
@@ -108,7 +108,7 @@ func TestCloneRole_NewSlugTaken(t *testing.T) {
 	a := newAgentMgmtApp(nil, mockRoles, nil, nil)
 
 	_, err := a.CloneAgent(ctx, "base", "taken", "")
-	assert.ErrorIs(t, err, domain.ErrRoleAlreadyExists)
+	assert.ErrorIs(t, err, domain.ErrAgentAlreadyExists)
 }
 
 func TestCloneRole_EmptyNewSlug(t *testing.T) {
@@ -116,7 +116,7 @@ func TestCloneRole_EmptyNewSlug(t *testing.T) {
 	a := newAgentMgmtApp(nil, &agentstest.MockRoleRepository{}, nil, nil)
 
 	_, err := a.CloneAgent(ctx, "base", "", "")
-	assert.ErrorIs(t, err, domain.ErrRoleSlugRequired)
+	assert.ErrorIs(t, err, domain.ErrAgentSlugRequired)
 }
 
 // TestAssignAgentToProject
@@ -150,7 +150,7 @@ func TestAssignAgentToProject_EmptySlug(t *testing.T) {
 	a := newAgentMgmtApp(nil, &agentstest.MockRoleRepository{}, nil, nil)
 
 	err := a.AssignAgentToProject(ctx, domain.NewProjectID(), "")
-	assert.ErrorIs(t, err, domain.ErrRoleSlugRequired)
+	assert.ErrorIs(t, err, domain.ErrAgentSlugRequired)
 }
 
 func TestAssignAgentToProject_ProjectNotFound(t *testing.T) {
@@ -181,7 +181,7 @@ func TestAssignAgentToProject_RoleNotFound(t *testing.T) {
 	a := newAgentMgmtApp(mockProjects, mockRoles, nil, nil)
 
 	err := a.AssignAgentToProject(ctx, domain.NewProjectID(), "missing")
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 func TestAssignAgentToProject_AlreadyAssigned(t *testing.T) {
@@ -414,7 +414,7 @@ func TestBulkReassignTasks_EmptyOldSlug(t *testing.T) {
 	a := newAgentMgmtApp(nil, nil, nil, nil)
 
 	_, err := a.BulkReassignTasks(ctx, domain.NewProjectID(), "", "backend")
-	assert.ErrorIs(t, err, domain.ErrRoleSlugRequired)
+	assert.ErrorIs(t, err, domain.ErrAgentSlugRequired)
 }
 
 func TestBulkReassignTasks_NewSlugNotFound(t *testing.T) {
@@ -434,7 +434,7 @@ func TestBulkReassignTasks_NewSlugNotFound(t *testing.T) {
 	a := newAgentMgmtApp(mockProjects, mockRoles, nil, nil)
 
 	_, err := a.BulkReassignTasks(ctx, projectID, "frontend", "missing")
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 // TestAddSkillToAgent
@@ -473,7 +473,7 @@ func TestAddSkillToAgent_AgentNotFound(t *testing.T) {
 	a := newAgentMgmtApp(nil, mockRoles, nil, nil)
 
 	err := a.AddSkillToAgent(ctx, "missing", "go-tools")
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 func TestAddSkillToAgent_SkillNotFound(t *testing.T) {
@@ -530,7 +530,7 @@ func TestRemoveSkillFromAgent_AgentNotFound(t *testing.T) {
 	a := newAgentMgmtApp(nil, mockRoles, nil, nil)
 
 	err := a.RemoveSkillFromAgent(ctx, "missing", "go-tools")
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 func TestRemoveSkillFromAgent_SkillNotFound(t *testing.T) {

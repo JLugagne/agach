@@ -7,6 +7,7 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/tasks"
+	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +43,7 @@ func TestApp_CreateTask_Success(t *testing.T) {
 		return []domain.TaskWithDetails{}, nil
 	}
 
-	task, err := a.CreateTask(ctx, projectID, "Test Task", "Test summary", "Task description", domain.PriorityMedium, "architect", "agent1", "", nil, nil, "", false, nil)
+	task, err := a.CreateTask(ctx, projectID, service.CreateTaskInput{Title: "Test Task", Summary: "Test summary", Description: "Task description", Priority: domain.PriorityMedium, CreatedByRole: "architect", CreatedByAgent: "agent1"})
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, task.ID)
@@ -60,7 +61,7 @@ func TestApp_CreateTask_EmptyTitle_ReturnsError(t *testing.T) {
 
 	projectID := domain.NewProjectID()
 
-	_, err := a.CreateTask(ctx, projectID, "", "Summary", "Description", domain.PriorityMedium, "architect", "agent1", "", nil, nil, "", false, nil)
+	_, err := a.CreateTask(ctx, projectID, service.CreateTaskInput{Title: "", Summary: "Summary", Description: "Description", Priority: domain.PriorityMedium, CreatedByRole: "architect", CreatedByAgent: "agent1"})
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -73,7 +74,7 @@ func TestApp_CreateTask_EmptySummary_ReturnsError(t *testing.T) {
 
 	projectID := domain.NewProjectID()
 
-	_, err := a.CreateTask(ctx, projectID, "Test Task", "", "Description", domain.PriorityMedium, "architect", "agent1", "", nil, nil, "", false, nil)
+	_, err := a.CreateTask(ctx, projectID, service.CreateTaskInput{Title: "Test Task", Summary: "", Description: "Description", Priority: domain.PriorityMedium, CreatedByRole: "architect", CreatedByAgent: "agent1"})
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))
@@ -90,7 +91,7 @@ func TestApp_CreateTask_ProjectNotFound_ReturnsError(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	_, err := a.CreateTask(ctx, projectID, "Test Task", "Summary", "Description", domain.PriorityMedium, "architect", "agent1", "", nil, nil, "", false, nil)
+	_, err := a.CreateTask(ctx, projectID, service.CreateTaskInput{Title: "Test Task", Summary: "Summary", Description: "Description", Priority: domain.PriorityMedium, CreatedByRole: "architect", CreatedByAgent: "agent1"})
 
 	assert.Error(t, err)
 	assert.True(t, domain.IsDomainError(err))

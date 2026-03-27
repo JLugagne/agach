@@ -48,13 +48,13 @@ func newTaskService(
 	}
 }
 
-func (s *TaskService) CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.FeatureID) (domain.Task, error) {
+func (s *TaskService) CreateTask(ctx context.Context, projectID domain.ProjectID, input service.CreateTaskInput) (domain.Task, error) {
 	logger := s.logger.WithContext(ctx).WithField("projectID", projectID)
 
-	if title == "" {
+	if input.Title == "" {
 		return domain.Task{}, domain.ErrTaskTitleRequired
 	}
-	if summary == "" {
+	if input.Summary == "" {
 		return domain.Task{}, domain.ErrSummaryRequired
 	}
 
@@ -67,8 +67,8 @@ func (s *TaskService) CreateTask(ctx context.Context, projectID domain.ProjectID
 		return domain.Task{}, domain.ErrProjectNotFound
 	}
 
-	if featureID != nil {
-		featureProject, err := s.projects.FindByID(ctx, domain.ProjectID(string(*featureID)))
+	if input.FeatureID != nil {
+		featureProject, err := s.projects.FindByID(ctx, domain.ProjectID(string(*input.FeatureID)))
 		if err != nil || featureProject == nil {
 			return domain.Task{}, domain.ErrProjectNotFound
 		}
@@ -78,7 +78,7 @@ func (s *TaskService) CreateTask(ctx context.Context, projectID domain.ProjectID
 	}
 
 	var targetColumn *domain.Column
-	if startInBacklog {
+	if input.StartInBacklog {
 		targetColumn, err = s.columns.EnsureBacklog(ctx, projectID)
 		if err != nil {
 			logger.WithError(err).Error("failed to ensure backlog column")
@@ -95,9 +95,9 @@ func (s *TaskService) CreateTask(ctx context.Context, projectID domain.ProjectID
 		return domain.Task{}, domain.ErrColumnNotFound
 	}
 
-	priorityScore := priority.Score()
+	priorityScore := input.Priority.Score()
 
-	existingTasks, err := s.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &targetColumn.Slug})
+	existingTasks, err := s.tasks.List(ctx, projectID, service.TaskFilters{ColumnSlug: &targetColumn.Slug})
 	if err != nil {
 		logger.WithError(err).Error("failed to list existing tasks")
 		return domain.Task{}, err
@@ -107,19 +107,19 @@ func (s *TaskService) CreateTask(ctx context.Context, projectID domain.ProjectID
 	task := domain.Task{
 		ID:              domain.NewTaskID(),
 		ColumnID:        targetColumn.ID,
-		FeatureID:       featureID,
-		Title:           title,
-		Summary:         summary,
-		Description:     description,
-		Priority:        priority,
+		FeatureID:       input.FeatureID,
+		Title:           input.Title,
+		Summary:         input.Summary,
+		Description:     input.Description,
+		Priority:        input.Priority,
 		PriorityScore:   priorityScore,
 		Position:        nextPosition,
-		CreatedByRole:   createdByRole,
-		CreatedByAgent:  createdByAgent,
-		AssignedRole:    assignedRole,
-		ContextFiles:    contextFiles,
-		Tags:            tags,
-		EstimatedEffort: estimatedEffort,
+		CreatedByRole:   input.CreatedByRole,
+		CreatedByAgent:  input.CreatedByAgent,
+		AssignedRole:    input.AssignedRole,
+		ContextFiles:    input.ContextFiles,
+		Tags:            input.Tags,
+		EstimatedEffort: input.EstimatedEffort,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
@@ -184,11 +184,11 @@ func (s *TaskService) BulkCreateTasks(ctx context.Context, projectID domain.Proj
 
 	backlogSlug := domain.ColumnBacklog
 	todoSlug := domain.ColumnTodo
-	backlogTasks, err := s.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &backlogSlug})
+	backlogTasks, err := s.tasks.List(ctx, projectID, service.TaskFilters{ColumnSlug: &backlogSlug})
 	if err != nil {
 		return nil, err
 	}
-	todoTasks, err := s.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &todoSlug})
+	todoTasks, err := s.tasks.List(ctx, projectID, service.TaskFilters{ColumnSlug: &todoSlug})
 	if err != nil {
 		return nil, err
 	}
@@ -479,7 +479,7 @@ func (s *TaskService) MoveTask(ctx context.Context, projectID domain.ProjectID, 
 		}
 	}
 
-	targetTasks, err := s.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &targetColumnSlug})
+	targetTasks, err := s.tasks.List(ctx, projectID, service.TaskFilters{ColumnSlug: &targetColumnSlug})
 	if err != nil {
 		logger.WithError(err).Error("failed to list target column tasks")
 		return err
@@ -582,7 +582,7 @@ func (s *TaskService) CompleteTask(ctx context.Context, projectID domain.Project
 		return domain.ErrColumnNotFound
 	}
 
-	doneTasks, err := s.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &doneColumn.Slug})
+	doneTasks, err := s.tasks.List(ctx, projectID, service.TaskFilters{ColumnSlug: &doneColumn.Slug})
 	if err != nil {
 		logger.WithError(err).Error("failed to list done tasks")
 		return err
@@ -653,7 +653,7 @@ func (s *TaskService) BlockTask(ctx context.Context, projectID domain.ProjectID,
 		return domain.ErrColumnNotFound
 	}
 
-	blockedTasks, err := s.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &blockedColumn.Slug})
+	blockedTasks, err := s.tasks.List(ctx, projectID, service.TaskFilters{ColumnSlug: &blockedColumn.Slug})
 	if err != nil {
 		logger.WithError(err).Error("failed to list blocked tasks")
 		return err
@@ -755,7 +755,7 @@ func (s *TaskService) RequestWontDo(ctx context.Context, projectID domain.Projec
 		return domain.ErrColumnNotFound
 	}
 
-	blockedTasks, err := s.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &blockedColumn.Slug})
+	blockedTasks, err := s.tasks.List(ctx, projectID, service.TaskFilters{ColumnSlug: &blockedColumn.Slug})
 	if err != nil {
 		logger.WithError(err).Error("failed to list blocked tasks")
 		return err
@@ -823,7 +823,7 @@ func (s *TaskService) ApproveWontDo(ctx context.Context, projectID domain.Projec
 		return domain.ErrColumnNotFound
 	}
 
-	doneTasks, err := s.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &doneColumn.Slug})
+	doneTasks, err := s.tasks.List(ctx, projectID, service.TaskFilters{ColumnSlug: &doneColumn.Slug})
 	if err != nil {
 		logger.WithError(err).Error("failed to list done tasks")
 		return err
@@ -904,7 +904,7 @@ func (s *TaskService) RejectWontDo(ctx context.Context, projectID domain.Project
 		return domain.ErrColumnNotFound
 	}
 
-	todoTasks, err := s.tasks.List(ctx, projectID, tasks.TaskFilters{ColumnSlug: &todoColumn.Slug})
+	todoTasks, err := s.tasks.List(ctx, projectID, service.TaskFilters{ColumnSlug: &todoColumn.Slug})
 	if err != nil {
 		logger.WithError(err).Error("failed to list todo tasks")
 		return err
@@ -961,7 +961,7 @@ func (s *TaskService) GetTask(ctx context.Context, projectID domain.ProjectID, t
 	return task, nil
 }
 
-func (s *TaskService) ListTasks(ctx context.Context, projectID domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error) {
+func (s *TaskService) ListTasks(ctx context.Context, projectID domain.ProjectID, filters service.TaskFilters) ([]domain.TaskWithDetails, error) {
 	logger := s.logger.WithContext(ctx).WithField("projectID", projectID)
 
 	project, err := s.projects.FindByID(ctx, projectID)
@@ -1004,7 +1004,7 @@ func (s *TaskService) GetNextTask(ctx context.Context, projectID domain.ProjectI
 
 	todoSlug := domain.ColumnTodo
 	falseVal := false
-	filters := tasks.TaskFilters{
+	filters := service.TaskFilters{
 		ColumnSlug:      &todoSlug,
 		IsBlocked:       &falseVal,
 		WontDoRequested: &falseVal,

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
-	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/tasks"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 )
 
@@ -28,7 +27,7 @@ type MockCommands struct {
 	CreateProjectAgentFunc       func(ctx context.Context, projectID domain.ProjectID, slug, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) (domain.Agent, error)
 	UpdateProjectAgentFunc       func(ctx context.Context, projectID domain.ProjectID, roleID domain.AgentID, name, icon, color, description, promptHint, promptTemplate, model, thinking string, techStack []string, sortOrder int) error
 	DeleteProjectAgentFunc       func(ctx context.Context, projectID domain.ProjectID, roleID domain.AgentID) error
-	CreateTaskFunc               func(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.FeatureID) (domain.Task, error)
+	CreateTaskFunc               func(ctx context.Context, projectID domain.ProjectID, input service.CreateTaskInput) (domain.Task, error)
 	BulkCreateTasksFunc          func(ctx context.Context, projectID domain.ProjectID, inputs []service.BulkTaskInput) ([]domain.Task, error)
 	UpdateTaskFunc               func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.FeatureID, clearFeature bool) error
 	UpdateTaskFilesFunc          func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error
@@ -147,11 +146,11 @@ func (m *MockCommands) DeleteProjectAgent(ctx context.Context, projectID domain.
 	return m.DeleteProjectAgentFunc(ctx, projectID, roleID)
 }
 
-func (m *MockCommands) CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.FeatureID) (domain.Task, error) {
+func (m *MockCommands) CreateTask(ctx context.Context, projectID domain.ProjectID, input service.CreateTaskInput) (domain.Task, error) {
 	if m.CreateTaskFunc == nil {
 		panic("called not defined CreateTaskFunc")
 	}
-	return m.CreateTaskFunc(ctx, projectID, title, summary, description, priority, createdByRole, createdByAgent, assignedRole, contextFiles, tags, estimatedEffort, startInBacklog, featureID)
+	return m.CreateTaskFunc(ctx, projectID, input)
 }
 
 func (m *MockCommands) BulkCreateTasks(ctx context.Context, projectID domain.ProjectID, inputs []service.BulkTaskInput) ([]domain.Task, error) {
@@ -540,7 +539,7 @@ type MockQueries struct {
 	ListProjectAgentsFunc             func(ctx context.Context, projectID domain.ProjectID) ([]domain.Agent, error)
 	GetProjectAgentBySlugFunc         func(ctx context.Context, projectID domain.ProjectID, slug string) (*domain.Agent, error)
 	GetTaskFunc                       func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (*domain.Task, error)
-	ListTasksFunc                     func(ctx context.Context, projectID domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error)
+	ListTasksFunc                     func(ctx context.Context, projectID domain.ProjectID, filters service.TaskFilters) ([]domain.TaskWithDetails, error)
 	GetNextTaskFunc                   func(ctx context.Context, projectID domain.ProjectID, role string, featureID *domain.ProjectID) (*domain.Task, error)
 	GetNextTasksFunc                  func(ctx context.Context, projectID domain.ProjectID, role string, count int, featureID *domain.ProjectID) ([]domain.Task, error)
 	GetDependencyContextFunc          func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.DependencyContext, error)
@@ -675,7 +674,7 @@ func (m *MockQueries) GetTask(ctx context.Context, projectID domain.ProjectID, t
 	return m.GetTaskFunc(ctx, projectID, taskID)
 }
 
-func (m *MockQueries) ListTasks(ctx context.Context, projectID domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error) {
+func (m *MockQueries) ListTasks(ctx context.Context, projectID domain.ProjectID, filters service.TaskFilters) ([]domain.TaskWithDetails, error) {
 	if m.ListTasksFunc == nil {
 		panic("called not defined ListTasksFunc")
 	}

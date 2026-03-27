@@ -15,10 +15,11 @@ import (
 
 // FeatureCommandsHandler handles feature write operations
 type FeatureCommandsHandler struct {
-	commands   service.Commands
-	queries    service.Queries
-	controller *controller.Controller
-	hub        *websocket.Hub
+	commands     service.Commands
+	queries      service.Queries
+	controller   *controller.Controller
+	hub          *websocket.Hub
+	teamResolver TeamIDResolver
 }
 
 // NewFeatureCommandsHandler creates a new feature commands handler.
@@ -35,13 +36,12 @@ func NewFeatureCommandsHandler(commands service.Commands, ctrl *controller.Contr
 	return h
 }
 
+// SetTeamResolver injects a TeamIDResolver for project access checks.
+func (h *FeatureCommandsHandler) SetTeamResolver(tr TeamIDResolver) { h.teamResolver = tr }
+
 // CheckAccess verifies the caller has access to the given project.
-// TODO(security): extract userID and teamIDs from context actor before calling HasProjectAccess.
 func (h *FeatureCommandsHandler) CheckAccess(r *http.Request, projectID domain.ProjectID) bool {
-	if h.queries != nil {
-		_, _ = h.queries.HasProjectAccess(r.Context(), projectID, "", nil)
-	}
-	return true
+	return checkProjectAccess(r, projectID, h.queries, h.teamResolver)
 }
 
 func (h *FeatureCommandsHandler) verifyFeatureOwnership(w http.ResponseWriter, r *http.Request, projectID domain.ProjectID, featureID domain.FeatureID) bool {

@@ -2,9 +2,9 @@ package tasks
 
 import (
 	"context"
-	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
+	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 )
 
 // TaskRepository defines operations for managing tasks within a project
@@ -16,7 +16,7 @@ type TaskRepository interface {
 	FindByID(ctx context.Context, projectID domain.ProjectID, id domain.TaskID) (*domain.Task, error)
 
 	// List retrieves tasks with optional filters
-	List(ctx context.Context, projectID domain.ProjectID, filters TaskFilters) ([]domain.TaskWithDetails, error)
+	List(ctx context.Context, projectID domain.ProjectID, filters service.TaskFilters) ([]domain.TaskWithDetails, error)
 
 	// Update updates a task
 	Update(ctx context.Context, projectID domain.ProjectID, task domain.Task) error
@@ -77,17 +77,5 @@ type TaskRepository interface {
 	GetModelTokenStats(ctx context.Context, projectID domain.ProjectID) ([]domain.ModelTokenStat, error)
 }
 
-// TaskFilters defines optional filters for listing tasks
-type TaskFilters struct {
-	ColumnSlug      *domain.ColumnSlug
-	FeatureID       *domain.FeatureID
-	AssignedRole    *string
-	Tag             *string
-	Priority        *domain.Priority
-	IsBlocked       *bool
-	WontDoRequested *bool
-	UpdatedSince    *time.Time
-	Search          string // Full-text search query (matches title, summary, description, tags)
-	Limit           int    // 0 means no limit
-	Offset          int
-}
+// TaskFilters is an alias for service.TaskFilters kept for backward compatibility.
+type TaskFilters = service.TaskFilters

@@ -20,6 +20,7 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	tasksrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/tasks"
+	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -579,8 +580,9 @@ func TestSecurity_GREEN_CreateTask_EmptyTitleIsRejected(t *testing.T) {
 		return &domain.Project{ID: projectID, Name: "P"}, nil
 	}
 
-	_, err := a.CreateTask(ctx, projectID, "", "summary", "desc",
-		domain.PriorityMedium, "", "", "", nil, nil, "", false, nil)
+	_, err := a.CreateTask(ctx, projectID, service.CreateTaskInput{
+		Title: "", Summary: "summary", Description: "desc", Priority: domain.PriorityMedium,
+	})
 
 	assert.ErrorIs(t, err, domain.ErrTaskTitleRequired,
 		"empty task title must be rejected with ErrTaskTitleRequired")
@@ -598,8 +600,9 @@ func TestSecurity_GREEN_CreateTask_EmptySummaryIsRejected(t *testing.T) {
 		return &domain.Project{ID: projectID, Name: "P"}, nil
 	}
 
-	_, err := a.CreateTask(ctx, projectID, "Valid title", "", "desc",
-		domain.PriorityMedium, "", "", "", nil, nil, "", false, nil)
+	_, err := a.CreateTask(ctx, projectID, service.CreateTaskInput{
+		Title: "Valid title", Summary: "", Description: "desc", Priority: domain.PriorityMedium,
+	})
 
 	assert.ErrorIs(t, err, domain.ErrSummaryRequired,
 		"empty task summary must be rejected with ErrSummaryRequired")

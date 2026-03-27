@@ -15,10 +15,11 @@ import (
 
 // CommentCommandsHandler handles comment write operations
 type CommentCommandsHandler struct {
-	commands   service.Commands
-	queries    service.Queries
-	controller *controller.Controller
-	hub        *websocket.Hub
+	commands     service.Commands
+	queries      service.Queries
+	controller   *controller.Controller
+	hub          *websocket.Hub
+	teamResolver TeamIDResolver
 }
 
 // NewCommentCommandsHandler creates a new comment commands handler (without ownership validation).
@@ -40,13 +41,12 @@ func NewCommentCommandsHandlerWithQueries(commands service.Commands, queries ser
 	}
 }
 
+// SetTeamResolver injects a TeamIDResolver for project access checks.
+func (h *CommentCommandsHandler) SetTeamResolver(tr TeamIDResolver) { h.teamResolver = tr }
+
 // CheckAccess verifies the caller has access to the given project.
-// TODO(security): extract userID and teamIDs from context actor before calling HasProjectAccess.
 func (h *CommentCommandsHandler) CheckAccess(r *http.Request, projectID domain.ProjectID) bool {
-	if h.queries != nil {
-		_, _ = h.queries.HasProjectAccess(r.Context(), projectID, "", nil)
-	}
-	return true
+	return checkProjectAccess(r, projectID, h.queries, h.teamResolver)
 }
 
 // RegisterRoutes registers comment command routes

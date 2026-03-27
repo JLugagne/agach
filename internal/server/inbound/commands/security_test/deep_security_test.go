@@ -43,6 +43,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
+	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service/servicetest"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/commands"
 	"github.com/gorilla/mux"
@@ -425,11 +426,11 @@ func TestSecurity_SEC04_UnboundedArraysPassValidation_RED(t *testing.T) {
 	var receivedTagsCount int
 
 	cmds := &servicetest.MockCommands{
-		CreateTaskFunc: func(ctx context.Context, pID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.FeatureID) (domain.Task, error) {
+		CreateTaskFunc: func(ctx context.Context, pID domain.ProjectID, input service.CreateTaskInput) (domain.Task, error) {
 			createCalled = true
-			receivedContextFilesCount = len(contextFiles)
-			receivedTagsCount = len(tags)
-			return domain.Task{ID: domain.NewTaskID(), Title: title}, nil
+			receivedContextFilesCount = len(input.ContextFiles)
+			receivedTagsCount = len(input.Tags)
+			return domain.Task{ID: domain.NewTaskID(), Title: input.Title}, nil
 		},
 	}
 	qrs := &servicetest.MockQueries{}
@@ -483,9 +484,9 @@ func TestSecurity_SEC04_UnboundedArraysPassValidation_RED(t *testing.T) {
 func TestSecurity_SEC04_ReasonableSizedArraysAccepted_GREEN(t *testing.T) {
 	createCalled := false
 	cmds := &servicetest.MockCommands{
-		CreateTaskFunc: func(ctx context.Context, pID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.FeatureID) (domain.Task, error) {
+		CreateTaskFunc: func(ctx context.Context, pID domain.ProjectID, input service.CreateTaskInput) (domain.Task, error) {
 			createCalled = true
-			return domain.Task{ID: domain.NewTaskID(), Title: title}, nil
+			return domain.Task{ID: domain.NewTaskID(), Title: input.Title}, nil
 		},
 	}
 	qrs := &servicetest.MockQueries{}

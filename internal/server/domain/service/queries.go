@@ -2,10 +2,25 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
-	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/tasks"
 )
+
+// TaskFilters defines optional filters for listing tasks
+type TaskFilters struct {
+	ColumnSlug      *domain.ColumnSlug
+	FeatureID       *domain.FeatureID
+	AssignedRole    *string
+	Tag             *string
+	Priority        *domain.Priority
+	IsBlocked       *bool
+	WontDoRequested *bool
+	UpdatedSince    *time.Time
+	Search          string
+	Limit           int
+	Offset          int
+}
 
 type ProjectQueries interface {
 	GetProject(ctx context.Context, projectID domain.ProjectID) (*domain.Project, error)
@@ -19,7 +34,7 @@ type ProjectQueries interface {
 
 type TaskQueries interface {
 	GetTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) (*domain.Task, error)
-	ListTasks(ctx context.Context, projectID domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error)
+	ListTasks(ctx context.Context, projectID domain.ProjectID, filters TaskFilters) ([]domain.TaskWithDetails, error)
 	GetNextTask(ctx context.Context, projectID domain.ProjectID, role string, featureID *domain.ProjectID) (*domain.Task, error)
 	GetNextTasks(ctx context.Context, projectID domain.ProjectID, role string, count int, featureID *domain.ProjectID) ([]domain.Task, error)
 	GetDependencyContext(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID) ([]domain.DependencyContext, error)

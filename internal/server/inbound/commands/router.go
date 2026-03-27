@@ -14,24 +14,46 @@ type App interface {
 	service.Queries
 }
 
+// RouterOptions holds optional dependencies for the command router.
+type RouterOptions struct {
+	ChatService  service.ChatService
+	TeamResolver TeamIDResolver
+}
+
 // NewRouter wires all command handlers onto the given router.
 // chatSvc is optional: when provided the chat command routes are registered.
-func NewRouter(router *mux.Router, app App, ctrl *controller.Controller, hub *websocket.Hub, dataDir string, chatSvc ...service.ChatService) {
+func NewRouter(router *mux.Router, app App, ctrl *controller.Controller, hub *websocket.Hub, dataDir string, opts ...RouterOptions) {
+	var opt RouterOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
 	NewProjectCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
 	NewAgentCommandsHandler(app, app, ctrl, hub).RegisterRoutes(router)
-	NewTaskCommandsHandler(app, ctrl, hub, app).RegisterRoutes(router)
-	NewCommentCommandsHandlerWithQueries(app, app, ctrl, hub).RegisterRoutes(router)
+
+	taskHandler := NewTaskCommandsHandler(app, ctrl, hub, app)
+	taskHandler.SetTeamResolver(opt.TeamResolver)
+	taskHandler.RegisterRoutes(router)
+
+	commentHandler := NewCommentCommandsHandlerWithQueries(app, app, ctrl, hub)
+	commentHandler.SetTeamResolver(opt.TeamResolver)
+	commentHandler.RegisterRoutes(router)
+
 	NewImageCommandsHandler(app, ctrl).RegisterRoutes(router)
 	NewSeenCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
 	NewProjectAgentCommandsHandler(app, app, ctrl, hub).RegisterRoutes(router)
 	NewSkillCommandsHandler(app, app, ctrl, hub).RegisterRoutes(router)
 	NewSpecializedAgentCommandsHandler(app, app, ctrl, hub).RegisterRoutes(router)
 	NewDockerfileCommandsHandler(app, ctrl).RegisterRoutes(router)
-	NewFeatureCommandsHandler(app, ctrl, hub, app).RegisterRoutes(router)
+
+	featureHandler := NewFeatureCommandsHandler(app, ctrl, hub, app)
+	featureHandler.SetTeamResolver(opt.TeamResolver)
+	featureHandler.RegisterRoutes(router)
+
 	NewNotificationCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
 	NewProjectAccessHandler(app, app, ctrl, hub).RegisterRoutes(router)
 
-	if len(chatSvc) > 0 && chatSvc[0] != nil {
-		NewChatsHandler(chatSvc[0], app, ctrl, hub, dataDir).RegisterRoutes(router)
+	if opt.ChatService != nil {
+		NewChatsHandler(opt.ChatService, app, ctrl, hub, dataDir).RegisterRoutes(router)
 	}
 }

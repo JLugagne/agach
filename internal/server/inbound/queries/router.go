@@ -22,7 +22,7 @@ func NewRouter(router *mux.Router, app service.Queries, ctrl *controller.Control
 	}
 	NewProjectQueriesHandler(app, ctrl, resolver).RegisterRoutes(router)
 	NewAgentQueriesHandler(app, ctrl).RegisterRoutes(router)
-	NewTaskQueriesHandler(app, ctrl).RegisterRoutes(router)
+	NewTaskQueriesHandler(app, ctrl, resolver).RegisterRoutes(router)
 	NewCommentQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewDependencyQueriesHandler(app, ctrl).RegisterRoutes(router)
 	NewToolUsageQueriesHandler(app, ctrl).RegisterRoutes(router)

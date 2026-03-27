@@ -33,7 +33,8 @@ type App struct {
 	*DependencyService
 	*SpecializedAgentService
 	*ProjectAccessService
-	chats *ChatService
+	chats      *ChatService
+	fileReader FileReader
 }
 
 // Config holds the dependencies for the App
@@ -76,6 +77,7 @@ func NewApp(cfg Config) *App {
 		SpecializedAgentService: newSpecializedAgentService(cfg.Agents, cfg.Skills, cfg.Specialized, cfg.Logger),
 		ProjectAccessService:    newProjectAccessService(cfg.ProjectAccess, cfg.Logger),
 		chats:                   cfg.Chats,
+		fileReader:              osFileReader{},
 	}
 }
 

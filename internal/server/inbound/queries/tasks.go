@@ -7,7 +7,6 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
-	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/tasks"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/converters"
 	"github.com/JLugagne/agach-mcp/pkg/apierror"
@@ -24,23 +23,26 @@ const (
 
 // TaskQueriesHandler handles task read operations
 type TaskQueriesHandler struct {
-	queries    service.Queries
-	controller *controller.Controller
+	queries      service.Queries
+	controller   *controller.Controller
+	teamResolver TeamIDResolver
 }
 
 // CheckAccess verifies the caller has access to the given project.
-// TODO(security): extract userID and teamIDs from context actor before calling HasProjectAccess.
 func (h *TaskQueriesHandler) CheckAccess(r *http.Request, projectID domain.ProjectID) bool {
-	_, _ = h.queries.HasProjectAccess(r.Context(), projectID, "", nil)
-	return true
+	return checkProjectAccess(r, projectID, h.queries, h.teamResolver)
 }
 
 // NewTaskQueriesHandler creates a new task queries handler
-func NewTaskQueriesHandler(queries service.Queries, ctrl *controller.Controller) *TaskQueriesHandler {
-	return &TaskQueriesHandler{
+func NewTaskQueriesHandler(queries service.Queries, ctrl *controller.Controller, teamResolver ...TeamIDResolver) *TaskQueriesHandler {
+	h := &TaskQueriesHandler{
 		queries:    queries,
 		controller: ctrl,
 	}
+	if len(teamResolver) > 0 {
+		h.teamResolver = teamResolver[0]
+	}
+	return h
 }
 
 // RegisterRoutes registers task query routes
@@ -58,7 +60,7 @@ func (h *TaskQueriesHandler) RegisterRoutes(router *mux.Router) {
 func (h *TaskQueriesHandler) SearchTasks(w http.ResponseWriter, r *http.Request) {
 	projectID := domain.ProjectID(mux.Vars(r)["id"])
 
-	filters := tasks.TaskFilters{}
+	filters := service.TaskFilters{}
 	if searchVal := r.URL.Query().Get("q"); searchVal != "" {
 		if len(searchVal) > maxSearchLength {
 			searchVal = searchVal[:maxSearchLength]
@@ -94,7 +96,7 @@ func (h *TaskQueriesHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	includeChildren := r.URL.Query().Get("include_children") == "true"
 
 	// Parse query parameters for filters
-	filters := tasks.TaskFilters{}
+	filters := service.TaskFilters{}
 
 	if col := r.URL.Query().Get("column"); col != "" {
 		colSlug := domain.ColumnSlug(col)
@@ -246,7 +248,7 @@ func (h *TaskQueriesHandler) GetBoard(w http.ResponseWriter, r *http.Request) {
 		var allTasks []pkgserver.TaskWithDetailsResponse
 
 		for _, proj := range projects {
-			filters := tasks.TaskFilters{
+			filters := service.TaskFilters{
 				ColumnSlug: &colSlug,
 				Search:     searchQuery,
 			}

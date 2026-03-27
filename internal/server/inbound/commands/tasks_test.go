@@ -13,6 +13,7 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
+	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service/servicetest"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/commands"
 	"github.com/gorilla/mux"
@@ -38,17 +39,17 @@ func TestCreateTask_Success(t *testing.T) {
 	now := time.Now()
 
 	mock := &servicetest.MockCommands{
-		CreateTaskFunc: func(ctx context.Context, pid domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.FeatureID) (domain.Task, error) {
+		CreateTaskFunc: func(ctx context.Context, pid domain.ProjectID, input service.CreateTaskInput) (domain.Task, error) {
 			assert.Equal(t, projectID, pid)
-			assert.Equal(t, "Fix the bug", title)
-			assert.Equal(t, "A brief summary", summary)
+			assert.Equal(t, "Fix the bug", input.Title)
+			assert.Equal(t, "A brief summary", input.Summary)
 			return domain.Task{
 				ID:            taskID,
 				ColumnID:      columnID,
-				Title:         title,
-				Summary:       summary,
-				Description:   description,
-				Priority:      priority,
+				Title:         input.Title,
+				Summary:       input.Summary,
+				Description:   input.Description,
+				Priority:      input.Priority,
 				Tags:          []string{},
 				ContextFiles:  []string{},
 				FilesModified: []string{},
@@ -116,7 +117,7 @@ func TestCreateTask_DomainError(t *testing.T) {
 	projectID := domain.NewProjectID()
 
 	mock := &servicetest.MockCommands{
-		CreateTaskFunc: func(ctx context.Context, pid domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.FeatureID) (domain.Task, error) {
+		CreateTaskFunc: func(ctx context.Context, pid domain.ProjectID, input service.CreateTaskInput) (domain.Task, error) {
 			return domain.Task{}, domain.ErrSummaryRequired
 		},
 	}

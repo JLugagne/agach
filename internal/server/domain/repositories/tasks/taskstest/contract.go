@@ -7,6 +7,7 @@ import (
 
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	tasksrepo "github.com/JLugagne/agach-mcp/internal/server/domain/repositories/tasks"
+	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +31,7 @@ type MockTaskRepository struct {
 	ListByAssignedRoleFunc        func(ctx context.Context, projectID domain.ProjectID, slug string) ([]domain.Task, error)
 	CreateFunc                    func(ctx context.Context, projectID domain.ProjectID, task domain.Task) error
 	FindByIDFunc                  func(ctx context.Context, projectID domain.ProjectID, id domain.TaskID) (*domain.Task, error)
-	ListFunc                      func(ctx context.Context, projectID domain.ProjectID, filters tasksrepo.TaskFilters) ([]domain.TaskWithDetails, error)
+	ListFunc                      func(ctx context.Context, projectID domain.ProjectID, filters service.TaskFilters) ([]domain.TaskWithDetails, error)
 	UpdateFunc                    func(ctx context.Context, projectID domain.ProjectID, task domain.Task) error
 	DeleteFunc                    func(ctx context.Context, projectID domain.ProjectID, id domain.TaskID) error
 	MoveFunc                      func(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, targetColumnID domain.ColumnID) error
@@ -82,7 +83,7 @@ func (m *MockTaskRepository) FindByID(ctx context.Context, projectID domain.Proj
 	return m.FindByIDFunc(ctx, projectID, id)
 }
 
-func (m *MockTaskRepository) List(ctx context.Context, projectID domain.ProjectID, filters tasksrepo.TaskFilters) ([]domain.TaskWithDetails, error) {
+func (m *MockTaskRepository) List(ctx context.Context, projectID domain.ProjectID, filters service.TaskFilters) ([]domain.TaskWithDetails, error) {
 	if m.ListFunc == nil {
 		panic("called not defined ListFunc")
 	}
@@ -292,7 +293,7 @@ func TasksContractTesting(t *testing.T, repo tasksrepo.TaskRepository, projectID
 
 		// Test filter by column
 		columnSlug := domain.ColumnTodo
-		filters := tasksrepo.TaskFilters{ColumnSlug: &columnSlug}
+		filters := service.TaskFilters{ColumnSlug: &columnSlug}
 		retrieved, err := repo.List(ctx, projectID, filters)
 		require.NoError(t, err, "List should succeed")
 		require.NotEmpty(t, retrieved, "List should return tasks")
@@ -801,7 +802,7 @@ func TasksContractTesting(t *testing.T, repo tasksrepo.TaskRepository, projectID
 		require.NoError(t, repo.Create(ctx, projectID, taskA))
 		require.NoError(t, repo.Create(ctx, projectID, taskB))
 
-		filters := tasksrepo.TaskFilters{FeatureID: &featureID}
+		filters := service.TaskFilters{FeatureID: &featureID}
 		results, err := repo.List(ctx, projectID, filters)
 		require.NoError(t, err)
 

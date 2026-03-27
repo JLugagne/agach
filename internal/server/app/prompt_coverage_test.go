@@ -259,7 +259,7 @@ func TestApp_DeleteRole_NilRoleReturned_ReturnsError(t *testing.T) {
 
 	err := a.DeleteAgent(ctx, roleID)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 func TestApp_DeleteRole_DeleteError_ReturnsError(t *testing.T) {
@@ -289,7 +289,7 @@ func TestApp_UpdateRole_NilRoleReturned_ReturnsError(t *testing.T) {
 
 	err := a.UpdateAgent(ctx, roleID, "New Name", "", "", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 func TestApp_UpdateRole_UpdateError_ReturnsError(t *testing.T) {
@@ -371,7 +371,7 @@ func TestApp_CreateRole_AlreadyExists_ReturnsError(t *testing.T) {
 
 	_, err := a.CreateAgent(ctx, "test", "Test Role", "", "", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, domain.ErrRoleAlreadyExists)
+	assert.ErrorIs(t, err, domain.ErrAgentAlreadyExists)
 }
 
 func TestApp_CreateRole_CreateError_ReturnsError(t *testing.T) {
@@ -411,7 +411,7 @@ func TestApp_DeleteProjectRole_NilRoleReturned_ReturnsError(t *testing.T) {
 
 	err := a.DeleteProjectAgent(ctx, domain.NewProjectID(), domain.NewRoleID())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 func TestApp_DeleteProjectRole_DeleteError_ReturnsError(t *testing.T) {
@@ -440,7 +440,7 @@ func TestApp_UpdateProjectRole_NilRoleReturned_ReturnsError(t *testing.T) {
 
 	err := a.UpdateProjectAgent(ctx, domain.NewProjectID(), domain.NewRoleID(), "New Name", "", "", "", "", "", "", "", nil, 0)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 func TestApp_UpdateProjectRole_UpdateError_ReturnsError(t *testing.T) {
@@ -496,7 +496,7 @@ func TestApp_GetProjectRoleBySlug_NilRoleReturned_ReturnsError(t *testing.T) {
 
 	_, err := a.GetProjectAgentBySlug(ctx, domain.NewProjectID(), "test")
 	require.Error(t, err)
-	assert.ErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.ErrorIs(t, err, domain.ErrAgentNotFound)
 }
 
 func TestApp_CreateProjectRole_CreateError_ReturnsError(t *testing.T) {

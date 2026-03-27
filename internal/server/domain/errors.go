@@ -56,14 +56,6 @@ var (
 		Message: "agent name is required",
 	}
 
-	// Aliases for backward compatibility — kept until _test.go files are updated.
-	ErrRoleNotFound      = ErrAgentNotFound
-	ErrRoleAlreadyExists = ErrAgentAlreadyExists
-	ErrRoleInUse         = ErrAgentInUse
-	ErrInvalidRoleData   = ErrInvalidAgentData
-	ErrRoleSlugRequired  = ErrAgentSlugRequired
-	ErrRoleNameRequired  = ErrAgentNameRequired
-
 	// Task errors
 	ErrTaskNotFound = &Error{
 		Code:    "TASK_NOT_FOUND",

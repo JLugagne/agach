@@ -100,7 +100,10 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 
 	// Register routes
 	chatService := appInstance.ChatService()
-	commands.NewRouter(router, appInstance, ctrl, hub, cfg.DataDir, chatService)
+	commands.NewRouter(router, appInstance, ctrl, hub, cfg.DataDir, commands.RouterOptions{
+		ChatService:  chatService,
+		TeamResolver: cfg.AuthQueries,
+	})
 	queries.NewRouter(router, appInstance, ctrl, cfg.DataDir, chatService, cfg.AuthQueries)
 
 	// Register resource download routes

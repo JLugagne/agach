@@ -259,13 +259,20 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 	// ----------------------------------------------------------------- Tasks
 	todoTask, err := svc.CreateTask(ctx,
 		mainProject.ID,
-		"[QA] Todo task",
-		"A task sitting in the todo column.",
-		"This task has not been started yet.",
-		domain.PriorityMedium,
-		"backend", "qa-seed", "backend",
-		[]string{}, []string{"qa", "todo"}, "S",
-		false, nil,
+		service.CreateTaskInput{
+			Title:           "[QA] Todo task",
+			Summary:         "A task sitting in the todo column.",
+			Description:     "This task has not been started yet.",
+			Priority:        domain.PriorityMedium,
+			CreatedByRole:   "backend",
+			CreatedByAgent:  "qa-seed",
+			AssignedRole:    "backend",
+			ContextFiles:    []string{},
+			Tags:            []string{"qa", "todo"},
+			EstimatedEffort: "S",
+			StartInBacklog:  false,
+			FeatureID:       nil,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create todo task: %w", err)
@@ -275,13 +282,20 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 
 	inProgressTask, err := svc.CreateTask(ctx,
 		mainProject.ID,
-		"[QA] In-progress task",
-		"A task currently being worked on.",
-		"Agent has started this task.",
-		domain.PriorityHigh,
-		"backend", "qa-seed", "backend",
-		[]string{}, []string{"qa", "in-progress"}, "M",
-		false, nil,
+		service.CreateTaskInput{
+			Title:           "[QA] In-progress task",
+			Summary:         "A task currently being worked on.",
+			Description:     "Agent has started this task.",
+			Priority:        domain.PriorityHigh,
+			CreatedByRole:   "backend",
+			CreatedByAgent:  "qa-seed",
+			AssignedRole:    "backend",
+			ContextFiles:    []string{},
+			Tags:            []string{"qa", "in-progress"},
+			EstimatedEffort: "M",
+			StartInBacklog:  false,
+			FeatureID:       nil,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create in-progress task: %w", err)
@@ -294,13 +308,20 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 
 	blockedTask, err := svc.CreateTask(ctx,
 		mainProject.ID,
-		"[QA] Blocked task",
-		"A task blocked on external dependency.",
-		"Waiting for third-party API credentials.",
-		domain.PriorityCritical,
-		"backend", "qa-seed", "backend",
-		[]string{}, []string{"qa", "blocked"}, "L",
-		false, nil,
+		service.CreateTaskInput{
+			Title:           "[QA] Blocked task",
+			Summary:         "A task blocked on external dependency.",
+			Description:     "Waiting for third-party API credentials.",
+			Priority:        domain.PriorityCritical,
+			CreatedByRole:   "backend",
+			CreatedByAgent:  "qa-seed",
+			AssignedRole:    "backend",
+			ContextFiles:    []string{},
+			Tags:            []string{"qa", "blocked"},
+			EstimatedEffort: "L",
+			StartInBacklog:  false,
+			FeatureID:       nil,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create blocked task: %w", err)
@@ -318,13 +339,20 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 
 	doneTask, err := svc.CreateTask(ctx,
 		mainProject.ID,
-		"[QA] Done task",
-		"A completed task.",
-		"All acceptance criteria were met.",
-		domain.PriorityLow,
-		"frontend", "qa-seed", "frontend",
-		[]string{"internal/server/ux/src/pages/HomePage.tsx"}, []string{"qa", "done"}, "XS",
-		false, nil,
+		service.CreateTaskInput{
+			Title:           "[QA] Done task",
+			Summary:         "A completed task.",
+			Description:     "All acceptance criteria were met.",
+			Priority:        domain.PriorityLow,
+			CreatedByRole:   "frontend",
+			CreatedByAgent:  "qa-seed",
+			AssignedRole:    "frontend",
+			ContextFiles:    []string{"internal/server/ux/src/pages/HomePage.tsx"},
+			Tags:            []string{"qa", "done"},
+			EstimatedEffort: "XS",
+			StartInBacklog:  false,
+			FeatureID:       nil,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create done task: %w", err)
@@ -344,13 +372,20 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 
 	wontDoTask, err := svc.CreateTask(ctx,
 		mainProject.ID,
-		"[QA] Won't-do task",
-		"A task the team decided not to implement.",
-		"Scope cut agreed with stakeholders.",
-		domain.PriorityLow,
-		"backend", "qa-seed", "backend",
-		[]string{}, []string{"qa", "wontdo"}, "XL",
-		false, nil,
+		service.CreateTaskInput{
+			Title:           "[QA] Won't-do task",
+			Summary:         "A task the team decided not to implement.",
+			Description:     "Scope cut agreed with stakeholders.",
+			Priority:        domain.PriorityLow,
+			CreatedByRole:   "backend",
+			CreatedByAgent:  "qa-seed",
+			AssignedRole:    "backend",
+			ContextFiles:    []string{},
+			Tags:            []string{"qa", "wontdo"},
+			EstimatedEffort: "XL",
+			StartInBacklog:  false,
+			FeatureID:       nil,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create wont-do task: %w", err)
@@ -371,13 +406,20 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 	// ------------------------------------------------------- Backlog task
 	backlogTask, err := svc.CreateTask(ctx,
 		mainProject.ID,
-		"[QA] Backlog task",
-		"A task waiting in the backlog.",
-		"This task is parked in the backlog for future sprint planning.",
-		domain.PriorityLow,
-		"backend", "qa-seed", "backend",
-		[]string{}, []string{"qa", "backlog"}, "S",
-		true, nil,
+		service.CreateTaskInput{
+			Title:           "[QA] Backlog task",
+			Summary:         "A task waiting in the backlog.",
+			Description:     "This task is parked in the backlog for future sprint planning.",
+			Priority:        domain.PriorityLow,
+			CreatedByRole:   "backend",
+			CreatedByAgent:  "qa-seed",
+			AssignedRole:    "backend",
+			ContextFiles:    []string{},
+			Tags:            []string{"qa", "backlog"},
+			EstimatedEffort: "S",
+			StartInBacklog:  true,
+			FeatureID:       nil,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create backlog task: %w", err)
@@ -388,13 +430,20 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 	// ----------------------------------------------- Feature task (sub-project)
 	featureTask, err := svc.CreateTask(ctx,
 		mainProject.ID,
-		"[QA] Feature task",
-		"A task assigned to a feature branch.",
-		"This task belongs to the QA Feature Branch sub-project.",
-		domain.PriorityMedium,
-		"frontend", "qa-seed", "frontend",
-		[]string{}, []string{"qa", "feature"}, "M",
-		false, nil,
+		service.CreateTaskInput{
+			Title:           "[QA] Feature task",
+			Summary:         "A task assigned to a feature branch.",
+			Description:     "This task belongs to the QA Feature Branch sub-project.",
+			Priority:        domain.PriorityMedium,
+			CreatedByRole:   "frontend",
+			CreatedByAgent:  "qa-seed",
+			AssignedRole:    "frontend",
+			ContextFiles:    []string{},
+			Tags:            []string{"qa", "feature"},
+			EstimatedEffort: "M",
+			StartInBacklog:  false,
+			FeatureID:       nil,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create feature task: %w", err)
@@ -405,13 +454,20 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 	// ---------------------------------------------- Tasks with a dependency
 	depParent, err := svc.CreateTask(ctx,
 		mainProject.ID,
-		"[QA] Dependency parent",
-		"Must be completed before the child task.",
-		"Foundation work that unblocks subsequent tasks.",
-		domain.PriorityHigh,
-		"backend", "qa-seed", "backend",
-		[]string{}, []string{"qa", "dependency"}, "M",
-		false, nil,
+		service.CreateTaskInput{
+			Title:           "[QA] Dependency parent",
+			Summary:         "Must be completed before the child task.",
+			Description:     "Foundation work that unblocks subsequent tasks.",
+			Priority:        domain.PriorityHigh,
+			CreatedByRole:   "backend",
+			CreatedByAgent:  "qa-seed",
+			AssignedRole:    "backend",
+			ContextFiles:    []string{},
+			Tags:            []string{"qa", "dependency"},
+			EstimatedEffort: "M",
+			StartInBacklog:  false,
+			FeatureID:       nil,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create dep parent: %w", err)
@@ -420,13 +476,20 @@ func seed(ctx context.Context, svc service.Commands, logger *logrus.Logger) (*Re
 
 	depChild, err := svc.CreateTask(ctx,
 		mainProject.ID,
-		"[QA] Dependency child",
-		"Blocked until the parent task is done.",
-		"Depends on the parent task being completed first.",
-		domain.PriorityMedium,
-		"backend", "qa-seed", "backend",
-		[]string{}, []string{"qa", "dependency"}, "S",
-		false, nil,
+		service.CreateTaskInput{
+			Title:           "[QA] Dependency child",
+			Summary:         "Blocked until the parent task is done.",
+			Description:     "Depends on the parent task being completed first.",
+			Priority:        domain.PriorityMedium,
+			CreatedByRole:   "backend",
+			CreatedByAgent:  "qa-seed",
+			AssignedRole:    "backend",
+			ContextFiles:    []string{},
+			Tags:            []string{"qa", "dependency"},
+			EstimatedEffort: "S",
+			StartInBacklog:  false,
+			FeatureID:       nil,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create dep child: %w", err)

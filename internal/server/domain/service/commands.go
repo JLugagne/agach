@@ -6,8 +6,8 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 )
 
-// BulkTaskInput holds per-task input for a bulk create operation.
-type BulkTaskInput struct {
+// CreateTaskInput holds the fields for creating a single task.
+type CreateTaskInput struct {
 	Title           string
 	Summary         string
 	Description     string
@@ -19,8 +19,13 @@ type BulkTaskInput struct {
 	Tags            []string
 	EstimatedEffort string
 	StartInBacklog  bool
-	DependsOn       []domain.TaskID
 	FeatureID       *domain.FeatureID
+}
+
+// BulkTaskInput holds per-task input for a bulk create operation.
+type BulkTaskInput struct {
+	CreateTaskInput
+	DependsOn []domain.TaskID
 }
 
 type ProjectCommands interface {
@@ -30,7 +35,7 @@ type ProjectCommands interface {
 }
 
 type TaskCommands interface {
-	CreateTask(ctx context.Context, projectID domain.ProjectID, title, summary, description string, priority domain.Priority, createdByRole, createdByAgent, assignedRole string, contextFiles, tags []string, estimatedEffort string, startInBacklog bool, featureID *domain.FeatureID) (domain.Task, error)
+	CreateTask(ctx context.Context, projectID domain.ProjectID, input CreateTaskInput) (domain.Task, error)
 	BulkCreateTasks(ctx context.Context, projectID domain.ProjectID, inputs []BulkTaskInput) ([]domain.Task, error)
 	UpdateTask(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, title, description, assignedRole, estimatedEffort, resolution *string, priority *domain.Priority, contextFiles, tags *[]string, tokenUsage *domain.TokenUsage, humanEstimateSeconds *int, featureID *domain.FeatureID, clearFeature bool) error
 	UpdateTaskFiles(ctx context.Context, projectID domain.ProjectID, taskID domain.TaskID, filesModified, contextFiles *[]string) error

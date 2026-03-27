@@ -17,6 +17,22 @@ import (
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 )
 
+// FileReader abstracts filesystem reads for prompt rendering (testability).
+type FileReader interface {
+	ReadFile(path string) ([]byte, error)
+}
+
+type osFileReader struct{}
+
+func (osFileReader) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
+
+func resolveFileReader(readers []FileReader) FileReader {
+	if len(readers) > 0 && readers[0] != nil {
+		return readers[0]
+	}
+	return osFileReader{}
+}
+
 // RenderPrompt renders the assigned role's prompt_template for the given task.
 // It resolves all {{slot}} variables with live data from the project, task, role,
 // dependencies, and optionally reads context_files from disk.
@@ -87,8 +103,8 @@ func (a *App) RenderPrompt(ctx context.Context, projectID domain.ProjectID, task
 	}
 
 	// Read context files from disk (path traversal protected)
-	contextFilesContent := readContextFiles(task.ContextFiles)
-	contextFilesSignatures := extractSignatures(task.ContextFiles)
+	contextFilesContent := readContextFiles(task.ContextFiles, a.fileReader)
+	contextFilesSignatures := extractSignatures(task.ContextFiles, a.fileReader)
 
 	// Infer test command from role tech stack
 	testCommand := inferTestCommand(role)
@@ -219,7 +235,8 @@ func getDepField(depByRole map[string]domain.DependencyContext, role, field stri
 
 // readContextFiles reads file contents from disk, returning a combined string.
 // Absolute paths and paths with traversal sequences are rejected to prevent path traversal attacks.
-func readContextFiles(paths []string) string {
+func readContextFiles(paths []string, readers ...FileReader) string {
+	fr := resolveFileReader(readers)
 	var parts []string
 	for _, p := range paths {
 		if filepath.IsAbs(p) {
@@ -228,7 +245,7 @@ func readContextFiles(paths []string) string {
 		if strings.Contains(p, "..") {
 			continue
 		}
-		content, err := os.ReadFile(p)
+		content, err := fr.ReadFile(p)
 		if err != nil {
 			parts = append(parts, fmt.Sprintf("// [could not read %s: %v]\n", filepath.Base(p), err))
 			continue
@@ -240,7 +257,8 @@ func readContextFiles(paths []string) string {
 
 // extractSignatures reads Go files and extracts function/type signatures only.
 // Absolute paths and paths with traversal sequences are rejected to prevent path traversal attacks.
-func extractSignatures(paths []string) string {
+func extractSignatures(paths []string, readers ...FileReader) string {
+	fr := resolveFileReader(readers)
 	var sigs []string
 	for _, p := range paths {
 		if !strings.HasSuffix(p, ".go") {
@@ -252,8 +270,12 @@ func extractSignatures(paths []string) string {
 		if strings.Contains(p, "..") {
 			continue
 		}
+		content, err := fr.ReadFile(p)
+		if err != nil {
+			continue
+		}
 		fset := token.NewFileSet()
-		f, err := parser.ParseFile(fset, p, nil, 0)
+		f, err := parser.ParseFile(fset, p, content, 0)
 		if err != nil {
 			continue
 		}

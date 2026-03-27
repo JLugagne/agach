@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
-	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/tasks"
+	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -165,7 +165,7 @@ func (r *taskRepository) FindByID(ctx context.Context, projectID domain.ProjectI
 	return scanTask(row)
 }
 
-func (r *taskRepository) List(ctx context.Context, projectID domain.ProjectID, filters tasks.TaskFilters) ([]domain.TaskWithDetails, error) {
+func (r *taskRepository) List(ctx context.Context, projectID domain.ProjectID, filters service.TaskFilters) ([]domain.TaskWithDetails, error) {
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
 	args := []any{string(projectID)}
@@ -732,7 +732,7 @@ func (r *taskRepository) BulkReassignInProject(ctx context.Context, projectID do
 }
 
 func (r *taskRepository) ListByAssignedRole(ctx context.Context, projectID domain.ProjectID, slug string) ([]domain.Task, error) {
-	filters := tasks.TaskFilters{AssignedRole: &slug}
+	filters := service.TaskFilters{AssignedRole: &slug}
 	withDetails, err := r.List(ctx, projectID, filters)
 	if err != nil {
 		return nil, err
@@ -745,7 +745,7 @@ func (r *taskRepository) ListByAssignedRole(ctx context.Context, projectID domai
 }
 
 func (r *taskRepository) SearchTasks(ctx context.Context, projectID domain.ProjectID, query string, limit int) ([]domain.TaskWithDetails, error) {
-	filters := tasks.TaskFilters{
+	filters := service.TaskFilters{
 		Search: query,
 		Limit:  limit,
 	}

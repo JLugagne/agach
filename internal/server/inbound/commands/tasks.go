@@ -18,10 +18,11 @@ const maxTasksPerProject = 10000
 
 // TaskCommandsHandler handles task write operations
 type TaskCommandsHandler struct {
-	commands   service.Commands
-	queries    service.Queries
-	controller *controller.Controller
-	hub        *websocket.Hub
+	commands     service.Commands
+	queries      service.Queries
+	controller   *controller.Controller
+	hub          *websocket.Hub
+	teamResolver TeamIDResolver
 }
 
 // NewTaskCommandsHandler creates a new task commands handler
@@ -37,14 +38,12 @@ func NewTaskCommandsHandler(commands service.Commands, ctrl *controller.Controll
 	return h
 }
 
+// SetTeamResolver injects a TeamIDResolver for project access checks.
+func (h *TaskCommandsHandler) SetTeamResolver(tr TeamIDResolver) { h.teamResolver = tr }
+
 // CheckAccess verifies that the actor from context has access to the given project.
-// Returns true if access is granted or if no queries service is configured.
-// TODO(security): extract userID and teamIDs from context actor before calling HasProjectAccess.
 func (h *TaskCommandsHandler) CheckAccess(r *http.Request, projectID domain.ProjectID) bool {
-	if h.queries != nil {
-		_, _ = h.queries.HasProjectAccess(r.Context(), projectID, "", nil)
-	}
-	return true
+	return checkProjectAccess(r, projectID, h.queries, h.teamResolver)
 }
 
 // RegisterRoutes registers task command routes
@@ -91,18 +90,20 @@ func (h *TaskCommandsHandler) CreateTask(w http.ResponseWriter, r *http.Request)
 	task, err := h.commands.CreateTask(
 		r.Context(),
 		projectID,
-		req.Title,
-		req.Summary,
-		req.Description,
-		priority,
-		req.CreatedByRole,
-		req.CreatedByAgent,
-		req.AssignedRole,
-		req.ContextFiles,
-		req.Tags,
-		req.EstimatedEffort,
-		req.StartInBacklog,
-		featureID,
+		service.CreateTaskInput{
+			Title:           req.Title,
+			Summary:         req.Summary,
+			Description:     req.Description,
+			Priority:        priority,
+			CreatedByRole:   req.CreatedByRole,
+			CreatedByAgent:  req.CreatedByAgent,
+			AssignedRole:    req.AssignedRole,
+			ContextFiles:    req.ContextFiles,
+			Tags:            req.Tags,
+			EstimatedEffort: req.EstimatedEffort,
+			StartInBacklog:  req.StartInBacklog,
+			FeatureID:       featureID,
+		},
 	)
 	if err != nil {
 		if domain.IsDomainError(err) {
