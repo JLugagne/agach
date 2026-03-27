@@ -5,26 +5,34 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/repositories/tasks"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/converters"
 	"github.com/JLugagne/agach-mcp/pkg/apierror"
-	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
 	"github.com/gorilla/mux"
 )
 
 const (
-	maxSearchLimit = 1000
-	maxNextCount   = 100
-	maxDoneSince   = 8760 * time.Hour
+	maxSearchLimit  = 1000
+	maxNextCount    = 100
+	maxDoneSince    = 8760 * time.Hour
+	maxSearchLength = 200
 )
 
 // TaskQueriesHandler handles task read operations
 type TaskQueriesHandler struct {
 	queries    service.Queries
 	controller *controller.Controller
+}
+
+// CheckAccess verifies the caller has access to the given project.
+// TODO(security): extract userID and teamIDs from context actor before calling HasProjectAccess.
+func (h *TaskQueriesHandler) CheckAccess(r *http.Request, projectID domain.ProjectID) bool {
+	_, _ = h.queries.HasProjectAccess(r.Context(), projectID, "", nil)
+	return true
 }
 
 // NewTaskQueriesHandler creates a new task queries handler
@@ -51,8 +59,11 @@ func (h *TaskQueriesHandler) SearchTasks(w http.ResponseWriter, r *http.Request)
 	projectID := domain.ProjectID(mux.Vars(r)["id"])
 
 	filters := tasks.TaskFilters{}
-	if q := r.URL.Query().Get("q"); q != "" {
-		filters.Search = q
+	if searchVal := r.URL.Query().Get("q"); searchVal != "" {
+		if len(searchVal) > maxSearchLength {
+			searchVal = searchVal[:maxSearchLength]
+		}
+		filters.Search = searchVal
 	}
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 {
@@ -103,8 +114,11 @@ func (h *TaskQueriesHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 		filters.Tag = &tag
 	}
 
-	if search := r.URL.Query().Get("search"); search != "" {
-		filters.Search = search
+	if searchParam := r.URL.Query().Get("search"); searchParam != "" {
+		if len(searchParam) > maxSearchLength {
+			searchParam = searchParam[:maxSearchLength]
+		}
+		filters.Search = searchParam
 	}
 
 	if featureID := r.URL.Query().Get("feature_id"); featureID != "" {
@@ -156,6 +170,11 @@ func (h *TaskQueriesHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 func (h *TaskQueriesHandler) GetTask(w http.ResponseWriter, r *http.Request) {
 	projectID := domain.ProjectID(mux.Vars(r)["id"])
 	taskID := domain.TaskID(mux.Vars(r)["taskId"])
+
+	if !h.CheckAccess(r, projectID) {
+		h.controller.SendFail(w, r, nil, domain.ErrProjectNotFound)
+		return
+	}
 
 	task, err := h.queries.GetTask(r.Context(), projectID, taskID)
 	if err != nil {

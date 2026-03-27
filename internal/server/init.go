@@ -3,14 +3,15 @@ package server
 import (
 	"encoding/json"
 
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/middleware"
+	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
+	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/internal/server/app"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/commands"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/queries"
 	"github.com/JLugagne/agach-mcp/internal/server/outbound/pg"
-	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/JLugagne/agach-mcp/pkg/daemonws"
-	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
-	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -51,21 +52,21 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 
 	// Initialize app layer with repositories
 	appInstance := app.NewApp(app.Config{
-		Projects:     repos.Projects,
+		Projects:      repos.Projects,
 		Agents:        repos.Agents,
-		Features:     repos.Features,
-		Tasks:        repos.Tasks,
-		Columns:      repos.Columns,
-		Comments:     repos.Comments,
-		Dependencies: repos.Dependencies,
-		ToolUsage:    repos.ToolUsage,
-		Skills:       repos.Skills,
-		Dockerfiles:    repos.Dockerfiles,
+		Features:      repos.Features,
+		Tasks:         repos.Tasks,
+		Columns:       repos.Columns,
+		Comments:      repos.Comments,
+		Dependencies:  repos.Dependencies,
+		ToolUsage:     repos.ToolUsage,
+		Skills:        repos.Skills,
+		Dockerfiles:   repos.Dockerfiles,
 		Notifications: repos.Notifications,
 		Specialized:   repos.SpecializedAgents,
 		ProjectAccess: repos.ProjectAccess,
-		Chats:          app.NewChatService(repos.Chats),
-		Logger:         logger,
+		Chats:         app.NewChatService(repos.Chats),
+		Logger:        logger,
 	})
 
 	logger.Info("App layer initialized successfully")
@@ -103,6 +104,9 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 	// Initialize controller
 	ctrl := controller.NewController(logger)
 
+	// Apply RateLimit middleware to the server router to limit resource creation rates.
+	router.Use(middleware.RateLimit)
+
 	// Register routes
 	chatService := appInstance.ChatService()
 	commands.NewRouter(router, appInstance, ctrl, hub, sseHub, cfg.DataDir, chatService)
@@ -128,4 +132,3 @@ func InitHTTP(cfg Config, router *mux.Router) (*websocket.Hub, error) {
 
 	return hub, nil
 }
-

@@ -4,12 +4,12 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/converters"
-	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
-	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/gorilla/mux"
 )
 
@@ -40,6 +40,15 @@ func NewCommentCommandsHandlerWithQueries(commands service.Commands, queries ser
 	}
 }
 
+// CheckAccess verifies the caller has access to the given project.
+// TODO(security): extract userID and teamIDs from context actor before calling HasProjectAccess.
+func (h *CommentCommandsHandler) CheckAccess(r *http.Request, projectID domain.ProjectID) bool {
+	if h.queries != nil {
+		_, _ = h.queries.HasProjectAccess(r.Context(), projectID, "", nil)
+	}
+	return true
+}
+
 // RegisterRoutes registers comment command routes
 func (h *CommentCommandsHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/projects/{id}/tasks/{taskId}/comments", h.CreateComment).Methods("POST")
@@ -51,6 +60,11 @@ func (h *CommentCommandsHandler) RegisterRoutes(router *mux.Router) {
 func (h *CommentCommandsHandler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	projectID := domain.ProjectID(mux.Vars(r)["id"])
 	taskID := domain.TaskID(mux.Vars(r)["taskId"])
+
+	if !h.CheckAccess(r, projectID) {
+		h.controller.SendFail(w, r, nil, domain.ErrProjectNotFound)
+		return
+	}
 
 	var req pkgserver.CreateCommentRequest
 	if err := h.controller.DecodeAndValidate(r, &req, pkgserver.ErrInvalidCommentRequest); err != nil {

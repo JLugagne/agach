@@ -33,8 +33,6 @@ import (
 // This test FAILS today because domain.Task imposes no length constraint:
 // a title of 100 KB is accepted silently.
 func TestSecurity_RED_TaskTitleUnbounded(t *testing.T) {
-	const maxTaskTitleLength = 500 // desired domain constraint
-
 	longTitle := strings.Repeat("A", 100_001) // 100 KB title
 
 	task := domain.Task{
@@ -43,13 +41,10 @@ func TestSecurity_RED_TaskTitleUnbounded(t *testing.T) {
 		Summary: "short summary",
 	}
 
-	// DESIRED: the domain must reject (or not store) titles beyond the max length.
-	// Today domain.Task has no constraint, so len(task.Title) == 100_001 and this
-	// assertion fails — demonstrating the vulnerability.
-	assert.LessOrEqual(t, len(task.Title), maxTaskTitleLength,
-		"domain.Task must not accept a title longer than %d characters; "+
-			"fix: add domain-level length validation so storage exhaustion / "+
-			"truncation attacks are caught at the domain boundary", maxTaskTitleLength)
+	err := task.ValidateTitle()
+	assert.Error(t, err,
+		"domain.Task.ValidateTitle() must reject a title longer than %d characters",
+		domain.MaxTaskTitleLength)
 }
 
 // TestSecurity_GREEN_TaskTitleNormalLength verifies that a normally-sized title
@@ -76,8 +71,6 @@ func TestSecurity_GREEN_TaskTitleNormalLength(t *testing.T) {
 // This test FAILS today because domain.Comment imposes no length constraint:
 // a content of 1 MB is accepted silently.
 func TestSecurity_RED_CommentContentUnbounded(t *testing.T) {
-	const maxCommentContentLength = 10_000 // desired domain constraint
-
 	hugeContent := strings.Repeat("X", 1_000_001) // 1 MB content
 
 	comment := domain.Comment{
@@ -86,13 +79,10 @@ func TestSecurity_RED_CommentContentUnbounded(t *testing.T) {
 		Content: hugeContent,
 	}
 
-	// DESIRED: the domain must reject content beyond the max length.
-	// Today domain.Comment has no constraint, so len(comment.Content) == 1_000_001
-	// and this assertion fails — demonstrating the vulnerability.
-	assert.LessOrEqual(t, len(comment.Content), maxCommentContentLength,
-		"domain.Comment must not accept content longer than %d characters; "+
-			"fix: add domain-level length validation to prevent memory exhaustion "+
-			"during JSON decoding and database storage", maxCommentContentLength)
+	err := comment.ValidateContent()
+	assert.Error(t, err,
+		"domain.Comment.ValidateContent() must reject content longer than %d characters",
+		domain.MaxCommentContentLength)
 }
 
 // TestSecurity_GREEN_CommentContentNormalLength verifies normally-sized content
@@ -119,24 +109,19 @@ func TestSecurity_GREEN_CommentContentNormalLength(t *testing.T) {
 // This test FAILS today because domain.Role (alias for Agent) imposes no length
 // constraint: a template of 10 MB is accepted silently.
 func TestSecurity_RED_RolePromptTemplateUnbounded(t *testing.T) {
-	const maxPromptTemplateLength = 100_000 // desired domain constraint
-
 	bigTemplate := strings.Repeat("T", 10_000_001) // 10 MB
 
-	role := domain.Role{
+	role := domain.Agent{
 		ID:             domain.NewRoleID(),
 		Slug:           "go-implement",
 		Name:           "Go Implementer",
 		PromptTemplate: bigTemplate,
 	}
 
-	// DESIRED: the domain must reject templates beyond the max length.
-	// Today domain.Role has no constraint, so len(role.PromptTemplate) == 10_000_001
-	// and this assertion fails — demonstrating the vulnerability.
-	assert.LessOrEqual(t, len(role.PromptTemplate), maxPromptTemplateLength,
-		"domain.Role must not accept a PromptTemplate longer than %d characters; "+
-			"fix: add domain-level length validation to prevent repeated heap "+
-			"exhaustion on every RenderPrompt call", maxPromptTemplateLength)
+	err := role.ValidatePromptTemplate()
+	assert.Error(t, err,
+		"domain.Agent.ValidatePromptTemplate() must reject a template longer than %d characters",
+		domain.MaxPromptTemplateLength)
 }
 
 // TestSecurity_GREEN_RolePromptTemplateNormalLength verifies a normally-sized
@@ -220,15 +205,10 @@ func TestSecurity_RED_InvalidAuthorTypeAccepted(t *testing.T) {
 		Content:    "I am an admin",
 	}
 
-	// DESIRED: the stored AuthorType must be one of the two valid values.
-	// Today the invalid value is stored as-is so this assertion fails —
-	// demonstrating that an attacker can impersonate a privileged actor.
-	isValid := comment.AuthorType == domain.AuthorTypeAgent ||
-		comment.AuthorType == domain.AuthorTypeHuman
-	assert.True(t, isValid,
-		"domain.Comment must not accept AuthorType(%q); only %q and %q are valid; "+
-			"fix: add AuthorType.IsValid() bool or a constructor that rejects values "+
-			"outside {\"agent\", \"human\"} to prevent author-type impersonation",
+	err := comment.ValidateAuthorType()
+	assert.Error(t, err,
+		"domain.Comment.ValidateAuthorType() must reject AuthorType(%q); "+
+			"only %q and %q are valid",
 		comment.AuthorType, domain.AuthorTypeAgent, domain.AuthorTypeHuman)
 }
 

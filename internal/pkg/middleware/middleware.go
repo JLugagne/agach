@@ -66,19 +66,35 @@ func unauthorized(w http.ResponseWriter) {
 	_, _ = w.Write([]byte(`{"status":"fail","error":{"code":"UNAUTHORIZED","message":"authentication required"}}`))
 }
 
+var allowedOrigins = []string{
+	"http://localhost",
+	"http://localhost:3000",
+	"http://localhost:8080",
+}
+
+func isAllowedOrigin(origin string) bool {
+	for _, allowed := range allowedOrigins {
+		if origin == allowed {
+			return true
+		}
+	}
+	return false
+}
+
 func NewRequireAuth(authQueries AuthValidator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 			w.Header().Set("X-Content-Type-Options", "nosniff")
 			w.Header().Set("X-Frame-Options", "DENY")
 			w.Header().Set("Cache-Control", "no-store, no-cache")
+			w.Header().Set("Vary", "Origin")
 
 			origin := r.Header.Get("Origin")
-			if origin != "" {
+			if origin != "" && isAllowedOrigin(origin) {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Vary", "Origin")
 			} else {
-				w.Header().Set("Access-Control-Allow-Origin", "null")
+				w.Header().Set("Access-Control-Allow-Origin", allowedOrigins[0])
 			}
 
 			authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
@@ -111,14 +127,20 @@ func NewRequireAuth(authQueries AuthValidator) func(http.Handler) http.Handler {
 	}
 }
 
+func jsonError(w http.ResponseWriter, body string, code int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_, _ = w.Write([]byte(body))
+}
+
 func LimitBodySize(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.ContentLength < -1 {
-			http.Error(w, `{"status":"fail","error":{"code":"BAD_REQUEST","message":"invalid content-length"}}`, http.StatusBadRequest)
+			jsonError(w, `{"status":"fail","error":{"code":"BAD_REQUEST","message":"invalid content-length"}}`, http.StatusBadRequest)
 			return
 		}
 		if r.ContentLength > maxBodyBytes {
-			http.Error(w, `{"status":"fail","error":{"code":"BODY_TOO_LARGE","message":"request body exceeds limit"}}`, http.StatusRequestEntityTooLarge)
+			jsonError(w, `{"status":"fail","error":{"code":"BODY_TOO_LARGE","message":"request body exceeds limit"}}`, http.StatusRequestEntityTooLarge)
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
@@ -136,35 +158,35 @@ type ipRateLimiter struct {
 	limiters map[string]*limiterEntry
 	r        rate.Limit
 	b        int
+	calls    int
 }
 
+const cleanupInterval = 100
+
 func newIPRateLimiter(r rate.Limit, b int) *ipRateLimiter {
-	l := &ipRateLimiter{
+	return &ipRateLimiter{
 		limiters: make(map[string]*limiterEntry),
 		r:        r,
 		b:        b,
 	}
-	go l.cleanupLoop()
-	return l
 }
 
-func (l *ipRateLimiter) cleanupLoop() {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-	for range ticker.C {
-		l.mu.Lock()
-		for ip, entry := range l.limiters {
-			if time.Since(entry.lastSeen) > 10*time.Minute {
-				delete(l.limiters, ip)
-			}
+func (l *ipRateLimiter) cleanup() {
+	for ip, entry := range l.limiters {
+		if time.Since(entry.lastSeen) > 10*time.Minute {
+			delete(l.limiters, ip)
 		}
-		l.mu.Unlock()
 	}
 }
 
 func (l *ipRateLimiter) getLimiter(ip string) *rate.Limiter {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	l.calls++
+	if l.calls%cleanupInterval == 0 {
+		l.cleanup()
+	}
 
 	entry, exists := l.limiters[ip]
 	if !exists {
@@ -190,7 +212,7 @@ func RateLimit(next http.Handler) http.Handler {
 	limiter := newIPRateLimiter(rate.Limit(5), 10)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !limiter.getLimiter(remoteAddr(r)).Allow() {
-			http.Error(w, `{"status":"fail","error":{"code":"RATE_LIMITED","message":"too many requests"}}`, http.StatusTooManyRequests)
+			jsonError(w, `{"status":"fail","error":{"code":"RATE_LIMITED","message":"too many requests"}}`, http.StatusTooManyRequests)
 			return
 		}
 		next.ServeHTTP(w, r)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 
 	identitydomain "github.com/JLugagne/agach-mcp/internal/identity/domain"
 	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
@@ -36,7 +37,15 @@ func NewWSHandler(authQueries wsAuthQueries, hub *websocket.Hub, logger *logrus.
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 			CheckOrigin: func(r *http.Request) bool {
-				return true
+				origin := r.Header.Get("Origin")
+				if origin == "" {
+					return true
+				}
+				u, err := url.Parse(origin)
+				if err != nil {
+					return false
+				}
+				return u.Host == r.Host
 			},
 		},
 		logger: logger,
@@ -47,13 +56,13 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	isDaemon := false
 	var nodeID string
 	if h.authQueries != nil {
-		token := r.URL.Query().Get("token")
-		if token == "" {
+		ticket := r.URL.Query().Get("ticket")
+		if ticket == "" {
 			http.Error(w, `{"status":"fail","error":{"code":"UNAUTHORIZED","message":"authentication required"}}`, http.StatusUnauthorized)
 			return
 		}
-		if _, err := h.authQueries.ValidateJWT(r.Context(), token); err != nil {
-			daemonActor, daemonErr := h.authQueries.ValidateDaemonJWT(r.Context(), token)
+		if _, err := h.authQueries.ValidateJWT(r.Context(), ticket); err != nil {
+			daemonActor, daemonErr := h.authQueries.ValidateDaemonJWT(r.Context(), ticket)
 			if daemonErr != nil {
 				http.Error(w, `{"status":"fail","error":{"code":"UNAUTHORIZED","message":"authentication required"}}`, http.StatusUnauthorized)
 				return

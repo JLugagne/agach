@@ -54,17 +54,43 @@ func NewRepositories(pool *pgxpool.Pool) (*Repositories, error) {
 	if pool != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
+
+		if _, err := pool.Exec(ctx, `
+			CREATE TABLE IF NOT EXISTS schema_migrations (
+				filename TEXT PRIMARY KEY,
+				applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+			)`); err != nil {
+			return nil, fmt.Errorf("creating schema_migrations table: %w", err)
+		}
+
 		entries, err := migrationsFS.ReadDir("migrations")
 		if err != nil {
 			return nil, fmt.Errorf("reading migrations directory: %w", err)
 		}
 		for _, entry := range entries {
+			var alreadyApplied bool
+			if err := pool.QueryRow(ctx,
+				`SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE filename = $1)`,
+				entry.Name(),
+			).Scan(&alreadyApplied); err != nil {
+				return nil, fmt.Errorf("checking schema_migrations for %s: %w", entry.Name(), err)
+			}
+			if alreadyApplied {
+				continue
+			}
+
 			sql, err := migrationsFS.ReadFile("migrations/" + entry.Name())
 			if err != nil {
 				return nil, fmt.Errorf("reading migration %s: %w", entry.Name(), err)
 			}
 			if _, err := pool.Exec(ctx, string(sql)); err != nil {
 				return nil, fmt.Errorf("applying migration %s: %w", entry.Name(), err)
+			}
+			if _, err := pool.Exec(ctx,
+				`INSERT INTO schema_migrations (filename) VALUES ($1)`,
+				entry.Name(),
+			); err != nil {
+				return nil, fmt.Errorf("recording schema_migrations for %s: %w", entry.Name(), err)
 			}
 		}
 	}

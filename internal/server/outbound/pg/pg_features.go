@@ -35,7 +35,8 @@ func (r *featureRepository) FindByID(ctx context.Context, id domain.FeatureID) (
 	defer cancel()
 	row := r.pool.QueryRow(ctx, `
 		SELECT id, project_id, name, description, user_changelog, tech_changelog, status, created_by_role, created_by_agent, node_id, created_at, updated_at
-		FROM features WHERE id = $1`, string(id))
+		FROM features WHERE id = $1
+		-- security: project_id = $2 filter must be added once interface exposes projectID`, string(id))
 	var f domain.Feature
 	var nodeID *string
 	err := row.Scan(
@@ -120,8 +121,8 @@ func (r *featureRepository) Update(ctx context.Context, feature domain.Feature) 
 	defer cancel()
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE features SET name=$1, description=$2, updated_at=$3
-		WHERE id=$4`,
-		feature.Name, feature.Description, feature.UpdatedAt, string(feature.ID),
+		WHERE id=$4 AND project_id=$5`,
+		feature.Name, feature.Description, feature.UpdatedAt, string(feature.ID), string(feature.ProjectID),
 	)
 	if err != nil {
 		return fmt.Errorf("update feature: %w", err)
@@ -135,6 +136,7 @@ func (r *featureRepository) Update(ctx context.Context, feature domain.Feature) 
 func (r *featureRepository) UpdateStatus(ctx context.Context, id domain.FeatureID, status domain.FeatureStatus, nodeID string) error {
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
+	// security: project_id filter must be added once interface exposes projectID
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE features SET status=$1, node_id=COALESCE($3, node_id), updated_at=NOW()
 		WHERE id=$2`,
@@ -152,6 +154,7 @@ func (r *featureRepository) UpdateStatus(ctx context.Context, id domain.FeatureI
 func (r *featureRepository) Delete(ctx context.Context, id domain.FeatureID) error {
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
+	// security: project_id filter must be added once interface exposes projectID
 	tag, err := r.pool.Exec(ctx, `DELETE FROM features WHERE id=$1`, string(id))
 	if err != nil {
 		return fmt.Errorf("delete feature: %w", err)
@@ -205,6 +208,7 @@ func (r *featureRepository) UpdateChangelogs(ctx context.Context, id domain.Feat
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
 
+	// security: project_id filter must be added once interface exposes projectID
 	setClauses := []string{}
 	args := []any{}
 
@@ -237,6 +241,7 @@ func (r *featureRepository) ListTaskSummaries(ctx context.Context, featureID dom
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
 
+	// security: project_id filter must be added once interface exposes projectID
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, title, completion_summary, completed_by_agent, completed_at, files_modified,
 		       duration_seconds, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, model

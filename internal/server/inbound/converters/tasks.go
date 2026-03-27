@@ -1,10 +1,29 @@
 package converters
 
 import (
+	"regexp"
+	"strings"
+
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
-	"github.com/google/uuid"
 	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
+	"github.com/google/uuid"
+	"golang.org/x/text/unicode/norm"
 )
+
+var (
+	htmlTagPattern     = regexp.MustCompile(`<[^>]*>`)
+	jsProtocolPattern  = regexp.MustCompile(`(?i)javascript\s*:`)
+	unsafeCharsPattern = regexp.MustCompile("[\x00-\x08\x0B\x0C\x0E-\x1F\u200B-\u200F\u202A-\u202E\uFEFF]")
+)
+
+// sanitizeText normalizes Unicode (NFKC) and strips HTML tags and JavaScript protocol references.
+func sanitizeText(s string) string {
+	normalized := norm.NFKC.String(s)
+	noUnsafe := unsafeCharsPattern.ReplaceAllString(normalized, "")
+	noHTML := htmlTagPattern.ReplaceAllString(noUnsafe, "")
+	noJS := jsProtocolPattern.ReplaceAllString(noHTML, "")
+	return strings.TrimSpace(noJS)
+}
 
 var validPriorities = map[domain.Priority]bool{
 	domain.PriorityCritical: true,
@@ -46,38 +65,38 @@ func ToPublicTask(task domain.Task) pkgserver.TaskResponse {
 	}
 
 	return pkgserver.TaskResponse{
-		ID:                string(task.ID),
-		ColumnID:          string(task.ColumnID),
-		FeatureID:         featureID,
-		Title:             task.Title,
-		Summary:           task.Summary,
-		Description:       task.Description,
-		Priority:          string(task.Priority),
-		PriorityScore:     task.PriorityScore,
-		Position:          task.Position,
-		CreatedByRole:     task.CreatedByRole,
-		CreatedByAgent:    task.CreatedByAgent,
-		AssignedRole:      task.AssignedRole,
-		IsBlocked:         task.IsBlocked,
-		BlockedReason:     task.BlockedReason,
-		BlockedAt:         task.BlockedAt,
-		BlockedByAgent:    task.BlockedByAgent,
-		WontDoRequested:   task.WontDoRequested,
-		WontDoReason:      task.WontDoReason,
-		WontDoRequestedBy: task.WontDoRequestedBy,
-		WontDoRequestedAt: task.WontDoRequestedAt,
-		CompletionSummary: task.CompletionSummary,
-		CompletedByAgent:  task.CompletedByAgent,
-		CompletedAt:       task.CompletedAt,
-		FilesModified:     task.FilesModified,
-		Resolution:        task.Resolution,
-		ContextFiles:      task.ContextFiles,
-		Tags:              task.Tags,
-		EstimatedEffort:   task.EstimatedEffort,
-		InputTokens:       clampInt(task.InputTokens),
-		OutputTokens:      clampInt(task.OutputTokens),
-		CacheReadTokens:   clampInt(task.CacheReadTokens),
-		CacheWriteTokens:  clampInt(task.CacheWriteTokens),
+		ID:                   string(task.ID),
+		ColumnID:             string(task.ColumnID),
+		FeatureID:            featureID,
+		Title:                sanitizeText(task.Title),
+		Summary:              sanitizeText(task.Summary),
+		Description:          sanitizeText(task.Description),
+		Priority:             string(task.Priority),
+		PriorityScore:        task.PriorityScore,
+		Position:             task.Position,
+		CreatedByRole:        task.CreatedByRole,
+		CreatedByAgent:       task.CreatedByAgent,
+		AssignedRole:         task.AssignedRole,
+		IsBlocked:            task.IsBlocked,
+		BlockedReason:        task.BlockedReason,
+		BlockedAt:            task.BlockedAt,
+		BlockedByAgent:       task.BlockedByAgent,
+		WontDoRequested:      task.WontDoRequested,
+		WontDoReason:         task.WontDoReason,
+		WontDoRequestedBy:    task.WontDoRequestedBy,
+		WontDoRequestedAt:    task.WontDoRequestedAt,
+		CompletionSummary:    task.CompletionSummary,
+		CompletedByAgent:     task.CompletedByAgent,
+		CompletedAt:          task.CompletedAt,
+		FilesModified:        task.FilesModified,
+		Resolution:           task.Resolution,
+		ContextFiles:         task.ContextFiles,
+		Tags:                 task.Tags,
+		EstimatedEffort:      task.EstimatedEffort,
+		InputTokens:          clampInt(task.InputTokens),
+		OutputTokens:         clampInt(task.OutputTokens),
+		CacheReadTokens:      clampInt(task.CacheReadTokens),
+		CacheWriteTokens:     clampInt(task.CacheWriteTokens),
 		Model:                task.Model,
 		SessionID:            task.SessionID,
 		NodeID:               task.NodeID,

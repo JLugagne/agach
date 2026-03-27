@@ -459,8 +459,9 @@ func (r *taskRepository) HasUnresolvedDependencies(ctx context.Context, projectI
 		SELECT COUNT(*) FROM task_dependencies td
 		JOIN tasks dep ON dep.id = td.depends_on_task_id
 		JOIN columns dc ON dc.id = dep.column_id
-		WHERE td.task_id = $1 AND dc.slug != 'done'`,
-		string(taskID)).Scan(&count)
+		JOIN tasks t ON t.id = td.task_id
+		WHERE td.task_id = $1 AND dc.slug != 'done' AND t.project_id = $2`,
+		string(taskID), string(projectID)).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("has unresolved deps: %w", err)
 	}
@@ -475,8 +476,8 @@ func (r *taskRepository) GetDependentsNotDone(ctx context.Context, projectID dom
 		FROM tasks t
 		JOIN task_dependencies td ON td.task_id = t.id
 		JOIN columns c ON c.id = t.column_id
-		WHERE td.depends_on_task_id = $1 AND c.slug != 'done'`,
-		string(taskID))
+		WHERE td.depends_on_task_id = $1 AND c.slug != 'done' AND t.project_id = $2`,
+		string(taskID), string(projectID))
 	if err != nil {
 		return nil, fmt.Errorf("get dependents not done: %w", err)
 	}
@@ -547,6 +548,12 @@ func (r *taskRepository) ReorderTask(ctx context.Context, projectID domain.Proje
 }
 
 func (r *taskRepository) GetTimeline(ctx context.Context, projectID domain.ProjectID, days int) ([]domain.TimelineEntry, error) {
+	if days < 1 {
+		days = 1
+	}
+	if days > 365 {
+		days = 365
+	}
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
 	rows, err := r.pool.Query(ctx, `

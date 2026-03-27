@@ -188,7 +188,7 @@ func (p Priority) Score() int {
 	case PriorityLow:
 		return 100
 	default:
-		return 200 // default to medium
+		return 0
 	}
 }
 
@@ -638,4 +638,43 @@ type Notification struct {
 	LinkStyle string               `json:"link_style,omitempty"`
 	ReadAt    *time.Time           `json:"read_at"`
 	CreatedAt time.Time            `json:"created_at"`
+}
+
+// Domain validation constants.
+const (
+	MaxTaskTitleLength       = 500
+	MaxCommentContentLength  = 10_000
+	MaxPromptTemplateLength  = 100_000
+)
+
+// ValidateTitle checks that the task title is within bounds.
+func (t *Task) ValidateTitle() error {
+	if len(t.Title) > MaxTaskTitleLength {
+		return fmt.Errorf("task title exceeds maximum length of %d characters", MaxTaskTitleLength)
+	}
+	return nil
+}
+
+// ValidateContent checks that the comment content is within bounds.
+func (c *Comment) ValidateContent() error {
+	if len(c.Content) > MaxCommentContentLength {
+		return fmt.Errorf("comment content exceeds maximum length of %d characters", MaxCommentContentLength)
+	}
+	return nil
+}
+
+// ValidateAuthorType checks that the author type is valid.
+func (c *Comment) ValidateAuthorType() error {
+	if c.AuthorType != AuthorTypeAgent && c.AuthorType != AuthorTypeHuman {
+		return fmt.Errorf("invalid author type %q: must be %q or %q", c.AuthorType, AuthorTypeAgent, AuthorTypeHuman)
+	}
+	return nil
+}
+
+// ValidatePromptTemplate checks that the prompt template is within bounds.
+func (a *Agent) ValidatePromptTemplate() error {
+	if len(a.PromptTemplate) > MaxPromptTemplateLength {
+		return fmt.Errorf("prompt template exceeds maximum length of %d characters", MaxPromptTemplateLength)
+	}
+	return nil
 }

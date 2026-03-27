@@ -62,13 +62,19 @@ type ErrorData struct {
 
 // SendSuccess sends a successful response with data
 func (c *Controller) SendSuccess(w http.ResponseWriter, r *http.Request, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(Response{
+	body, err := json.Marshal(Response{
 		Status: "success",
 		Data:   data,
-	}); err != nil {
-		c.logger.WithError(err).WithField("path", r.URL.Path).Error("Failed to encode success response")
+	})
+	if err != nil {
+		c.logger.WithError(err).WithField("path", r.URL.Path).Error("Failed to marshal success response")
+		c.SendError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if _, werr := w.Write(body); werr != nil {
+		c.logger.WithError(werr).WithField("path", r.URL.Path).Error("Failed to write success response")
 	}
 }
 
@@ -83,7 +89,7 @@ type CodedError interface {
 // SendFail sends a failure response (client error - bad request, validation, etc.)
 func (c *Controller) SendFail(w http.ResponseWriter, r *http.Request, statusCode *int, err error) {
 	code := http.StatusBadRequest
-	if statusCode != nil {
+	if statusCode != nil && *statusCode >= 400 && *statusCode < 500 {
 		code = *statusCode
 	}
 
@@ -152,7 +158,14 @@ func (c *Controller) DecodeAndValidate(r *http.Request, data interface{}, valida
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(data); err != nil {
+		if strings.Contains(err.Error(), "json: unknown field") {
+			return &apierror.Error{Code: "INVALID_REQUEST_BODY", Message: "invalid request body"}
+		}
 		return err
+	}
+
+	if dec.More() {
+		return &apierror.Error{Code: "INVALID_REQUEST_BODY", Message: "invalid request body: trailing data"}
 	}
 
 	if err := c.Validate(data); err != nil {
@@ -160,7 +173,6 @@ func (c *Controller) DecodeAndValidate(r *http.Request, data interface{}, valida
 			return &apierror.Error{
 				Code:    validationErr.Code,
 				Message: validationErr.Message,
-				Err:     err,
 			}
 		}
 		return err

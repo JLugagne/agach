@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/JLugagne/agach-mcp/pkg/apierror"
@@ -61,7 +62,7 @@ type CreateAgentRequest struct {
 	Model          string   `json:"model" validate:"omitempty,max=100"`
 	Thinking       string   `json:"thinking" validate:"omitempty,max=50"`
 	SkillSlugs     []string `json:"skill_slugs" validate:"max=100,dive,max=50"`
-	SortOrder      int      `json:"sort_order"`
+	SortOrder      int      `json:"sort_order" validate:"min=0,max=10000"`
 }
 
 // UpdateAgentRequest represents a request to update an agent
@@ -135,7 +136,7 @@ type CreateSkillRequest struct {
 	Content     string `json:"content"     validate:"max=100000"`
 	Icon        string `json:"icon"        validate:"max=10"`
 	Color       string `json:"color"       validate:"omitempty,hexcolor"`
-	SortOrder   int    `json:"sort_order"`
+	SortOrder   int    `json:"sort_order" validate:"min=0,max=10000"`
 }
 
 // UpdateSkillRequest represents a request to update a skill
@@ -219,12 +220,12 @@ type CompleteTaskRequest struct {
 	CompletionSummary    string   `json:"completion_summary" validate:"required,min=100,max=10000"`
 	FilesModified        []string `json:"files_modified" validate:"max=1000,dive,max=500"`
 	CompletedByAgent     string   `json:"completed_by_agent" validate:"required,max=100"`
-	InputTokens          int      `json:"input_tokens,omitempty"`
-	OutputTokens         int      `json:"output_tokens,omitempty"`
-	CacheReadTokens      int      `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens     int      `json:"cache_write_tokens,omitempty"`
+	InputTokens          int      `json:"input_tokens,omitempty" validate:"min=0"`
+	OutputTokens         int      `json:"output_tokens,omitempty" validate:"min=0"`
+	CacheReadTokens      int      `json:"cache_read_tokens,omitempty" validate:"min=0"`
+	CacheWriteTokens     int      `json:"cache_write_tokens,omitempty" validate:"min=0"`
 	Model                string   `json:"model,omitempty"`
-	HumanEstimateSeconds int      `json:"human_estimate_seconds,omitempty"`
+	HumanEstimateSeconds int      `json:"human_estimate_seconds,omitempty" validate:"min=0"`
 	NodeID               string   `json:"node_id" validate:"omitempty,max=100"`
 }
 
@@ -254,7 +255,7 @@ type MoveTaskToProjectRequest struct {
 
 // ReorderTaskRequest represents a request to reorder a task within its column
 type ReorderTaskRequest struct {
-	Position int `json:"position" validate:"min=0"`
+	Position int `json:"position" validate:"min=0,max=10000"`
 }
 
 // TaskResponse represents a task in API responses
@@ -300,6 +301,20 @@ type TaskResponse struct {
 	HumanEstimateSeconds int        `json:"human_estimate_seconds"`
 	CreatedAt            time.Time  `json:"created_at"`
 	UpdatedAt            time.Time  `json:"updated_at"`
+}
+
+func (r TaskResponse) MarshalJSON() ([]byte, error) {
+	if r.FilesModified == nil {
+		r.FilesModified = []string{}
+	}
+	if r.ContextFiles == nil {
+		r.ContextFiles = []string{}
+	}
+	if r.Tags == nil {
+		r.Tags = []string{}
+	}
+	type alias TaskResponse
+	return json.Marshal(alias(r))
 }
 
 // TaskWithDetailsResponse represents a task with additional metadata
@@ -569,10 +584,10 @@ type StartChatSessionRequest struct {
 }
 
 type UpdateChatStatsRequest struct {
-	InputTokens      int    `json:"input_tokens"`
-	OutputTokens     int    `json:"output_tokens"`
-	CacheReadTokens  int    `json:"cache_read_tokens"`
-	CacheWriteTokens int    `json:"cache_write_tokens"`
+	InputTokens      int    `json:"input_tokens" validate:"min=0"`
+	OutputTokens     int    `json:"output_tokens" validate:"min=0"`
+	CacheReadTokens  int    `json:"cache_read_tokens" validate:"min=0"`
+	CacheWriteTokens int    `json:"cache_write_tokens" validate:"min=0"`
 	Model            string `json:"model" validate:"omitempty,max=100"`
 }
 
@@ -597,7 +612,7 @@ type ChatSessionResponse struct {
 // Project access types
 
 type GrantUserAccessRequest struct {
-	UserID string `json:"user_id" validate:"required"`
+	UserID string `json:"user_id" validate:"required,max=200"`
 	Role   string `json:"role" validate:"required,oneof=admin member"`
 }
 
@@ -606,7 +621,7 @@ type UpdateUserAccessRoleRequest struct {
 }
 
 type GrantTeamAccessRequest struct {
-	TeamID string `json:"team_id" validate:"required"`
+	TeamID string `json:"team_id" validate:"required,max=200"`
 }
 
 type ProjectUserAccessResponse struct {

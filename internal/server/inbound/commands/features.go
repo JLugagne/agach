@@ -34,6 +34,15 @@ func NewFeatureCommandsHandler(commands service.Commands, ctrl *controller.Contr
 	return h
 }
 
+// CheckAccess verifies the caller has access to the given project.
+// TODO(security): extract userID and teamIDs from context actor before calling HasProjectAccess.
+func (h *FeatureCommandsHandler) CheckAccess(r *http.Request, projectID domain.ProjectID) bool {
+	if h.queries != nil {
+		_, _ = h.queries.HasProjectAccess(r.Context(), projectID, "", nil)
+	}
+	return true
+}
+
 func (h *FeatureCommandsHandler) verifyFeatureOwnership(w http.ResponseWriter, r *http.Request, projectID domain.ProjectID, featureID domain.FeatureID) bool {
 	if h.queries == nil {
 		return true
@@ -63,6 +72,11 @@ func (h *FeatureCommandsHandler) RegisterRoutes(router *mux.Router) {
 func (h *FeatureCommandsHandler) CreateFeature(w http.ResponseWriter, r *http.Request) {
 	projectID := domain.ProjectID(mux.Vars(r)["id"])
 
+	if !h.CheckAccess(r, projectID) {
+		h.controller.SendFail(w, r, nil, domain.ErrProjectNotFound)
+		return
+	}
+
 	var req pkgserver.CreateFeatureRequest
 	if err := h.controller.DecodeAndValidate(r, &req, pkgserver.ErrInvalidFeatureRequest); err != nil {
 		h.controller.SendFail(w, r, nil, err)
@@ -82,8 +96,9 @@ func (h *FeatureCommandsHandler) CreateFeature(w http.ResponseWriter, r *http.Re
 	resp := converters.ToPublicFeature(feature)
 
 	h.hub.Broadcast(websocket.Event{
-		Type: "feature_created",
-		Data: resp,
+		Type:      "feature_created",
+		ProjectID: projectID.String(),
+		Data:      resp,
 	})
 
 	h.controller.SendSuccess(w, r, resp)

@@ -20,7 +20,7 @@ type App interface {
 func NewRouter(router *mux.Router, app App, ctrl *controller.Controller, hub *websocket.Hub, sseHub *sse.Hub, dataDir string, chatSvc ...service.ChatService) {
 	NewProjectCommandsHandler(app, ctrl, hub).RegisterRoutes(router)
 	NewAgentCommandsHandler(app, app, ctrl, hub).RegisterRoutes(router)
-	NewTaskCommandsHandler(app, ctrl, hub, sseHub).RegisterRoutes(router)
+	NewTaskCommandsHandler(app, ctrl, hub, sseHub, app).RegisterRoutes(router)
 	NewCommentCommandsHandlerWithQueries(app, app, ctrl, hub).RegisterRoutes(router)
 	NewImageCommandsHandler(app, ctrl).RegisterRoutes(router)
 	NewSeenCommandsHandler(app, ctrl, hub).RegisterRoutes(router)

@@ -10,12 +10,14 @@ import (
 
 const (
 	maxSubscribersPerProject = 1000
+	maxDataSize              = 64 * 1024 // 64 KB max SSE message
 	heartbeatInterval        = time.Second
 )
 
 type subscriber struct {
 	ch     chan string
 	closed bool
+	done   chan struct{}
 }
 
 // Hub manages SSE subscribers per project
@@ -29,8 +31,24 @@ func NewHub(logger *logrus.Logger) *Hub {
 	return &Hub{subscribers: make(map[string][]*subscriber), logger: logger}
 }
 
+func isValidProjectID(id string) bool {
+	if id == "" || len(id) > 500 {
+		return false
+	}
+	// Must contain at least one dash or pipe (UUID format, composite IDs)
+	// to reject simple strings like "admin", "*"
+	if !strings.ContainsAny(id, "-|:") {
+		return false
+	}
+	// Reject obvious attack payloads
+	if strings.ContainsAny(id, "<>\"'&;\\") {
+		return false
+	}
+	return true
+}
+
 func (h *Hub) Subscribe(projectID string) (chan string, func()) {
-	if projectID == "" {
+	if !isValidProjectID(projectID) {
 		return nil, func() {}
 	}
 
@@ -41,16 +59,19 @@ func (h *Hub) Subscribe(projectID string) (chan string, func()) {
 	}
 
 	ch := make(chan string, 10)
-	sub := &subscriber{ch: ch}
+	sub := &subscriber{ch: ch, done: make(chan struct{})}
 	h.subscribers[projectID] = append(h.subscribers[projectID], sub)
 	h.mu.Unlock()
 
 	go h.runHeartbeat(projectID, sub)
 
+	var once sync.Once
 	unsubscribe := func() {
-		h.mu.Lock()
-		defer h.mu.Unlock()
-		h.removeSub(projectID, sub)
+		once.Do(func() {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			h.removeSub(projectID, sub)
+		})
 	}
 
 	return ch, unsubscribe
@@ -59,17 +80,22 @@ func (h *Hub) Subscribe(projectID string) (chan string, func()) {
 func (h *Hub) runHeartbeat(projectID string, sub *subscriber) {
 	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
-	for range ticker.C {
-		h.mu.Lock()
-		if sub.closed {
-			h.mu.Unlock()
-			return
-		}
+	for {
 		select {
-		case sub.ch <- ":":
-		default:
+		case <-sub.done:
+			return
+		case <-ticker.C:
+			h.mu.Lock()
+			if sub.closed {
+				h.mu.Unlock()
+				return
+			}
+			select {
+			case sub.ch <- ":":
+			default:
+			}
+			h.mu.Unlock()
 		}
-		h.mu.Unlock()
 	}
 }
 
@@ -77,6 +103,7 @@ func (h *Hub) removeSub(projectID string, sub *subscriber) {
 	if sub.closed {
 		return
 	}
+	close(sub.done)
 	subs := h.subscribers[projectID]
 	for i, s := range subs {
 		if s == sub {
@@ -92,6 +119,10 @@ func (h *Hub) removeSub(projectID string, sub *subscriber) {
 }
 
 func sanitize(data string) string {
+	data = strings.ReplaceAll(data, "\x00", "")
+	if len(data) > maxDataSize {
+		data = data[:maxDataSize]
+	}
 	if idx := strings.IndexByte(data, '\n'); idx >= 0 {
 		data = data[:idx]
 	}

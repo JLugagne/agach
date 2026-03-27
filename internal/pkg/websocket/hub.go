@@ -117,7 +117,7 @@ func (h *Hub) Run() {
 		case event := <-h.broadcast:
 			h.mu.Lock()
 			for client := range h.clients {
-				if client.projectID != "" && event.ProjectID != "" && client.projectID != event.ProjectID {
+				if event.ProjectID != "" && client.projectID != event.ProjectID {
 					continue
 				}
 				select {
@@ -137,11 +137,17 @@ func (h *Hub) Run() {
 					if client.isDaemon {
 						continue
 					}
+					if client.projectID != msg.from.projectID {
+						continue
+					}
 					h.sendRaw(client, msg.data)
 				}
 			} else {
 				for client := range h.clients {
 					if !client.isDaemon {
+						continue
+					}
+					if client.projectID != msg.from.projectID {
 						continue
 					}
 					h.sendRaw(client, msg.data)
@@ -201,7 +207,7 @@ func (c *Client) ReadPump() {
 		c.conn.Close()
 	}()
 
-	c.conn.SetReadLimit(64 * 1024)
+	c.conn.SetReadLimit(MaxMessageSize)
 	c.conn.SetReadDeadline(time.Now().Add(PongWait))
 	c.conn.SetPongHandler(func(string) error {
 		c.conn.SetReadDeadline(time.Now().Add(PongWait))

@@ -78,7 +78,7 @@ func TestSecurity_RED_JSONMarshalingNoControlledOutput(t *testing.T) {
 	e := &apierror.Error{
 		Code:    "INTERNAL_ERROR",
 		Message: "Something went wrong",
-		Err:     errors.New("pq: password authentication failed for user \"admin\""),
+		Err:     apierror.WrapErr(errors.New("pq: password authentication failed for user \"admin\"")),
 	}
 
 	data, err := json.Marshal(e)

@@ -27,7 +27,8 @@ func newTestHub(t *testing.T) *websocket.Hub {
 }
 
 // newTestWSServer creates an HTTP test server that upgrades connections and
-// delegates to the hub's ServeWS method.
+// delegates to the hub's ServeWS method. Clients can pass ?project_id=X to
+// scope themselves to a project.
 func newTestWSServer(t *testing.T, hub *websocket.Hub) *httptest.Server {
 	t.Helper()
 
@@ -41,7 +42,11 @@ func newTestWSServer(t *testing.T, hub *websocket.Hub) *httptest.Server {
 			http.Error(w, "upgrade failed", http.StatusInternalServerError)
 			return
 		}
-		hub.ServeWS(conn)
+		var opts []websocket.ServeWSOption
+		if pid := r.URL.Query().Get("project_id"); pid != "" {
+			opts = append(opts, websocket.WithProjectID(pid))
+		}
+		hub.ServeWS(conn, opts...)
 	}))
 
 	t.Cleanup(srv.Close)
@@ -51,8 +56,17 @@ func newTestWSServer(t *testing.T, hub *websocket.Hub) *httptest.Server {
 // dialWS dials the test WebSocket server and returns the connection.
 func dialWS(t *testing.T, srv *httptest.Server) *gorillaws.Conn {
 	t.Helper()
+	return dialWSWithProject(t, srv, "")
+}
+
+// dialWSWithProject dials the test WebSocket server scoped to a project.
+func dialWSWithProject(t *testing.T, srv *httptest.Server, projectID string) *gorillaws.Conn {
+	t.Helper()
 
 	url := "ws" + strings.TrimPrefix(srv.URL, "http")
+	if projectID != "" {
+		url += "/?project_id=" + projectID
+	}
 	conn, _, err := gorillaws.DefaultDialer.Dial(url, nil)
 	require.NoError(t, err, "failed to dial WebSocket server")
 
@@ -113,9 +127,9 @@ func TestHub_BroadcastToMultipleClients(t *testing.T) {
 	hub := newTestHub(t)
 	srv := newTestWSServer(t, hub)
 
-	conn1 := dialWS(t, srv)
-	conn2 := dialWS(t, srv)
-	conn3 := dialWS(t, srv)
+	conn1 := dialWSWithProject(t, srv, "proj-42")
+	conn2 := dialWSWithProject(t, srv, "proj-42")
+	conn3 := dialWSWithProject(t, srv, "proj-42")
 	waitForRegistration()
 
 	expectedType := "task_moved"
@@ -166,7 +180,7 @@ func TestHub_BroadcastTaskMovedEvent(t *testing.T) {
 	hub := newTestHub(t)
 	srv := newTestWSServer(t, hub)
 
-	conn := dialWS(t, srv)
+	conn := dialWSWithProject(t, srv, "project-abc")
 	waitForRegistration()
 
 	hub.Broadcast(websocket.Event{
@@ -193,7 +207,7 @@ func TestHub_BroadcastTaskCreatedEvent(t *testing.T) {
 	hub := newTestHub(t)
 	srv := newTestWSServer(t, hub)
 
-	conn := dialWS(t, srv)
+	conn := dialWSWithProject(t, srv, "project-abc")
 	waitForRegistration()
 
 	hub.Broadcast(websocket.Event{
@@ -212,7 +226,7 @@ func TestHub_BroadcastTaskBlockedEvent(t *testing.T) {
 	hub := newTestHub(t)
 	srv := newTestWSServer(t, hub)
 
-	conn := dialWS(t, srv)
+	conn := dialWSWithProject(t, srv, "project-abc")
 	waitForRegistration()
 
 	hub.Broadcast(websocket.Event{
@@ -241,7 +255,7 @@ func TestHub_BroadcastMultipleEvents(t *testing.T) {
 	hub := newTestHub(t)
 	srv := newTestWSServer(t, hub)
 
-	conn := dialWS(t, srv)
+	conn := dialWSWithProject(t, srv, "p1")
 	waitForRegistration()
 
 	events := []websocket.Event{

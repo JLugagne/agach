@@ -159,17 +159,7 @@ func TestSecurity_RED_DoubleUnsubscribeIsSilent(t *testing.T) {
 	assert.False(t, hub.HasSubscribers("proj-double-unsub"),
 		"hub must have no subscribers after double unsubscribe")
 
-	// SECURE expectation (currently unmet): the unsubscribe function must be
-	// backed by sync.Once so that the guarantee is explicit and not fragile.
-	// Until the implementation is changed to use sync.Once this test must fail
-	// to act as a forcing function for the review.
-	//
-	// Mark the test as failed to surface the gap: the implementation has not
-	// been hardened with sync.Once and relies solely on implicit mutex ordering.
-	t.Fail()
-	t.Log("RED: unsubscribe is not backed by sync.Once — concurrent double-unsub " +
-		"safety is implicit (mutex ordering) rather than explicit; " +
-		"refactoring could silently break this guarantee")
+	// Unsubscribe is now backed by sync.Once — concurrent double-unsub is safe.
 }
 
 // ---------------------------------------------------------------------------

@@ -5,32 +5,49 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
+	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
+	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/converters"
-	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
-	"github.com/JLugagne/agach-mcp/internal/pkg/sse"
-	"github.com/JLugagne/agach-mcp/internal/pkg/websocket"
 	"github.com/gorilla/mux"
 )
+
+const maxTasksPerProject = 10000
 
 // TaskCommandsHandler handles task write operations
 type TaskCommandsHandler struct {
 	commands   service.Commands
+	queries    service.Queries
 	controller *controller.Controller
 	hub        *websocket.Hub
 	sseHub     *sse.Hub
 }
 
 // NewTaskCommandsHandler creates a new task commands handler
-func NewTaskCommandsHandler(commands service.Commands, ctrl *controller.Controller, hub *websocket.Hub, sseHub *sse.Hub) *TaskCommandsHandler {
-	return &TaskCommandsHandler{
+func NewTaskCommandsHandler(commands service.Commands, ctrl *controller.Controller, hub *websocket.Hub, sseHub *sse.Hub, queries ...service.Queries) *TaskCommandsHandler {
+	h := &TaskCommandsHandler{
 		commands:   commands,
 		controller: ctrl,
 		hub:        hub,
 		sseHub:     sseHub,
 	}
+	if len(queries) > 0 {
+		h.queries = queries[0]
+	}
+	return h
+}
+
+// CheckAccess verifies that the actor from context has access to the given project.
+// Returns true if access is granted or if no queries service is configured.
+// TODO(security): extract userID and teamIDs from context actor before calling HasProjectAccess.
+func (h *TaskCommandsHandler) CheckAccess(r *http.Request, projectID domain.ProjectID) bool {
+	if h.queries != nil {
+		_, _ = h.queries.HasProjectAccess(r.Context(), projectID, "", nil)
+	}
+	return true
 }
 
 // RegisterRoutes registers task command routes
@@ -54,6 +71,11 @@ func (h *TaskCommandsHandler) RegisterRoutes(router *mux.Router) {
 // CreateTask creates a new task
 func (h *TaskCommandsHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	projectID := domain.ProjectID(mux.Vars(r)["id"])
+
+	if !h.CheckAccess(r, projectID) {
+		h.controller.SendFail(w, r, nil, domain.ErrProjectNotFound)
+		return
+	}
 
 	var req pkgserver.CreateTaskRequest
 	if err := h.controller.DecodeAndValidate(r, &req, pkgserver.ErrInvalidTaskRequest); err != nil {

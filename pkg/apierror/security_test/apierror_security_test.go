@@ -39,7 +39,7 @@ func TestSecurity_RED_ErrFieldIsPubliclyReadable(t *testing.T) {
 	e := &apierror.Error{
 		Code:    "INTERNAL_ERROR",
 		Message: "An internal error occurred",
-		Err:     internalCause,
+		Err:     apierror.WrapErr(internalCause),
 	}
 
 	// Correct behavior: the raw internal error must not be directly readable
@@ -56,7 +56,7 @@ func TestSecurity_GREEN_ErrorStringDoesNotExposeInternalCause(t *testing.T) {
 	e := &apierror.Error{
 		Code:    "INTERNAL_ERROR",
 		Message: "An internal error occurred",
-		Err:     internalCause,
+		Err:     apierror.WrapErr(internalCause),
 	}
 
 	publicString := e.Error()
@@ -119,7 +119,7 @@ func TestSecurity_GREEN_UnwrapReturnsNilAtPublicBoundary(t *testing.T) {
 	e := &apierror.Error{
 		Code:    "INTERNAL_ERROR",
 		Message: "An internal error occurred",
-		Err:     rawCause,
+		Err:     apierror.WrapErr(rawCause),
 	}
 
 	// After the fix: Unwrap() at the public boundary returns nil.
@@ -137,7 +137,7 @@ func TestSecurity_GREEN_ErrorsIsCannotReachInternalCause(t *testing.T) {
 	e := &apierror.Error{
 		Code:    "INTERNAL_ERROR",
 		Message: "An internal error occurred",
-		Err:     internalSentinel,
+		Err:     apierror.WrapErr(internalSentinel),
 	}
 
 	assert.False(t, errors.Is(e, internalSentinel),

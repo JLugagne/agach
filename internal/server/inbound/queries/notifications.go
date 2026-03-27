@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
 	"github.com/JLugagne/agach-mcp/internal/server/domain/service"
 	"github.com/JLugagne/agach-mcp/internal/server/inbound/converters"
-	"github.com/JLugagne/agach-mcp/internal/pkg/controller"
 	"github.com/gorilla/mux"
 )
 
@@ -64,7 +64,10 @@ func parseNotificationQueryParams(r *http.Request) (scope *domain.NotificationSc
 func (h *NotificationQueriesHandler) ListAllNotifications(w http.ResponseWriter, r *http.Request) {
 	scope, agentSlug, unreadOnly, limit, offset := parseNotificationQueryParams(r)
 
-	notifications, err := h.queries.ListNotifications(r.Context(), nil, scope, agentSlug, unreadOnly, limit, offset)
+	// projectFilter is nil to return all global notifications.
+	// TODO(security): filter by accessible projects using the caller's identity from context.
+	var projectFilter *domain.ProjectID
+	notifications, err := h.queries.ListNotifications(r.Context(), projectFilter, scope, agentSlug, unreadOnly, limit, offset)
 	if err != nil {
 		if domain.IsDomainError(err) {
 			h.controller.SendFail(w, r, nil, err)

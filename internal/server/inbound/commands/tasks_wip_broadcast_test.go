@@ -46,7 +46,7 @@ func newTestTaskHandlerAndHub(t *testing.T, mock *servicetest.MockCommands) (*co
 // connections to WebSocket and delegates them to hub.ServeWS.
 // It returns a connected gorilla WebSocket client and waits for client
 // registration to complete before returning.
-func connectWSClientToHub(t *testing.T, hub *websocket.Hub) *gorillaws.Conn {
+func connectWSClientToHub(t *testing.T, hub *websocket.Hub, projectIDs ...string) *gorillaws.Conn {
 	t.Helper()
 	upgrader := gorillaws.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
@@ -57,11 +57,18 @@ func connectWSClientToHub(t *testing.T, hub *websocket.Hub) *gorillaws.Conn {
 			http.Error(w, "upgrade failed", http.StatusInternalServerError)
 			return
 		}
-		hub.ServeWS(conn)
+		var opts []websocket.ServeWSOption
+		if pid := r.URL.Query().Get("project_id"); pid != "" {
+			opts = append(opts, websocket.WithProjectID(pid))
+		}
+		hub.ServeWS(conn, opts...)
 	}))
 	t.Cleanup(srv.Close)
 
 	url := "ws" + strings.TrimPrefix(srv.URL, "http")
+	if len(projectIDs) > 0 && projectIDs[0] != "" {
+		url += "/?project_id=" + projectIDs[0]
+	}
 	conn, _, err := gorillaws.DefaultDialer.Dial(url, nil)
 	require.NoError(t, err, "failed to dial WebSocket test server")
 	t.Cleanup(func() { conn.Close() })
@@ -118,7 +125,7 @@ func TestMoveTask_ToBacklog_EmitsWIPSlotAvailable(t *testing.T) {
 	}
 
 	handler, hub := newTestTaskHandlerAndHub(t, mock)
-	conn := connectWSClientToHub(t, hub)
+	conn := connectWSClientToHub(t, hub, string(projectID))
 
 	router := mux.NewRouter()
 	handler.RegisterRoutes(router)
@@ -158,7 +165,7 @@ func TestCompleteTask_EmitsWIPSlotAvailable(t *testing.T) {
 	}
 
 	handler, hub := newTestTaskHandlerAndHub(t, mock)
-	conn := connectWSClientToHub(t, hub)
+	conn := connectWSClientToHub(t, hub, string(projectID))
 
 	router := mux.NewRouter()
 	handler.RegisterRoutes(router)
@@ -200,7 +207,7 @@ func TestMoveTask_ToInProgress_DoesNotEmitWIPSlotAvailable(t *testing.T) {
 	}
 
 	handler, hub := newTestTaskHandlerAndHub(t, mock)
-	conn := connectWSClientToHub(t, hub)
+	conn := connectWSClientToHub(t, hub, string(projectID))
 
 	router := mux.NewRouter()
 	handler.RegisterRoutes(router)

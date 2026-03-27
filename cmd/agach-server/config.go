@@ -17,10 +17,6 @@ type serverConfig struct {
 }
 
 func writeDefaultConfig(path string) error {
-	if _, err := os.Stat(path); err == nil {
-		return fmt.Errorf("config file %q already exists", path)
-	}
-
 	cfg := serverConfig{
 		DaemonJWTTTL: 24 * time.Hour,
 	}
@@ -30,25 +26,47 @@ func writeDefaultConfig(path string) error {
 		return fmt.Errorf("marshaling default config: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("config file %q already exists", path)
+		}
+		return fmt.Errorf("creating config file %q: %w", path, err)
+	}
+	_ = f.Close()
+
+	if err := os.WriteFile(path, data, 0600); err != nil {
 		return fmt.Errorf("writing config file %q: %w", path, err)
 	}
 
 	return nil
 }
 
-func loadConfig(path string) (*serverConfig, error) {
-	data, err := os.ReadFile(path)
+func loadConfig(configPath string) (*serverConfig, error) {
+	info, err := os.Stat(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return &serverConfig{}, nil
 		}
-		return nil, fmt.Errorf("reading server config %q: %w", path, err)
+		return nil, fmt.Errorf("stating server config %q: %w", configPath, err)
+	}
+
+	if info.Mode().Perm()&0o077 != 0 {
+		return nil, fmt.Errorf("config file %q has unsafe permissions %04o; must be 0600 (owner-only)", configPath, info.Mode().Perm())
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading server config %q: %w", configPath, err)
 	}
 
 	var cfg serverConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing server config %q: %w", path, err)
+		return nil, fmt.Errorf("parsing server config %q: %w", configPath, err)
+	}
+
+	if cfg.AuthRateLimitPerSecond <= 0 && cfg.AuthRateLimitPerSecond != 0 {
+		return nil, fmt.Errorf("invalid auth rate limit: AuthRateLimitPerSecond must be positive, got %v", cfg.AuthRateLimitPerSecond)
 	}
 
 	return &cfg, nil

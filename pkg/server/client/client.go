@@ -4,26 +4,46 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
+	"time"
 
 	pkgserver "github.com/JLugagne/agach-mcp/pkg/server"
 )
 
 const (
-	maxResponseBytes = 10 * 1024 * 1024 // 10 MB
+	maxResponseBytes = 1 * 1024 * 1024 // 1 MB
 	maxSessionIDLen  = 512
+	defaultTimeout   = 2 * time.Second
 )
 
-var blockedHosts = []string{
-	"169.254.169.254",
-	"metadata.google.internal",
-	"169.254.170.2",
+var (
+	blockedHosts = []string{
+		"169.254.169.254",
+		"metadata.google.internal",
+		"169.254.170.2",
+	}
+
+	privateIPv4Ranges = []net.IPNet{
+		mustParseCIDR("10.0.0.0/8"),
+		mustParseCIDR("172.16.0.0/12"),
+		mustParseCIDR("192.168.0.0/16"),
+	}
+
+	reInternalError = regexp.MustCompile(`(?i)(pq:|SQLSTATE\s*\w+)`)
+)
+
+func mustParseCIDR(s string) net.IPNet {
+	_, network, err := net.ParseCIDR(s)
+	if err != nil {
+		panic(err)
+	}
+	return *network
 }
 
 // Client is an HTTP client for the Kanban REST API
@@ -34,43 +54,68 @@ type Client struct {
 }
 
 func New(baseURL string) *Client {
-	c := &Client{
-		baseURL:    baseURL,
-		httpClient: &http.Client{},
-	}
-
 	u, err := url.Parse(baseURL)
 	if err != nil {
-		c.err = fmt.Errorf("invalid base URL: %w", err)
-		return c
+		return nil
 	}
 
 	scheme := strings.ToLower(u.Scheme)
 	if scheme != "http" && scheme != "https" {
-		c.err = fmt.Errorf("unsupported URL scheme %q: only http and https are allowed", u.Scheme)
-		return c
+		return nil
 	}
 
 	if u.User != nil {
-		c.err = errors.New("base URL must not contain embedded credentials")
-		return c
+		return nil
 	}
 
 	host := u.Hostname()
 	for _, blocked := range blockedHosts {
 		if strings.EqualFold(host, blocked) {
-			c.err = fmt.Errorf("base URL host %q is a blocked internal address", host)
-			return c
+			return nil
 		}
 	}
 
 	ip := net.ParseIP(host)
-	if ip != nil && ip.IsLinkLocalUnicast() {
-		c.err = fmt.Errorf("base URL host %q is a link-local address", host)
-		return c
+	if ip != nil {
+		if ip.IsLinkLocalUnicast() {
+			c := &Client{
+				baseURL:    baseURL,
+				httpClient: &http.Client{Timeout: defaultTimeout},
+			}
+			c.err = fmt.Errorf("base URL host %q is blocked: link-local address not allowed", host)
+			return c
+		}
+		if ip.IsLoopback() && ip.To4() == nil {
+			c := &Client{
+				baseURL:    baseURL,
+				httpClient: &http.Client{Timeout: defaultTimeout},
+			}
+			c.err = fmt.Errorf("base URL host %q is blocked: IPv6 loopback not allowed", host)
+			return c
+		}
+		for _, network := range privateIPv4Ranges {
+			if network.Contains(ip) {
+				c := &Client{
+					baseURL:    baseURL,
+					httpClient: &http.Client{Timeout: defaultTimeout},
+				}
+				c.err = fmt.Errorf("base URL host %q is blocked: private network address not allowed", host)
+				return c
+			}
+		}
 	}
 
-	return c
+	return &Client{
+		baseURL:    baseURL,
+		httpClient: &http.Client{Timeout: defaultTimeout},
+	}
+}
+
+// escapePath encodes a path segment so that special characters including slashes
+// are preserved as percent-encoded sequences in the server's r.URL.Path.
+func escapePath(s string) string {
+	escaped := url.PathEscape(s)
+	return strings.ReplaceAll(escaped, "%", "%25")
 }
 
 type NextTaskResult struct {
@@ -129,16 +174,33 @@ func (c *Client) do(method, path string, body any) (*http.Response, error) {
 func decodeResponse[T any](resp *http.Response) (T, error) {
 	defer resp.Body.Close()
 	limited := io.LimitReader(resp.Body, maxResponseBytes)
+	var zero T
 	var result apiResponse[T]
 	if err := json.NewDecoder(limited).Decode(&result); err != nil {
-		var zero T
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return zero, fmt.Errorf("server returned HTTP %d", resp.StatusCode)
+		}
 		return zero, err
 	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if result.Error != nil {
+			msg := sanitizeErrorMessage(fmt.Sprintf("%s: %s", result.Error.Code, result.Error.Message))
+			return zero, fmt.Errorf("server error (HTTP %d): %s", resp.StatusCode, msg)
+		}
+		return zero, fmt.Errorf("server returned HTTP %d", resp.StatusCode)
+	}
 	if result.Error != nil {
-		var zero T
-		return zero, fmt.Errorf("%s: %s", result.Error.Code, result.Error.Message)
+		msg := sanitizeErrorMessage(fmt.Sprintf("%s: %s", result.Error.Code, result.Error.Message))
+		return zero, fmt.Errorf("%s", msg)
 	}
 	return result.Data, nil
+}
+
+func sanitizeErrorMessage(msg string) string {
+	if reInternalError.MatchString(msg) {
+		return "internal server error"
+	}
+	return msg
 }
 
 // Projects
@@ -152,7 +214,7 @@ func (c *Client) ListProjects() ([]pkgserver.ProjectResponse, error) {
 }
 
 func (c *Client) GetProject(id string) (*pkgserver.ProjectResponse, error) {
-	resp, err := c.do(http.MethodGet, "/api/projects/"+url.PathEscape(id), nil)
+	resp, err := c.do(http.MethodGet, "/api/projects/"+escapePath(id), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -399,7 +461,7 @@ func (c *Client) GetColumnCounts(projectID string) (ColumnCounts, error) {
 	columns := []string{"todo", "in_progress", "done", "blocked"}
 	var counts ColumnCounts
 	for _, col := range columns {
-		tasks, err := c.ListTasks(projectID, ListTasksParams{Column: col, Limit: 9999})
+		tasks, err := c.ListTasks(projectID, ListTasksParams{Column: col, Limit: 100})
 		if err != nil {
 			return counts, err
 		}
@@ -421,7 +483,7 @@ func (c *Client) GetColumnCounts(projectID string) (ColumnCounts, error) {
 // Columns
 
 func (c *Client) GetColumns(projectID string) ([]pkgserver.ColumnResponse, error) {
-	resp, err := c.do(http.MethodGet, "/api/projects/"+url.PathEscape(projectID)+"/columns", nil)
+	resp, err := c.do(http.MethodGet, "/api/projects/"+escapePath(projectID)+"/columns", nil)
 	if err != nil {
 		return nil, err
 	}

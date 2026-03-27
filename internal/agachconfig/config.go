@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const maxWalkDepth = 100
+const maxWalkDepth = 5
 
 type Config struct {
 	BaseURL string `yaml:"base_url"`

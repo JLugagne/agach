@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -50,8 +51,8 @@ func main() {
 	}
 
 	jwtSecret := []byte(getEnv("AGACH_JWT_SECRET", ""))
-	if len(jwtSecret) < 32 {
-		logger.Fatal("AGACH_JWT_SECRET must be at least 32 bytes")
+	if len(jwtSecret) < 64 {
+		logger.Fatal("AGACH_JWT_SECRET must be at least 64 bytes")
 	}
 
 	dbURL := getEnv("DATABASE_URL", "")
@@ -165,14 +166,15 @@ type spaHandler struct {
 }
 
 func (h *spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/")
-	if path == "" {
-		path = "index.html"
+	urlPath := path.Clean("/" + strings.TrimPrefix(r.URL.Path, "/"))
+	filePath := strings.TrimPrefix(urlPath, "/")
+	if filePath == "" || filePath == "." {
+		filePath = "index.html"
 	}
 
 	// Check if file exists in embedded FS
-	if _, err := fs.Stat(h.fs, path); err == nil {
-		ext := filepath.Ext(path)
+	if _, err := fs.Stat(h.fs, filePath); err == nil {
+		ext := filepath.Ext(filePath)
 		switch ext {
 		case ".js":
 			w.Header().Set("Content-Type", "application/javascript")

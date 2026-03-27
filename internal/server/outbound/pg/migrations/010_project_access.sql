@@ -19,3 +19,6 @@ CREATE TABLE IF NOT EXISTS project_team_access (
 
 CREATE INDEX IF NOT EXISTS idx_project_user_access_user ON project_user_access(user_id);
 CREATE INDEX IF NOT EXISTS idx_project_team_access_team ON project_team_access(team_id);
+
+ALTER TABLE project_user_access ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_team_access ENABLE ROW LEVEL SECURITY;

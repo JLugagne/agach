@@ -2,6 +2,7 @@ package pg
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/JLugagne/agach-mcp/internal/server/domain"
@@ -31,22 +32,34 @@ func (r *projectAccessRepository) RevokeUser(ctx context.Context, projectID doma
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
 
-	_, err := r.pool.Exec(ctx,
+	tag, err := r.pool.Exec(ctx,
 		`DELETE FROM project_user_access WHERE project_id = $1 AND user_id = $2`,
 		string(projectID), userID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("user access grant not found for project")
+	}
+	return nil
 }
 
 func (r *projectAccessRepository) UpdateUserRole(ctx context.Context, projectID domain.ProjectID, userID, role string) error {
 	ctx, cancel := r.ctx(ctx)
 	defer cancel()
 
-	_, err := r.pool.Exec(ctx,
+	tag, err := r.pool.Exec(ctx,
 		`UPDATE project_user_access SET role = $1 WHERE project_id = $2 AND user_id = $3`,
 		role, string(projectID), userID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("user role grant not found for project")
+	}
+	return nil
 }
 
 func (r *projectAccessRepository) GrantTeam(ctx context.Context, projectID domain.ProjectID, teamID string) error {
