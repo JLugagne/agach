@@ -52,7 +52,7 @@ func loadConfig(configPath string) (*serverConfig, error) {
 	}
 
 	if info.Mode().Perm()&0o077 != 0 {
-		return nil, fmt.Errorf("config file %q has unsafe permissions %04o; must be 0600 (owner-only)", configPath, info.Mode().Perm())
+		fmt.Fprintf(os.Stderr, "WARNING: config file %q has permissions %04o; recommended 0600 (owner-only)\n", configPath, info.Mode().Perm())
 	}
 
 	data, err := os.ReadFile(configPath)

@@ -1,4 +1,4 @@
-.PHONY: generate build build-server build-daemon build-sidecar run dev test clean docker docker_build
+.PHONY: generate build build-server build-daemon build-sidecar run dev test clean docker docker_build run-playwright
 
 GO_TAGS := sqlite_fts5
 
@@ -35,3 +35,7 @@ docker:
 
 docker_build:
 	docker build -f Dockerfile.local --output type=local,dest=. .
+
+run-playwright:
+	docker compose -f docker-compose.playwright.yml up --build --abort-on-container-exit --exit-code-from playwright; \
+	docker compose -f docker-compose.playwright.yml down -v
